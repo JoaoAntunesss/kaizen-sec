@@ -219,3 +219,25 @@ input[type=text],input[type=date],input[type=number],select,textarea{border:1px 
 .tarefa-row{display:flex;flex-wrap:wrap;gap:8px 14px;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--line)}
 .tr-main{display:flex;flex-direction:column;gap:5px;min-width:0;flex:1 1 220px}
 .tr-main b{overflow-wrap:anywhere}
+
+/* ---------- PC e telemóvel ---------- */
+.topbar{padding-left:max(16px,calc((100% - 1200px)/2 + 16px));padding-right:max(16px,calc((100% - 1200px)/2 + 16px))}
+.dash{display:grid;grid-template-columns:minmax(0,1fr);gap:16px}
+.dash-main,.dash-side{display:flex;flex-direction:column;gap:16px;min-width:0}
+@media (min-width:1000px){
+  .dash{grid-template-columns:minmax(0,1.25fr) minmax(0,1fr);align-items:start}
+  .dash-side{position:sticky;top:84px}
+}
+.mapa th:first-child,.mapa td:first-child{width:64px}
+.desk{display:none}
+@media (min-width:760px){
+  .desk:not([hidden]){display:inline-flex}
+  .fab{display:none!important}
+  body{padding-bottom:32px}
+}
+/* estado dentro dos post-its: 2 × 2, para caber em colunas estreitas */
+.card .estado{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));width:100%}
+.card .estado button{border-left:0!important;border-top:1px solid var(--line)}
+.card .estado button:nth-child(odd){border-right:1px solid var(--line)}
+.card .estado button:nth-child(-n+2){border-top:0}
+@media (max-width:520px){.card .estado{grid-template-columns:repeat(4,minmax(0,1fr))}.card .estado button{border-top:0;border-right:1px solid var(--line)}.card .estado button:last-child{border-right:0}}

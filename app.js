@@ -26,6 +26,7 @@ const VISTAS = ["vLogin", "vConfig", "vPainel", "vReuniao", "vRegistar", "vImpri
 function mostrar(v) {
   for (const id of VISTAS) $(id).hidden = id !== v;
   $("fab").hidden = v !== "vPainel";
+  $("btnNovaTop").hidden = v !== "vPainel";
   $("btnSair").hidden = !est.user;
   if (v !== "vRegistar") pararCamera();
   window.scrollTo(0, 0);
@@ -267,6 +268,7 @@ function abrirRegisto(r) {
   mostrar("vRegistar");
 }
 $("fab").addEventListener("click", () => abrirRegisto(null));
+$("btnNovaTop").addEventListener("click", () => abrirRegisto(null));
 $("btnEditar").addEventListener("click", () => { const r = reuniaoAberta(); if (r) abrirRegisto(r); });
 $("btnVoltar").addEventListener("click", () => (est.editId ? abrirReuniao(est.editId) : mostrar("vPainel")));
 $("fData").addEventListener("change", () => { if (!est.editId) $("fSemana").value = semanaISO($("fData").value); });

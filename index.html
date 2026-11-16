@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#1F4E79">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Kaizen">
+<title>Kaizen — Secretaria</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<header class="topbar">
+  <div class="brand">
+    <div class="logos"><img src="icons/logo-matosinhos.png" alt="Câmara Municipal de Matosinhos"><img src="icons/logo-kaizen.png" alt="Kaizen Institute"></div>
+    <div class="ttl"><strong>Quadro Kaizen</strong><span>S.O. Conservação — Secretaria</span></div>
+  </div>
+  <div class="top-actions">
+    <button class="btn small" id="btnInstalar" type="button" hidden>Instalar app</button>
+    <button class="btn small ghost" id="btnSair" type="button" hidden>Sair</button>
+  </div>
+</header>
+
+<div class="install-ios" id="iosHint" hidden>
+  Para instalar no iPhone: toque em <strong>Partilhar</strong> e depois em <strong>Adicionar ao ecrã principal</strong>.
+  <button class="btn small ghost" type="button" id="iosFechar">OK</button>
+</div>
+
+<main class="wrap">
+  <!-- Entrar -->
+  <section id="vLogin" class="view" hidden>
+    <div class="panel center">
+      <h1>Entrar</h1>
+      <p class="muted">Entre com a sua conta Google para ver e registar as reuniões da equipa.</p>
+      <button class="btn primary big" id="btnLogin" type="button">Entrar com Google</button>
+      <p class="status" id="loginStatus"></p>
+    </div>
+  </section>
+
+  <!-- Configuração em falta -->
+  <section id="vConfig" class="view" hidden>
+    <div class="panel">
+      <h1>Falta configurar o Firebase</h1>
+      <p class="muted">Preencha <code>FIREBASE_CONFIG</code> em <code>config.js</code> com a configuração da app Web do Firebase e publique outra vez.</p>
+    </div>
+  </section>
+
+  <!-- Painel -->
+  <section id="vPainel" class="view" hidden>
+    <div class="tiles">
+      <div class="tile"><span class="n" id="tAbertas">–</span><span class="l">Por fechar</span></div>
+      <div class="tile late"><span class="n" id="tAtraso">–</span><span class="l">Em atraso</span></div>
+      <div class="tile ok"><span class="n" id="tFeitas">–</span><span class="l">Concluídas</span></div>
+      <div class="tile"><span class="n" id="tReunioes">–</span><span class="l">Reuniões</span></div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-head">
+        <h2 id="boardTitle">Quadro da reunião</h2>
+        <div class="row-actions">
+          <button class="btn small" id="btnEditar" type="button" hidden>Editar</button>
+          <button class="btn small danger" id="btnApagar" type="button" hidden>Apagar</button>
+        </div>
+      </div>
+      <div id="confirmBox" hidden></div>
+      <div class="board" id="board"></div>
+      <div id="extra"></div>
+    </div>
+
+    <div class="two">
+      <div class="panel">
+        <div class="panel-head"><h2>Por responsável</h2></div>
+        <div class="scroll"><table id="respTable"><thead><tr><th>Responsável</th><th class="num">Abertas</th><th class="num">Atraso</th><th class="num">Feitas</th></tr></thead><tbody></tbody></table></div>
+      </div>
+      <div class="panel">
+        <div class="panel-head"><h2>Histórico</h2><span class="sub">toque numa reunião para a ver</span></div>
+        <div class="legend" id="legend"></div>
+        <div class="scroll"><table id="histTable"><thead><tr><th>Data</th><th>Sem.</th><th class="num">Tarefas</th><th>Distribuição</th></tr></thead><tbody></tbody></table></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Registar -->
+  <section id="vRegistar" class="view" hidden>
+    <div class="panel">
+      <div class="panel-head"><h2 id="regTitle">Registar reunião</h2><button class="btn small ghost" id="btnVoltar" type="button">Voltar</button></div>
+      <div class="fields">
+        <label class="f" for="fData">Data da reunião<input type="date" id="fData"></label>
+        <label class="f" for="fSemana">Semana n.º<input type="number" id="fSemana" min="1" max="53" inputmode="numeric"></label>
+      </div>
+
+      <div class="cam" id="camBox">
+        <video id="video" playsinline muted autoplay></video>
+        <div class="frame" aria-hidden="true"><span>Enquadre o quadro inteiro dentro da moldura</span></div>
+        <img id="shot" alt="Foto tirada do quadro" hidden>
+      </div>
+      <div class="cam-actions">
+        <button class="btn primary big" id="btnCamera" type="button">Abrir câmara</button>
+        <button class="btn primary big" id="btnTirar" type="button" hidden>Tirar foto</button>
+        <button class="btn" id="btnRepetir" type="button" hidden>Repetir foto</button>
+        <label class="btn" for="fGaleria">Escolher da galeria</label>
+        <input type="file" id="fGaleria" accept="image/*" class="vh">
+      </div>
+      <p class="status" id="readStatus"></p>
+
+      <div class="panel-head"><h2 class="h3">Tarefas</h2><span class="sub">Confirme e corrija antes de guardar.</span></div>
+      <div id="rows"></div>
+      <button class="btn small" id="btnAddRow" type="button">+ Acrescentar tarefa</button>
+
+      <label class="f" for="fNotas">Notas da reunião (opcional)<textarea id="fNotas" rows="3"></textarea></label>
+      <div class="actions">
+        <span class="status" id="saveStatus"></span>
+        <button class="btn primary big" id="btnGuardar" type="button">Guardar reunião</button>
+      </div>
+    </div>
+  </section>
+</main>
+
+<button class="fab" id="fab" type="button" hidden aria-label="Registar reunião">
+  <svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg>
+  <span>Registar reunião</span>
+</button>
+
+<script type="module" src="app.js"></script>
+</body>
+</html>

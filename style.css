@@ -163,7 +163,11 @@ input[type=text],input[type=date],input[type=number],select,textarea{border:1px 
   body.p-a4{page:a4} body.p-a3{page:a3}
   .sheet.a4{height:297mm;min-height:0;overflow:hidden} .sheet.a3{height:296mm;min-height:0;overflow:hidden}
   .sh-col{min-height:0;height:218mm}
-  .topbar,.install-ios,.fab,.no-print,#vLogin,#vConfig,#vPainel,#vRegistar,#vReuniao{display:none!important}
+  .topbar,.install-ios,.fab,.no-print,#vLogin,#vConfig,#vPainel,#vRegistar,#vReuniao,#vEquipa{display:none!important}
+  body.p-rel #vImprimir{display:none!important}
+  body.p-a4 #vRelatorio,body.p-a3 #vRelatorio,body.p-pres #vRelatorio{display:none!important}
+  body.p-rel{page:a4}
+  .sheet.rel{height:auto!important;min-height:0;overflow:visible!important}
   .wrap,.view{padding:0;max-width:none;gap:0;display:block}
   .sheets{gap:0;display:block}
   .sheet-wrap{overflow:visible;display:block}
@@ -252,3 +256,19 @@ input[type=text],input[type=date],input[type=number],select,textarea{border:1px 
 .cv.tall{height:280px}
 .chart-card details summary{font-size:13px}
 .legend .sw{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:6px;vertical-align:-1px}
+
+/* ---------- Barra de ferramentas, equipa, relatório ---------- */
+.toolbar{display:flex;flex-wrap:wrap;gap:8px;justify-content:flex-end}
+.eq-row{display:grid;grid-template-columns:140px minmax(0,1fr) auto;gap:8px;align-items:center;padding:6px 0;border-bottom:1px solid var(--line)}
+.eq-head{font-size:12px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);font-weight:700}
+.eq-new{border-bottom:0;padding-top:12px}
+.eq-acts{display:flex;gap:6px}
+@media (max-width:520px){.eq-row{grid-template-columns:90px minmax(0,1fr)}.eq-acts,.eq-new .btn{grid-column:1/-1;justify-self:end}.eq-head span:last-child{display:none}}
+.rel-kpis{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:3mm;margin:2mm 0 5mm}
+.rk{border:.3mm solid #c9cfd6;border-radius:2mm;padding:3mm;display:flex;flex-direction:column;gap:1mm}
+.rk b{font-size:18pt;color:#1F4E79;line-height:1}
+.rk span{font-size:8.5pt;color:#444}
+.rel-h{font-size:12pt;margin:6mm 0 2mm;color:#1a1a1a}
+.sheet.rel .sh-table td{height:auto;padding:1.6mm 2mm;font-size:9.5pt}
+.rel-pres th,.rel-pres td{font-size:8.5pt!important;padding:1.4mm 1.2mm!important}
+@media print{ .sheet.rel tr{break-inside:avoid} }

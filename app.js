@@ -1,4 +1,7 @@
-import { GROQ_API_KEY, FIREBASE_CONFIG, COL_REUNIOES, COL_FOTOS, EQUIPA } from "./config.js";
+import { GROQ_API_KEY, FIREBASE_CONFIG, COL_REUNIOES, COL_FOTOS, EQUIPA as EQUIPA_INICIAL } from "./config.js";
+const COL_EQUIPA = "kaizen_equipa";
+// Equipa: vem da base de dados (editável na app); enquanto não houver, usa a lista do config.js
+let EQUIPA = EQUIPA_INICIAL.map((p) => ({ ...p }));
 
 const FB = "https://www.gstatic.com/firebasejs/10.12.2/";
 const COLS = ["A fazer", "Em curso", "Pendente", "Concluído"];
@@ -22,7 +25,7 @@ const temFotoDe = (r, k) => !!((r.fotos && r.fotos[k]) || (k === "postits" && r.
 let fb = null;
 
 /* ---------------- Vistas ---------------- */
-const VISTAS = ["vLogin", "vConfig", "vPainel", "vReuniao", "vRegistar", "vImprimir"];
+const VISTAS = ["vLogin", "vConfig", "vPainel", "vReuniao", "vRegistar", "vImprimir", "vEquipa", "vRelatorio"];
 function mostrar(v) {
   for (const id of VISTAS) $(id).hidden = id !== v;
   $("fab").hidden = v !== "vPainel";
@@ -84,6 +87,14 @@ let pararSub = null;
 function subscrever() {
   if (pararSub) return;
   const { D, db } = fb;
+  D.onValue(D.ref(db, COL_EQUIPA), (snap) => {
+    const v = snap.val();
+    if (v) EQUIPA = Object.entries(v).filter(([, p]) => p && p.ativo !== false).map(([mec, p]) => ({ mec, nome: p.nome || "", ordem: p.ordem ?? 999 }))
+      .sort((a, b) => a.ordem - b.ordem || a.nome.localeCompare(b.nome, "pt"));
+    est.equipaBD = v || null;
+    desenharPainel();
+    if (!$("vEquipa").hidden) desenharEquipa();
+  }, () => {});
   pararSub = D.onValue(D.ref(db, COL_REUNIOES), (snap) => {
     const v = snap.val() || {};
     est.reunioes = Object.keys(v).map((id) => ({ id, ...v[id], tarefas: Object.entries(v[id].tarefas || {}).map(([k, t]) => ({ ...t, _k: k })), presencas: v[id].presencas || {} }))
@@ -541,6 +552,116 @@ function juntarNotas(texto, titulo) {
 for (const [id, tipo] of [["fPresFoto", "presencas"], ["fAcoesFoto", "acoes"], ["fNotasFoto", "notas"]]) {
   $(id).addEventListener("change", (e) => { const f = e.target.files && e.target.files[0]; if (f) lerFolha(tipo, f); e.target.value = ""; });
 }
+
+/* ---------------- Equipa (editável) ---------------- */
+function desenharEquipa() {
+  const lista = EQUIPA.map((p, i) => `<div class="eq-row" data-i="${i}">
+    <input type="text" inputmode="numeric" id="eqM${i}" aria-label="N.º mecanográfico" value="${esc(p.mec)}">
+    <input type="text" id="eqN${i}" aria-label="Nome" value="${esc(p.nome)}">
+    <div class="eq-acts"><button class="btn small ghost" type="button" data-up="${i}" aria-label="Subir ${esc(p.nome)}"${i ? "" : " disabled"}>↑</button><button class="btn small danger" type="button" data-rm="${i}" aria-label="Retirar ${esc(p.nome)} da equipa">Retirar</button></div></div>`).join("");
+  $("eqLista").innerHTML = lista || `<p class="empty">Sem pessoas na equipa.</p>`;
+}
+function lerEquipaForm() {
+  return EQUIPA.map((p, i) => ({ mec: ($("eqM" + i)?.value ?? p.mec).trim(), nome: ($("eqN" + i)?.value ?? p.nome).trim() }));
+}
+$("btnEquipa").addEventListener("click", () => { $("eqStatus").textContent = ""; desenharEquipa(); mostrar("vEquipa"); });
+$("btnVoltarEq").addEventListener("click", () => mostrar("vPainel"));
+$("eqLista").addEventListener("click", (e) => {
+  const up = e.target.closest("[data-up]"), rm = e.target.closest("[data-rm]");
+  if (!up && !rm) return;
+  const l = lerEquipaForm();
+  if (up) { const i = +up.dataset.up; [l[i - 1], l[i]] = [l[i], l[i - 1]]; }
+  if (rm) l.splice(+rm.dataset.rm, 1);
+  EQUIPA = l; desenharEquipa();
+  $("eqStatus").textContent = "Alterações por guardar."; $("eqStatus").className = "status";
+});
+$("btnEqAdd").addEventListener("click", () => {
+  const mec = $("eqNovoMec").value.trim(), nome = $("eqNovoNome").value.trim();
+  if (!mec || !nome) { $("eqStatus").textContent = "Escreva o n.º mecanográfico e o nome."; $("eqStatus").className = "status err"; return; }
+  EQUIPA = lerEquipaForm(); 
+  if (EQUIPA.some((p) => p.mec === mec)) { $("eqStatus").textContent = "Já existe alguém com esse número."; $("eqStatus").className = "status err"; return; }
+  EQUIPA.push({ mec, nome }); $("eqNovoMec").value = ""; $("eqNovoNome").value = "";
+  desenharEquipa(); $("eqStatus").textContent = "Alterações por guardar."; $("eqStatus").className = "status";
+});
+$("btnEqGuardar").addEventListener("click", async () => {
+  const l = lerEquipaForm();
+  const st = $("eqStatus");
+  if (l.some((p) => !p.mec || !p.nome)) { st.textContent = "Há linhas sem número ou sem nome."; st.className = "status err"; return; }
+  if (new Set(l.map((p) => p.mec)).size !== l.length) { st.textContent = "Há números mecanográficos repetidos."; st.className = "status err"; return; }
+  if (l.some((p) => !/^[A-Za-z0-9_-]{1,20}$/.test(p.mec))) { st.textContent = "O n.º mecanográfico só pode ter letras e números."; st.className = "status err"; return; }
+  // Quem sai da equipa fica marcado como inativo (o histórico de presenças mantém-se)
+  const novo = {};
+  Object.entries(est.equipaBD || {}).forEach(([mec, p]) => { novo[mec] = { ...p, ativo: false }; });
+  EQUIPA_INICIAL.forEach((p) => { if (!novo[p.mec]) novo[p.mec] = { nome: p.nome, ativo: false, ordem: 999 }; });
+  l.forEach((p, i) => { novo[p.mec] = { nome: p.nome, ativo: true, ordem: i }; });
+  try {
+    st.textContent = "A guardar…"; st.className = "status";
+    await fb.D.set(fb.D.ref(fb.db, COL_EQUIPA), novo);
+    st.textContent = "Equipa guardada."; 
+  } catch { st.textContent = "Não consegui guardar. Verifique a internet."; st.className = "status err"; }
+});
+
+/* ---------------- Exportar: Excel e relatório PDF ---------------- */
+function reunioesDoPeriodo() {
+  const per = $("fPeriodo").value;
+  if (per === "tudo") return est.reunioes;
+  const d = new Date(), ini = per === "mes" ? new Date(d.getFullYear(), d.getMonth(), 1) : per === "mesant" ? new Date(d.getFullYear(), d.getMonth() - 1, 1) : new Date(d.getFullYear(), 0, 1);
+  const fim = per === "mesant" ? new Date(d.getFullYear(), d.getMonth(), 0) : new Date(2999, 0, 1);
+  const iso = (x) => `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, "0")}-${String(x.getDate()).padStart(2, "0")}`;
+  return est.reunioes.filter((r) => r.data >= iso(ini) && r.data <= iso(fim));
+}
+const nomePeriodo = () => $("fPeriodo").selectedOptions[0].textContent;
+$("btnExportar").addEventListener("click", () => { $("expStatus").textContent = ""; mostrar("vRelatorio"); desenharRelatorio(); });
+$("btnVoltarRel").addEventListener("click", () => mostrar("vPainel"));
+$("fPeriodo").addEventListener("change", desenharRelatorio);
+
+function desenharRelatorio() {
+  const rs = reunioesDoPeriodo(), ref = hoje();
+  const todas = rs.flatMap((r) => r.tarefas.map((t) => ({ ...t, reuniao: r.data })));
+  const ult = rs[0];
+  const abertas = ult ? ult.tarefas.filter((t) => t.coluna !== "Concluído") : [];
+  const comPres = rs.filter(marcada);
+  const media = comPres.length ? Math.round((comPres.reduce((s, r) => s + contaPres(r), 0) / (comPres.length * EQUIPA.length)) * 100) : null;
+  const CAB = `<div class="sh-head"><img src="icons/logo-matosinhos.png" alt="Câmara Municipal de Matosinhos"><div class="sh-title"><b>Relatório Kaizen</b><span>Subunidade Orgânica da Conservação — Secretaria</span></div><img src="icons/logo-kaizen.png" alt="Kaizen Institute"></div>`;
+  const kpi = (n, l) => `<div class="rk"><b>${n}</b><span>${l}</span></div>`;
+  const ordRs = [...rs].reverse();
+  $("folhaRel").innerHTML = CAB +
+    `<div class="sh-meta"><span>Período: <b>${esc(nomePeriodo())}</b></span><span>Reuniões: <b>${rs.length}</b></span><span>Gerado a <b>${esc(fmt(ref))}</b></span></div>` +
+    `<div class="rel-kpis">${kpi(rs.length, "Reuniões")}${kpi(media == null ? "–" : media + "%", "Presença média")}${kpi(todas.filter((t) => t.coluna === "Concluído").length, "Tarefas concluídas (registos)")}${kpi(abertas.length, "Por fechar na última reunião")}${kpi(abertas.filter((t) => emAtraso(t, ref)).length, "Em atraso")}</div>` +
+    `<h3 class="rel-h">Reuniões</h3><table class="sh-table"><thead><tr><th>Data</th><th class="c">Semana</th><th class="c">Presentes</th>${COLS.map((c) => `<th class="c">${esc(c)}</th>`).join("")}</tr></thead><tbody>${
+      rs.map((r) => `<tr><td>${esc(fmt(r.data))}</td><td class="c">${esc(r.semana ?? "")}</td><td class="c">${marcada(r) ? `${contaPres(r)}/${EQUIPA.length}` : "—"}</td>${COLS.map((c, i) => `<td class="c">${r.tarefas.filter((t) => colIdx(t.coluna) === i).length}</td>`).join("")}</tr>`).join("") || `<tr><td colspan="7">Sem reuniões neste período.</td></tr>`
+    }</tbody></table>` +
+    `<h3 class="rel-h">Tarefas por fechar${ult ? ` (reunião de ${esc(fmt(ult.data))})` : ""}</h3><table class="sh-table"><thead><tr><th>O que fazer</th><th>Responsável</th><th>Prazo</th><th>Estado</th></tr></thead><tbody>${
+      abertas.map((t) => `<tr><td>${esc(t.tarefa)}</td><td>${esc(t.responsavel)}</td><td>${esc(fmt(t.prazo))}${emAtraso(t, ref) ? ' <span class="sh-tag late">atraso</span>' : ""}</td><td>${esc(t.coluna)}</td></tr>`).join("") || `<tr><td colspan="4">Nenhuma.</td></tr>`
+    }</tbody></table>` +
+    `<h3 class="rel-h">Presenças</h3><table class="sh-table rel-pres"><thead><tr><th>N.º</th><th>Nome</th>${ordRs.map((r) => `<th class="c">${esc(fmtCurto(r.data))}</th>`).join("")}<th class="c">Total</th></tr></thead><tbody>${
+      EQUIPA.map((p) => `<tr><td>${esc(p.mec)}</td><td>${esc(p.nome)}</td>${ordRs.map((r) => { const v = r.presencas[p.mec]; return `<td class="c">${v === "P" ? "✓" : esc(v || "")}</td>`; }).join("")}<td class="c"><b>${ordRs.filter((r) => r.presencas[p.mec] === "P").length}</b></td></tr>`).join("")
+    }</tbody></table>`;
+}
+$("btnPdf").addEventListener("click", () => {
+  document.body.classList.remove("p-a4", "p-a3", "p-pres"); document.body.classList.add("p-rel");
+  setTimeout(() => window.print(), 50);
+});
+window.addEventListener("afterprint", () => document.body.classList.remove("p-rel"));
+
+$("btnExcel").addEventListener("click", () => {
+  const st = $("expStatus");
+  if (!window.XLSX) { st.textContent = "Não consegui carregar o gerador de Excel. Verifique a internet."; st.className = "status err"; return; }
+  const rs = [...reunioesDoPeriodo()].reverse(), ref = hoje();
+  const wb = XLSX.utils.book_new();
+  const folha = (linhas, larguras) => { const ws = XLSX.utils.aoa_to_sheet(linhas); ws["!cols"] = larguras.map((w) => ({ wch: w })); ws["!autofilter"] = { ref: XLSX.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: Math.max(0, linhas.length - 1), c: linhas[0].length - 1 } }) }; return ws; };
+  XLSX.utils.book_append_sheet(wb, folha([["Data", "Semana", "Presentes", "Equipa", ...COLS, "Em atraso", "Apontamentos", "Convidados", "Registada por"],
+    ...rs.map((r) => [fmt(r.data), r.semana ?? "", marcada(r) ? contaPres(r) : "", EQUIPA.length, ...COLS.map((c, i) => r.tarefas.filter((t) => colIdx(t.coluna) === i).length), r.tarefas.filter((t) => emAtraso(t, ref)).length, r.notas || "", r.convidados || "", r.criadoPor || ""])],
+    [12, 8, 10, 8, 9, 9, 9, 10, 10, 60, 30, 28]), "Reuniões");
+  XLSX.utils.book_append_sheet(wb, folha([["Reunião", "Tarefa", "Responsável", "Prazo", "Estado", "Em atraso"],
+    ...rs.flatMap((r) => r.tarefas.map((t) => [fmt(r.data), t.tarefa, t.responsavel || "", fmt(t.prazo), t.coluna, emAtraso(t, ref) ? "Sim" : ""]))],
+    [12, 60, 20, 12, 12, 10]), "Tarefas");
+  XLSX.utils.book_append_sheet(wb, folha([["N.º mecanográfico", "Nome", ...rs.map((r) => fmt(r.data)), "Total presenças"],
+    ...EQUIPA.map((p) => [p.mec, p.nome, ...rs.map((r) => ({ P: "Presente", F: "Falta", J: "Justificada" }[r.presencas[p.mec]] || "")), rs.filter((r) => r.presencas[p.mec] === "P").length])],
+    [18, 24, ...rs.map(() => 12), 14]), "Presenças");
+  XLSX.writeFile(wb, `Kaizen_Secretaria_${$("fPeriodo").value}_${hoje()}.xlsx`);
+  st.textContent = "Ficheiro Excel descarregado."; st.className = "status";
+});
 
 /* ---------------- Guardar ---------------- */
 $("btnGuardar").addEventListener("click", async () => {

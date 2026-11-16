@@ -61,6 +61,11 @@
       <div class="tile"><span class="n" id="tReunioes">–</span><span class="l">Reuniões</span></div>
     </div>
 
+    <div class="toolbar">
+      <button class="btn small" id="btnExportar" type="button">Exportar (Excel / PDF)</button>
+      <button class="btn small" id="btnEquipa" type="button">Equipa</button>
+    </div>
+
     <div class="charts">
       <div class="panel chart-card"><div class="panel-head"><h2>Estado das tarefas por reunião</h2></div><div class="legend" id="lgEstados"></div><div class="cv"><canvas id="chEstados" role="img" aria-label="Tarefas por estado em cada reunião"></canvas></div><details><summary>Ver tabela</summary><div class="scroll" id="tbEstados"></div></details></div>
       <div class="panel chart-card"><div class="panel-head"><h2>Presença por reunião</h2><span class="sub">% da equipa presente</span></div><div class="cv"><canvas id="chPresReu" role="img" aria-label="Percentagem da equipa presente em cada reunião"></canvas></div><details><summary>Ver tabela</summary><div class="scroll" id="tbPresReu"></div></details></div>
@@ -165,6 +170,39 @@
     </div>
   </section>
 
+  <!-- Equipa -->
+  <section id="vEquipa" class="view" hidden>
+    <div class="panel">
+      <div class="panel-head"><h2>Equipa</h2><button class="btn small ghost" id="btnVoltarEq" type="button">Voltar</button></div>
+      <p class="muted">Quem aparece nas presenças e nos gráficos. Quem sai da equipa deixa de aparecer, mas o histórico das reuniões fica guardado.</p>
+      <div class="eq-row eq-head"><span>N.º mecanográfico</span><span>Nome</span><span></span></div>
+      <div id="eqLista"></div>
+      <div class="eq-row eq-new">
+        <input type="text" inputmode="numeric" id="eqNovoMec" aria-label="N.º mecanográfico da pessoa nova" placeholder="N.º">
+        <input type="text" id="eqNovoNome" aria-label="Nome da pessoa nova" placeholder="Nome (ex.: Ana Silva)">
+        <button class="btn small" id="btnEqAdd" type="button">+ Acrescentar</button>
+      </div>
+      <div class="actions"><span class="status" id="eqStatus"></span><button class="btn primary" id="btnEqGuardar" type="button">Guardar equipa</button></div>
+    </div>
+  </section>
+
+  <!-- Exportar -->
+  <section id="vRelatorio" class="view" hidden>
+    <div class="panel no-print">
+      <div class="panel-head"><h2>Exportar</h2><button class="btn small ghost" id="btnVoltarRel" type="button">Voltar</button></div>
+      <label class="f" for="fPeriodo" style="max-width:280px">Período
+        <select id="fPeriodo"><option value="mes">Este mês</option><option value="mesant">Mês passado</option><option value="ano" selected>Este ano</option><option value="tudo">Tudo</option></select>
+      </label>
+      <div class="cam-actions">
+        <button class="btn primary" id="btnExcel" type="button">Descarregar Excel</button>
+        <button class="btn primary" id="btnPdf" type="button">Relatório em PDF</button>
+      </div>
+      <p class="status" id="expStatus"></p>
+      <p class="muted">O Excel tem três folhas: Reuniões, Tarefas e Presenças. Para o PDF, escolha «Guardar como PDF» na janela de impressão.</p>
+    </div>
+    <div class="sheets"><div class="sheet-wrap"><div class="sheet a4 rel" id="folhaRel"></div></div></div>
+  </section>
+
   <!-- Imprimir -->
   <section id="vImprimir" class="view" hidden>
     <div class="panel no-print">
@@ -190,6 +228,7 @@
 </button>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js" defer></script>
 <script type="module" src="app.js"></script>
 </body>
 </html>

@@ -204,3 +204,18 @@ input[type=text],input[type=date],input[type=number],select,textarea{border:1px 
 .sheet-read{display:flex;flex-wrap:wrap;gap:8px 12px;align-items:center}
 .sheet-read .status{flex:1;min-width:200px}
 .foto-orig{margin-top:12px}
+
+/* Botões de estado das tarefas */
+.estado{display:inline-flex;flex-wrap:wrap;border:1px solid var(--line);border-radius:9px;overflow:hidden;background:var(--surface)}
+.estado button{border:0;background:transparent;padding:6px 10px;min-height:36px;font-size:13px;font-weight:600;color:var(--muted)}
+.estado button+button{border-left:1px solid var(--line)}
+.estado button[aria-pressed="true"]{color:#fff}
+.estado button.e0[aria-pressed="true"]{background:#1f4e79}
+.estado button.e1[aria-pressed="true"]{background:#3f7cb8}
+.estado button.e2[aria-pressed="true"]{background:#a8720f}
+.estado button.e3[aria-pressed="true"]{background:#2e7d4f}
+.card .estado{align-self:flex-start}
+.card .estado button{padding:5px 7px;font-size:12px;min-height:34px}
+.tarefa-row{display:flex;flex-wrap:wrap;gap:8px 14px;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--line)}
+.tr-main{display:flex;flex-direction:column;gap:5px;min-width:0;flex:1 1 220px}
+.tr-main b{overflow-wrap:anywhere}

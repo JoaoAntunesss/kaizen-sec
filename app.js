@@ -85,7 +85,7 @@ function subscrever() {
   const { D, db } = fb;
   pararSub = D.onValue(D.ref(db, COL_REUNIOES), (snap) => {
     const v = snap.val() || {};
-    est.reunioes = Object.keys(v).map((id) => ({ id, ...v[id], tarefas: Object.values(v[id].tarefas || {}), presencas: v[id].presencas || {} }))
+    est.reunioes = Object.keys(v).map((id) => ({ id, ...v[id], tarefas: Object.entries(v[id].tarefas || {}).map(([k, t]) => ({ ...t, _k: k })), presencas: v[id].presencas || {} }))
       .sort((a, b) => String(b.data || "").localeCompare(String(a.data || "")));
     desenharPainel();
     if (!$("vReuniao").hidden) { if (reuniaoAberta()) desenharReuniao(); else mostrar("vPainel"); }
@@ -108,6 +108,11 @@ function desenharPainel() {
   $("tPresenca").textContent = comPres.length ? Math.round((comPres.reduce((s, r) => s + contaPres(r), 0) / (comPres.length * EQUIPA.length)) * 100) + "%" : "–";
   $("tReunioes").textContent = est.reunioes.length;
 
+  // Tarefas por fechar da última reunião, com troca rápida de estado
+  const abertas = ult ? ult.tarefas.filter((t) => t.coluna !== "Concluído").sort((a, b) => (emAtraso(b, ref) - emAtraso(a, ref)) || String(a.prazo || "9").localeCompare(String(b.prazo || "9"))) : [];
+  $("tarefasSub").textContent = ult ? `da reunião de ${fmt(ult.data)}` : "";
+  $("tarefasLista").innerHTML = abertas.length ? abertas.map((t) => `<div class="tarefa-row"><div class="tr-main"><b>${esc(t.tarefa)}</b><div class="meta">${t.responsavel ? `<span class="chip">${esc(t.responsavel)}</span>` : ""}${t.prazo ? `<span class="chip ${emAtraso(t, ref) ? "late" : ""}">${emAtraso(t, ref) ? "Atrasada · " : "Até "}${esc(fmt(t.prazo))}</span>` : ""}</div></div>${botoesEstado(ult, t)}</div>`).join("") : `<p class="empty">${ult ? "Tudo concluído." : "Sem tarefas ainda."}</p>`;
+
   $("meetList").innerHTML = est.reunioes.length ? est.reunioes.map((r) => {
     const t = r.tarefas, ab = t.filter((x) => x.coluna !== "Concluído").length, at = t.filter((x) => emAtraso(x, ref)).length;
     return `<button class="meet" type="button" data-id="${esc(r.id)}">
@@ -124,6 +129,21 @@ function desenharPainel() {
   }<tr><td></td><td><b>Presentes</b></td>${rs.map((r) => `<td class="c"><b>${contaPres(r)}</b></td>`).join("")}<td></td></tr></tbody></table>` : `<p class="empty">As presenças aparecem aqui quando registar a primeira reunião.</p>`;
 }
 $("meetList").addEventListener("click", (e) => { const b = e.target.closest("[data-id]"); if (b) abrirReuniao(b.dataset.id); });
+
+/* ---------------- Mudar o estado de uma tarefa ---------------- */
+const CURTO = { "A fazer": "A fazer", "Em curso": "Em curso", "Pendente": "Pendente", "Concluído": "Feito" };
+const botoesEstado = (r, t) => `<div class="estado" role="group" aria-label="Estado da tarefa">${COLS.map((c, i) =>
+  `<button type="button" class="e${i}" data-r="${esc(r.id)}" data-k="${esc(t._k)}" data-col="${esc(c)}" aria-pressed="${t.coluna === c}">${esc(CURTO[c])}</button>`).join("")}</div>`;
+async function mudarEstado(rid, k, col, btn) {
+  const grupo = btn.closest(".estado");
+  grupo.querySelectorAll("button").forEach((b) => b.setAttribute("aria-pressed", String(b === btn)));
+  try { await fb.D.update(fb.D.ref(fb.db, `${COL_REUNIOES}/${rid}/tarefas/${k}`), { coluna: col, estadoPor: est.user.email || "", estadoEm: new Date().toISOString() }); }
+  catch { grupo.insertAdjacentHTML("afterend", `<p class="status err">Não consegui mudar o estado. Verifique a internet.</p>`); }
+}
+document.addEventListener("click", (e) => {
+  const b = e.target.closest(".estado button[data-k]");
+  if (b && b.getAttribute("aria-pressed") !== "true") mudarEstado(b.dataset.r, b.dataset.k, b.dataset.col, b);
+});
 
 /* ---------------- Uma reunião ---------------- */
 const reuniaoAberta = () => est.reunioes.find((r) => r.id === est.abertaId) || null;
@@ -145,7 +165,7 @@ function desenharReuniao() {
   $("board").innerHTML = COLS.map((c, ci) => {
     const l = ts.filter((t) => colIdx(t.coluna) === ci);
     return `<div class="col"><div class="col-h" style="border-bottom-color:${COL_CORES[ci]}"><span>${esc(c)}</span><span class="c">${l.length}</span></div><div class="col-b">${
-      l.length ? l.map((t) => { const at = emAtraso(t, ref); return `<div class="card"><div class="t">${esc(t.tarefa)}</div><div class="meta">${t.responsavel ? `<span class="chip">${esc(t.responsavel)}</span>` : `<span class="chip none">sem responsável</span>`}${t.prazo ? `<span class="chip ${at ? "late" : t.coluna === "Concluído" ? "ok" : ""}">${at ? "Atrasada · " : "Até "}${esc(fmt(t.prazo))}</span>` : ""}</div></div>`; }).join("") : `<div class="empty">Sem post-its</div>`
+      l.length ? l.map((t) => { const at = emAtraso(t, ref); return `<div class="card"><div class="t">${esc(t.tarefa)}</div><div class="meta">${t.responsavel ? `<span class="chip">${esc(t.responsavel)}</span>` : `<span class="chip none">sem responsável</span>`}${t.prazo ? `<span class="chip ${at ? "late" : t.coluna === "Concluído" ? "ok" : ""}">${at ? "Atrasada · " : "Até "}${esc(fmt(t.prazo))}</span>` : ""}</div>${botoesEstado(r, t)}</div>`; }).join("") : `<div class="empty">Sem post-its</div>`
     }</div></div>`;
   }).join("");
   $("fotoPostits").innerHTML = blocoFoto(r, "postits");
@@ -153,7 +173,7 @@ function desenharReuniao() {
   // Folha de ações
   const ord = [...ts].sort((a, b) => colIdx(a.coluna) - colIdx(b.coluna));
   $("pAcoes").innerHTML = ord.length ? `<div class="scroll"><table><thead><tr><th class="num">N.º</th><th>O que fazer</th><th>Responsável</th><th>Prazo</th><th>Estado</th></tr></thead><tbody>${
-    ord.map((t, i) => `<tr><td class="num">${i + 1}</td><td>${esc(t.tarefa)}</td><td>${esc(t.responsavel)}</td><td>${esc(fmt(t.prazo))}${emAtraso(t, ref) ? ' <span class="chip late">atraso</span>' : ""}</td><td><span class="chip ${t.coluna === "Concluído" ? "ok" : ""}">${esc(t.coluna)}</span></td></tr>`).join("")
+    ord.map((t, i) => `<tr><td class="num">${i + 1}</td><td>${esc(t.tarefa)}</td><td>${esc(t.responsavel)}</td><td>${esc(fmt(t.prazo))}${emAtraso(t, ref) ? ' <span class="chip late">atraso</span>' : ""}</td><td>${botoesEstado(r, t)}</td></tr>`).join("")
   }</tbody></table></div>` : `<p class="empty">Sem tarefas registadas.</p>`;
   $("pAcoes").innerHTML += blocoFoto(r, "acoes");
 
@@ -165,7 +185,7 @@ document.querySelectorAll(".tab").forEach((b) => b.addEventListener("click", () 
 $("btnVoltar3").addEventListener("click", () => mostrar("vPainel"));
 
 function blocoFoto(r, k) {
-  return temFotoDe(r, k) ? `<details data-foto="${k}" class="foto-orig"><summary>Ver a foto original da ${esc(TIPOS_FOTO[k])}</summary><div class="fbox status">A carregar…</div></details>` : "";
+  return temFotoDe(r, k) ? `<details data-foto="${k}" class="foto-orig"><summary>Ver a foto original ${k === "postits" ? "do" : "da"} ${esc(TIPOS_FOTO[k])}</summary><div class="fbox status">A carregar…</div></details>` : "";
 }
 async function carregarFoto(id, k, box) {
   if (!box) return;
@@ -276,7 +296,7 @@ function desenharLinhas() {
     `<datalist id="nomesEquipa">${EQUIPA.map((p) => `<option value="${esc(p.nome.split(" ")[0])}"></option>`).join("")}</datalist>`;
 }
 function lerLinhas() {
-  est.linhas = est.linhas.map((t, i) => ({ coluna: $("c" + i)?.value ?? t.coluna, tarefa: ($("t" + i)?.value ?? t.tarefa).trim(), responsavel: ($("r" + i)?.value ?? t.responsavel).trim(), prazo: $("p" + i)?.value ?? t.prazo }));
+  est.linhas = est.linhas.map((t, i) => ({ ...t, coluna: $("c" + i)?.value ?? t.coluna, tarefa: ($("t" + i)?.value ?? t.tarefa).trim(), responsavel: ($("r" + i)?.value ?? t.responsavel).trim(), prazo: $("p" + i)?.value ?? t.prazo }));
 }
 $("rows").addEventListener("click", (e) => { const b = e.target.closest("[data-del]"); if (b) { lerLinhas(); est.linhas.splice(+b.dataset.del, 1); desenharLinhas(); } });
 $("btnAddRow").addEventListener("click", () => { lerLinhas(); est.linhas.push({ coluna: "A fazer", tarefa: "", responsavel: "", prazo: "" }); desenharLinhas(); $("t" + (est.linhas.length - 1))?.focus(); });
@@ -461,7 +481,7 @@ $("btnGuardar").addEventListener("click", async () => {
     await D.set(ref, {
       data, semana: $("fSemana").value ? Number($("fSemana").value) : null,
       presencas: est.pres, convidados: $("fConvidados").value.trim(),
-      tarefas: est.linhas.filter((t) => t.tarefa), notas: $("fNotas").value.trim(),
+      tarefas: est.linhas.filter((t) => t.tarefa).map(({ _k, ...t }) => t), notas: $("fNotas").value.trim(),
       temFoto: !!est.fotos.postits || !!(ant && ant.temFoto),
       fotos: Object.fromEntries(Object.keys(TIPOS_FOTO).map((k) => [k, !!est.fotos[k] || !!(ant && temFotoDe(ant, k))])),
       criadoPor: ant?.criadoPor || est.user.email || "", criadoEm: ant?.criadoEm || agora,

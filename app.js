@@ -644,24 +644,81 @@ $("btnPdf").addEventListener("click", () => {
 });
 window.addEventListener("afterprint", () => document.body.classList.remove("p-rel"));
 
-$("btnExcel").addEventListener("click", () => {
+/* Excel: preenche o modelo-kaizen.xlsx (tabelas + painel com gráficos ligados) */
+const xe = (v) => String(v ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c])).replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, "");
+const serial = (iso) => (Date.UTC(+iso.slice(0, 4), +iso.slice(5, 7) - 1, +iso.slice(8, 10)) - Date.UTC(1899, 11, 30)) / 864e5;
+const letra = (i) => String.fromCharCode(65 + i);
+function celula(ref, v, s) {
+  const st = s ? ` s="${s}"` : "";
+  if (v === null || v === undefined || v === "") return `<c r="${ref}"${st}/>`;
+  if (typeof v === "object") return isoData(v.d) ? `<c r="${ref}"${st}><v>${serial(v.d)}</v></c>` : `<c r="${ref}"${st}/>`;
+  if (typeof v === "number" && isFinite(v)) return `<c r="${ref}"${st}><v>${v}</v></c>`;
+  return `<c r="${ref}"${st} t="inlineStr"><is><t xml:space="preserve">${xe(v)}</t></is></c>`;
+}
+function preencherFolha(xml, linhas) {
+  // estilos de cada coluna tirados da linha de exemplo (linha 2) do modelo
+  const ex = (xml.match(/<row r="2"[^>]*>([\s\S]*?)<\/row>/) || [])[1] || "";
+  const estilos = {};
+  ex.replace(/<c r="([A-Z]+)2"(?:[^>]*?s="(\d+)")?/g, (m, col, st) => { estilos[col] = st; return m; });
+  const n = Math.max(1, linhas.length);
+  const rows = (linhas.length ? linhas : [[]]).map((l, i) => `<row r="${i + 2}">${l.map((v, j) => celula(letra(j) + (i + 2), v, estilos[letra(j)])).join("")}</row>`).join("");
+  return { xml: xml.replace(/<row r="2"[^>]*>[\s\S]*?<\/row>/, rows).replace(/<dimension ref="A1:([A-Z]+)\d+"\/>/, (m, c) => `<dimension ref="A1:${c}${n + 1}"/>`), n };
+}
+function porCelula(xml, ref, novo) {
+  const r = ref.replace(/[A-Z]+/, "");
+  const re = new RegExp(`<c r="${ref}"(?:[^>]*/>|[^>]*>[\\s\\S]*?</c>)`);
+  if (re.test(xml)) return xml.replace(re, novo);
+  return xml.replace(new RegExp(`(<row r="${r}"[^>]*>)`), `$1${novo}`);
+}
+async function exportarExcel() {
   const st = $("expStatus");
-  if (!window.XLSX) { st.textContent = "Não consegui carregar o gerador de Excel. Verifique a internet."; st.className = "status err"; return; }
-  const rs = [...reunioesDoPeriodo()].reverse(), ref = hoje();
-  const wb = XLSX.utils.book_new();
-  const folha = (linhas, larguras) => { const ws = XLSX.utils.aoa_to_sheet(linhas); ws["!cols"] = larguras.map((w) => ({ wch: w })); ws["!autofilter"] = { ref: XLSX.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: Math.max(0, linhas.length - 1), c: linhas[0].length - 1 } }) }; return ws; };
-  XLSX.utils.book_append_sheet(wb, folha([["Data", "Semana", "Presentes", "Equipa", ...COLS, "Em atraso", "Apontamentos", "Convidados", "Registada por"],
-    ...rs.map((r) => [fmt(r.data), r.semana ?? "", marcada(r) ? contaPres(r) : "", EQUIPA.length, ...COLS.map((c, i) => r.tarefas.filter((t) => colIdx(t.coluna) === i).length), r.tarefas.filter((t) => emAtraso(t, ref)).length, r.notas || "", r.convidados || "", r.criadoPor || ""])],
-    [12, 8, 10, 8, 9, 9, 9, 10, 10, 60, 30, 28]), "Reuniões");
-  XLSX.utils.book_append_sheet(wb, folha([["Reunião", "Tarefa", "Responsável", "Prazo", "Estado", "Em atraso"],
-    ...rs.flatMap((r) => r.tarefas.map((t) => [fmt(r.data), t.tarefa, t.responsavel || "", fmt(t.prazo), t.coluna, emAtraso(t, ref) ? "Sim" : ""]))],
-    [12, 60, 20, 12, 12, 10]), "Tarefas");
-  XLSX.utils.book_append_sheet(wb, folha([["N.º mecanográfico", "Nome", ...rs.map((r) => fmt(r.data)), "Total presenças"],
-    ...EQUIPA.map((p) => [p.mec, p.nome, ...rs.map((r) => ({ P: "Presente", F: "Falta", J: "Justificada" }[r.presencas[p.mec]] || "")), rs.filter((r) => r.presencas[p.mec] === "P").length])],
-    [18, 24, ...rs.map(() => 12), 14]), "Presenças");
-  XLSX.writeFile(wb, `Kaizen_Secretaria_${$("fPeriodo").value}_${hoje()}.xlsx`);
-  st.textContent = "Ficheiro Excel descarregado."; st.className = "status";
-});
+  if (!window.JSZip) { st.textContent = "Não consegui carregar o gerador de Excel. Verifique a internet."; st.className = "status err"; return; }
+  st.className = "status"; st.textContent = "A preparar o Excel…";
+  try {
+    const zip = await JSZip.loadAsync(await (await fetch("modelo-kaizen.xlsx", { cache: "no-cache" })).arrayBuffer());
+    const rs = [...reunioesDoPeriodo()].reverse(), ref = hoje();
+    const ESTN = { P: "Presente", F: "Falta", J: "Justificada" };
+    const folhas = {
+      2: rs.map((r) => [{ d: r.data }, r.semana ?? "", marcada(r) ? contaPres(r) : "", EQUIPA.length, marcada(r) ? contaPres(r) / EQUIPA.length : "", ...COLS.map((c, i) => r.tarefas.filter((t) => colIdx(t.coluna) === i).length), r.tarefas.filter((t) => emAtraso(t, ref)).length, r.notas || "", r.convidados || ""]),
+      3: rs.flatMap((r) => r.tarefas.map((t) => [{ d: r.data }, t.tarefa, t.responsavel || "", { d: t.prazo }, t.coluna, emAtraso(t, ref) ? "Sim" : "Não"])),
+      4: rs.flatMap((r) => EQUIPA.filter((p) => r.presencas[p.mec]).map((p) => [{ d: r.data }, String(p.mec), p.nome, ESTN[r.presencas[p.mec]]]))
+    };
+    const tam = {};
+    for (const [i, linhas] of Object.entries(folhas)) {
+      const f = `xl/worksheets/sheet${i}.xml`;
+      const { xml, n } = preencherFolha(await zip.file(f).async("string"), linhas);
+      zip.file(f, xml); tam[i] = n;
+      const tf = `xl/tables/table${i - 1}.xml`;
+      let t = await zip.file(tf).async("string");
+      t = t.replace(/ref="A1:([A-Z]+)\d+"/g, (m, c) => `ref="A1:${c}${n + 1}"`);
+      zip.file(tf, t);
+    }
+    // Painel: responsáveis da última reunião e equipa
+    const ult = rs[rs.length - 1];
+    const resp = ult ? [...new Set(ult.tarefas.map((t) => (t.responsavel || "").trim()).filter(Boolean))].slice(0, 20) : [];
+    const eq = EQUIPA.slice(0, 20);
+    let pn = await zip.file("xl/worksheets/sheet1.xml").async("string");
+    for (let k = 0; k < 20; k++) {
+      pn = porCelula(pn, `A${20 + k}`, celula(`A${20 + k}`, resp[k] ?? ""));
+      pn = porCelula(pn, `B${44 + k}`, celula(`B${44 + k}`, eq[k] ? String(eq[k].mec) : ""));
+      pn = porCelula(pn, `A${44 + k}`, celula(`A${44 + k}`, eq[k] ? eq[k].nome : ""));
+    }
+    zip.file("xl/worksheets/sheet1.xml", pn);
+    // Gráficos: acertar os intervalos ao número real de linhas
+    const ajusta = async (f, de, para) => { let x = await zip.file(f).async("string"); x = x.split(de).join(para); zip.file(f, x); };
+    await ajusta("xl/charts/chart2.xml", "$61<", `$${tam[2] + 1}<`);
+    await ajusta("xl/charts/chart3.xml", "$61<", `$${tam[2] + 1}<`);
+    await ajusta("xl/charts/chart4.xml", "$39<", `$${19 + Math.max(1, resp.length)}<`);
+    await ajusta("xl/charts/chart5.xml", "$63<", `$${43 + Math.max(1, eq.length)}<`);
+    const blob = await zip.generateAsync({ type: "blob", mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob); a.download = `Kaizen_Secretaria_${$("fPeriodo").value}_${hoje()}.xlsx`;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+    st.textContent = "Excel descarregado. Abra a folha «Painel» para ver os gráficos.";
+  } catch (e) { st.textContent = "Não consegui gerar o Excel. Tente outra vez."; st.className = "status err"; }
+}
+$("btnExcel").addEventListener("click", exportarExcel);
 
 /* ---------------- Guardar ---------------- */
 $("btnGuardar").addEventListener("click", async () => {

@@ -198,7 +198,7 @@
         <button class="btn primary" id="btnPdf" type="button">Relatório em PDF</button>
       </div>
       <p class="status" id="expStatus"></p>
-      <p class="muted">O Excel tem três folhas: Reuniões, Tarefas e Presenças. Para o PDF, escolha «Guardar como PDF» na janela de impressão.</p>
+      <p class="muted">O Excel abre na folha «Painel», com gráficos ligados às tabelas Reuniões, Tarefas e Presenças: se mudar os dados no Excel, os gráficos atualizam. Também pode fazer tabelas dinâmicas a partir de qualquer tabela (Inserir → Tabela Dinâmica). Para o PDF, escolha «Guardar como PDF» na janela de impressão.</p>
     </div>
     <div class="sheets"><div class="sheet-wrap"><div class="sheet a4 rel" id="folhaRel"></div></div></div>
   </section>
@@ -228,7 +228,7 @@
 </button>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js" defer></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js" defer></script>
 <script type="module" src="app.js"></script>
 </body>
 </html>

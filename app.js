@@ -45,9 +45,9 @@ if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catc
 /* ---------------- Firebase ---------------- */
 async function iniciarFirebase() {
   if (!FIREBASE_CONFIG.apiKey || !FIREBASE_CONFIG.projectId) { mostrar("vConfig"); return; }
-  const [appM, authM, fsM] = await Promise.all([import(FB + "firebase-app.js"), import(FB + "firebase-auth.js"), import(FB + "firebase-firestore.js")]);
+  const [appM, authM, dbM] = await Promise.all([import(FB + "firebase-app.js"), import(FB + "firebase-auth.js"), import(FB + "firebase-database.js")]);
   const app = appM.initializeApp(FIREBASE_CONFIG);
-  fb = { auth: authM.getAuth(app), db: fsM.getFirestore(app), A: authM, F: fsM };
+  fb = { auth: authM.getAuth(app), db: dbM.getDatabase(app), A: authM, D: dbM };
   fb.A.getRedirectResult(fb.auth).catch((e) => { $("loginStatus").textContent = msgErroLogin(e); $("loginStatus").className = "status err"; });
   fb.A.onAuthStateChanged(fb.auth, (u) => {
     est.user = u;
@@ -77,14 +77,15 @@ $("btnSair").addEventListener("click", () => fb && fb.A.signOut(fb.auth));
 let pararSub = null;
 function subscrever() {
   if (pararSub) return;
-  const { F, db } = fb;
-  const q = F.query(F.collection(db, COL_REUNIOES), F.orderBy("data", "desc"));
-  pararSub = F.onSnapshot(q, (snap) => {
-    est.reunioes = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+  const { D, db } = fb;
+  pararSub = D.onValue(D.ref(db, COL_REUNIOES), (snap) => {
+    const v = snap.val() || {};
+    est.reunioes = Object.keys(v).map((id) => ({ id, ...v[id], tarefas: Object.values(v[id].tarefas || {}) }))
+      .sort((a, b) => String(b.data || "").localeCompare(String(a.data || "")));
     if (est.selId && !est.reunioes.some((r) => r.id === est.selId)) est.selId = null;
     desenhar();
   }, (e) => {
-    $("board").innerHTML = `<div class="empty">${e.code === "permission-denied" ? "Sem permissão para ler as reuniões. Confirme as regras do Firestore." : "Não consegui ligar aos dados. Verifique a internet."}</div>`;
+    $("board").innerHTML = `<div class="empty">${String(e.code || e.message).includes("permission") ? "Sem permissão para ler as reuniões. Confirme as regras da base de dados." : "Não consegui ligar aos dados. Verifique a internet."}</div>`;
   });
 }
 
@@ -133,8 +134,9 @@ function desenhar() {
 async function carregarFoto(id) {
   const box = $("fotoBox"); if (!box) return;
   try {
-    const d = await fb.F.getDoc(fb.F.doc(fb.db, COL_FOTOS, id));
-    box.outerHTML = d.exists() ? `<img class="photo" src="${d.data().img}" alt="Foto do quadro de post-its">` : `<p class="status">Foto não encontrada.</p>`;
+    const d = await fb.D.get(fb.D.ref(fb.db, COL_FOTOS + "/" + id));
+    const img = d.exists() ? String(d.val().img || "") : "";
+    box.outerHTML = img.startsWith("data:image/") ? `<img class="photo" src="${esc(img)}" alt="Foto do quadro de post-its">` : `<p class="status">Foto não encontrada.</p>`;
   } catch { box.textContent = "Não consegui carregar a foto."; }
 }
 
@@ -148,7 +150,7 @@ $("btnApagar").addEventListener("click", () => {
   box.innerHTML = `<div class="confirm"><span>Apagar a reunião de <strong>${esc(fmt(r.data))}</strong> e as ${(r.tarefas || []).length} tarefas? Não dá para desfazer.</span><button class="btn small danger" id="cSim" type="button">Apagar</button><button class="btn small" id="cNao" type="button">Cancelar</button></div>`;
   $("cNao").onclick = esconderConfirm;
   $("cSim").onclick = async () => {
-    try { await fb.F.deleteDoc(fb.F.doc(fb.db, COL_REUNIOES, r.id)); await fb.F.deleteDoc(fb.F.doc(fb.db, COL_FOTOS, r.id)).catch(() => {}); est.selId = null; esconderConfirm(); }
+    try { await fb.D.remove(fb.D.ref(fb.db, COL_REUNIOES + "/" + r.id)); await fb.D.remove(fb.D.ref(fb.db, COL_FOTOS + "/" + r.id)).catch(() => {}); est.selId = null; esconderConfirm(); }
     catch { box.innerHTML = `<div class="confirm">Não consegui apagar. Verifique a ligação e as permissões.</div>`; }
   };
 });
@@ -226,7 +228,7 @@ function reduzir(blob, max, q) {
 async function usarFoto(blob) {
   try {
     const grande = await reduzir(blob, 1600, 0.85);
-    est.foto = await reduzir(blob, 1000, 0.6); // guardada no Firestore (cabe num documento)
+    est.foto = await reduzir(blob, 1000, 0.6); // guardada no Realtime Database junto da reunião
     const s = $("shot"); s.src = grande; s.hidden = false; $("video").hidden = true;
     $("btnCamera").hidden = true; $("btnTirar").hidden = true; $("btnRepetir").hidden = false;
     lerPostits(grande);
@@ -290,21 +292,22 @@ $("btnGuardar").addEventListener("click", async () => {
   const tarefas = est.linhas.filter((t) => t.tarefa);
   btn.disabled = true; st.className = "status"; st.textContent = "A guardar…";
   try {
-    const { F, db } = fb;
-    const ref = est.editId ? F.doc(db, COL_REUNIOES, est.editId) : F.doc(F.collection(db, COL_REUNIOES));
+    const { D, db } = fb;
+    const ref = est.editId ? D.ref(db, COL_REUNIOES + "/" + est.editId) : D.push(D.ref(db, COL_REUNIOES));
     const ant = est.reunioes.find((r) => r.id === est.editId);
-    await F.setDoc(ref, {
+    const agora = new Date().toISOString();
+    await D.set(ref, {
       data, semana: $("fSemana").value ? Number($("fSemana").value) : null, notas: $("fNotas").value.trim(), tarefas,
       temFoto: !!est.foto || !!(ant && ant.temFoto),
-      criadoPor: ant?.criadoPor || est.user.email || "", criadoEm: ant?.criadoEm || F.serverTimestamp(),
-      atualizadoPor: est.user.email || "", atualizadoEm: F.serverTimestamp()
+      criadoPor: ant?.criadoPor || est.user.email || "", criadoEm: ant?.criadoEm || agora,
+      atualizadoPor: est.user.email || "", atualizadoEm: agora
     });
-    if (est.foto) await F.setDoc(F.doc(db, COL_FOTOS, ref.id), { img: est.foto });
-    est.selId = ref.id;
+    if (est.foto) await D.set(D.ref(db, COL_FOTOS + "/" + ref.key), { img: est.foto });
+    est.selId = ref.key;
     mostrar("vPainel");
   } catch (e) {
     st.className = "status err";
-    st.textContent = e.code === "permission-denied" ? "Sem permissão para guardar. Confirme as regras do Firestore." : "Não consegui guardar. Verifique a internet e tente outra vez.";
+    st.textContent = String(e.code || e.message).includes("permission") ? "Sem permissão para guardar. Confirme as regras da base de dados." : "Não consegui guardar. Verifique a internet e tente outra vez.";
   } finally { btn.disabled = false; }
 });
 

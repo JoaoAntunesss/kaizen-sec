@@ -21,15 +21,6 @@ Entra-se com a conta Google.
    - Definições do projeto → As tuas apps → **Adicionar app → Web**; copiar o `firebaseConfig` para `config.js`.
    - Authentication → Sign-in method → **Google** ativo.
    - Authentication → Settings → Authorized domains → acrescentar **`joaoantunesss.github.io`**.
-   - Firestore → Regras: acrescentar as regras abaixo às que já existem do Freezer (sem apagar as outras).
-
-```
-match /kaizen_reunioes/{id} {
-  allow read, write: if request.auth != null;
-}
-match /kaizen_fotos/{id} {
-  allow read, write: if request.auth != null;
-}
-```
+   - Os dados ficam no **Realtime Database** do Freezer, nos nós `kaizen_reunioes` e `kaizen_fotos`. Com as regras atuais (qualquer utilizador com sessão iniciada) não é preciso mudar nada.
 
 Cada push no `main` publica o site automaticamente.

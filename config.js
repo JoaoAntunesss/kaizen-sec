@@ -6,16 +6,17 @@ export const GROQ_API_KEY = "__GROQ_API_KEY__";
 
 // Configuração da app Web do Firebase (projeto do Freezer).
 // Firebase → Definições do projeto → As tuas apps → app Web → firebaseConfig.
-// Estes valores não são secretos: o acesso é controlado pelas regras do Firestore.
+// Estes valores não são secretos: o acesso é controlado pelas regras da base de dados.
 export const FIREBASE_CONFIG = {
   apiKey: "AIzaSyDlDfDdCTDTCFgxyKKrh3xe8I23iqNH0pg",
   authDomain: "congelador-bdba6.firebaseapp.com",
+  databaseURL: "https://congelador-bdba6-default-rtdb.europe-west1.firebasedatabase.app",
   projectId: "congelador-bdba6",
   storageBucket: "congelador-bdba6.firebasestorage.app",
   messagingSenderId: "761914486599",
   appId: "1:761914486599:web:53cc9a7c1b8ef591966662"
 };
 
-// Coleções no Firestore (separadas das do Freezer).
+// Nós no Realtime Database (separados dos do Freezer).
 export const COL_REUNIOES = "kaizen_reunioes";
 export const COL_FOTOS = "kaizen_fotos";

@@ -54,17 +54,21 @@
 
   <!-- Painel -->
   <section id="vPainel" class="view" hidden>
+    <div class="toolbar">
+      <div class="anos" id="anos" role="group" aria-label="Ano em consulta"></div>
+      <button class="btn small" id="btnExportar" type="button">Exportar (Excel / PDF)</button>
+      <button class="btn small" id="btnEquipa" type="button">Equipa</button>
+    </div>
+
     <div class="tiles">
       <div class="tile"><span class="n" id="tAbertas">–</span><span class="l">Tarefas por fechar</span></div>
       <div class="tile late"><span class="n" id="tAtraso">–</span><span class="l">Em atraso</span></div>
       <div class="tile"><span class="n" id="tPresenca">–</span><span class="l">Presença média</span></div>
-      <div class="tile"><span class="n" id="tReunioes">–</span><span class="l">Reuniões</span></div>
+      <div class="tile"><span class="n" id="tReunioes">–</span><span class="l" id="tReunioesL">Reuniões</span></div>
     </div>
+    <p class="notice-ano" id="anoAviso" hidden></p>
 
-    <div class="toolbar">
-      <button class="btn small" id="btnExportar" type="button">Exportar (Excel / PDF)</button>
-      <button class="btn small" id="btnEquipa" type="button">Equipa</button>
-    </div>
+
 
     <div class="charts">
       <div class="panel chart-card"><div class="panel-head"><h2>Estado das tarefas por reunião</h2></div><div class="legend" id="lgEstados"></div><div class="cv"><canvas id="chEstados" role="img" aria-label="Tarefas por estado em cada reunião"></canvas></div><details><summary>Ver tabela</summary><div class="scroll" id="tbEstados"></div></details></div>

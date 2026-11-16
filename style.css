@@ -258,7 +258,11 @@ input[type=text],input[type=date],input[type=number],select,textarea{border:1px 
 .legend .sw{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:6px;vertical-align:-1px}
 
 /* ---------- Barra de ferramentas, equipa, relatório ---------- */
-.toolbar{display:flex;flex-wrap:wrap;gap:8px;justify-content:flex-end}
+.toolbar{display:flex;flex-wrap:wrap;gap:8px;justify-content:flex-end;align-items:center}
+.anos{display:flex;flex-wrap:wrap;gap:6px;margin-right:auto}
+.ano{border:1px solid var(--line);background:var(--surface);border-radius:999px;padding:6px 14px;min-height:36px;font-weight:700;color:var(--muted)}
+.ano[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:var(--on-accent)}
+.notice-ano{margin:0;padding:10px 14px;border-radius:10px;background:#fbf1dc;color:#5c3d00;font-weight:600}
 .eq-row{display:grid;grid-template-columns:140px minmax(0,1fr) auto;gap:8px;align-items:center;padding:6px 0;border-bottom:1px solid var(--line)}
 .eq-head{font-size:12px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);font-weight:700}
 .eq-new{border-bottom:0;padding-top:12px}

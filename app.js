@@ -110,22 +110,38 @@ function subscrever() {
 const contaPres = (r) => EQUIPA.filter((p) => r.presencas[p.mec] === "P").length;
 const marcada = (r) => Object.keys(r.presencas || {}).length > 0;
 
+/* Ano em consulta: o painel mostra um ano de cada vez (o histórico dos anos anteriores fica consultável) */
+const anoAtual = () => String(new Date().getFullYear());
+const anosDisponiveis = () => [...new Set([anoAtual(), ...est.reunioes.map((r) => String(r.data || "").slice(0, 4)).filter((a) => /^\d{4}$/.test(a))])].sort().reverse();
+const doAno = () => est.reunioes.filter((r) => String(r.data || "").startsWith(est.ano || anoAtual()));
+function desenharAnos() {
+  const anos = anosDisponiveis();
+  if (!est.ano || !anos.includes(est.ano)) est.ano = anos.includes(anoAtual()) && (doAnoDe(anoAtual()).length || anos.length === 1) ? anoAtual() : anos.find((a) => doAnoDe(a).length) || anoAtual();
+  $("anos").innerHTML = anos.map((a) => `<button type="button" class="ano" data-ano="${a}" aria-pressed="${a === est.ano}">${a}${a === anoAtual() ? "" : " · arquivo"}</button>`).join("");
+  $("anoAviso").hidden = est.ano === anoAtual();
+  $("anoAviso").textContent = `Está a ver o arquivo de ${est.ano}. As reuniões novas ficam em ${anoAtual()}.`;
+}
+const doAnoDe = (a) => est.reunioes.filter((r) => String(r.data || "").startsWith(a));
+$("anos").addEventListener("click", (e) => { const b = e.target.closest("[data-ano]"); if (b) { est.ano = b.dataset.ano; desenharPainel(); } });
+
 function desenharPainel() {
+  desenharAnos();
   const ref = hoje();
-  const ult = est.reunioes[0];
+  const ult = doAno()[0];
   const ts = ult ? ult.tarefas : [];
   $("tAbertas").textContent = ts.filter((t) => t.coluna !== "Concluído").length;
   $("tAtraso").textContent = ts.filter((t) => emAtraso(t, ref)).length;
-  const comPres = est.reunioes.filter(marcada);
+  const comPres = doAno().filter(marcada);
   $("tPresenca").textContent = comPres.length ? Math.round((comPres.reduce((s, r) => s + contaPres(r), 0) / (comPres.length * EQUIPA.length)) * 100) + "%" : "–";
-  $("tReunioes").textContent = est.reunioes.length;
+  $("tReunioes").textContent = doAno().length;
 
   // Tarefas por fechar da última reunião, com troca rápida de estado
   const abertas = ult ? ult.tarefas.filter((t) => t.coluna !== "Concluído").sort((a, b) => (emAtraso(b, ref) - emAtraso(a, ref)) || String(a.prazo || "9").localeCompare(String(b.prazo || "9"))) : [];
   $("tarefasSub").textContent = ult ? `da reunião de ${fmt(ult.data)}` : "";
+  $("tReunioesL").textContent = `Reuniões em ${est.ano}`;
   $("tarefasLista").innerHTML = abertas.length ? abertas.map((t) => `<div class="tarefa-row"><div class="tr-main"><b>${esc(t.tarefa)}</b><div class="meta">${t.responsavel ? `<span class="chip">${esc(t.responsavel)}</span>` : ""}${t.prazo ? `<span class="chip ${emAtraso(t, ref) ? "late" : ""}">${emAtraso(t, ref) ? "Atrasada · " : "Até "}${esc(fmt(t.prazo))}</span>` : ""}</div></div>${botoesEstado(ult, t)}</div>`).join("") : `<p class="empty">${ult ? "Tudo concluído." : "Sem tarefas ainda."}</p>`;
 
-  $("meetList").innerHTML = est.reunioes.length ? est.reunioes.map((r) => {
+  $("meetList").innerHTML = doAno().length ? doAno().map((r) => {
     const t = r.tarefas, ab = t.filter((x) => x.coluna !== "Concluído").length, at = t.filter((x) => emAtraso(x, ref)).length;
     return `<button class="meet" type="button" data-id="${esc(r.id)}">
       <div><div class="d">${esc(fmt(r.data))}</div><div class="w">${r.semana ? "Semana " + esc(r.semana) : ""}</div></div>
@@ -134,7 +150,7 @@ function desenharPainel() {
   }).join("") : `<p class="empty">Ainda não há reuniões. Depois da reunião, carregue em «Registar reunião».</p>`;
 
   // Mapa de presenças (como a folha em papel, com a coluna Total)
-  const rs = [...est.reunioes].filter(marcada).reverse().slice(-12);
+  const rs = [...doAno()].filter(marcada).reverse().slice(-12);
   $("mapaSub").textContent = rs.length ? `últimas ${rs.length} reuniões` : "";
   $("mapa").innerHTML = rs.length ? `<table class="mapa"><thead><tr><th>N.º Mec.</th><th>Nome</th>${rs.map((r) => `<th class="c">${esc(fmtCurto(r.data))}</th>`).join("")}<th class="c">Total</th></tr></thead><tbody>${
     EQUIPA.map((p) => `<tr><td class="num">${esc(p.mec)}</td><td>${esc(p.nome)}</td>${rs.map((r) => { const v = r.presencas[p.mec]; return `<td class="c"><span class="mk ${v || ""}" title="${esc(EST_PRES[v] || "sem registo")}">${v === "P" ? "✓" : v || "·"}</span></td>`; }).join("")}<td class="c"><b>${rs.filter((r) => r.presencas[p.mec] === "P").length}</b></td></tr>`).join("")
@@ -168,7 +184,7 @@ function baseOpcoes(extra = {}) {
 function desenharIndicadores() {
   const sur = cssVar("--surface");
   const cores = [0, 1, 2, 3].map((i) => cssVar("--s" + i));
-  const rs = [...est.reunioes].reverse().slice(-12);
+  const rs = [...doAno()].reverse().slice(-12);
   const ref = hoje();
   // 1. Estado das tarefas por reunião (barras empilhadas)
   legendaEstados("lgEstados");
@@ -189,7 +205,7 @@ function desenharIndicadores() {
   $("tbPresReu").innerHTML = tabelaHTML(["Reunião", "Presentes", "%"], rp.map((r) => [fmt(r.data), `${contaPres(r)} de ${EQUIPA.length}`, Math.round((contaPres(r) / EQUIPA.length) * 100) + "%"]));
 
   // 3. Tarefas por responsável (última reunião, empilhado por estado)
-  const ult = est.reunioes[0];
+  const ult = doAno()[0];
   const ts = ult ? ult.tarefas : [];
   $("subResp").textContent = ult ? `reunião de ${fmt(ult.data)}` : "";
   const nomes = [...new Set(ts.map((t) => (t.responsavel || "").trim() || "Sem responsável"))].sort((a, b) => ts.filter((t) => ((t.responsavel || "").trim() || "Sem responsável") === b).length - ts.filter((t) => ((t.responsavel || "").trim() || "Sem responsável") === a).length);
@@ -203,7 +219,7 @@ function desenharIndicadores() {
   $("tbResp").innerHTML = tabelaHTML(["Responsável", ...COLS, "Em atraso"], nomes.map((n) => [n, ...COLS.map((c, i) => conta(n, i)), ts.filter((t) => ((t.responsavel || "").trim() || "Sem responsável") === n && emAtraso(t, ref)).length]));
 
   // 4. Assiduidade por pessoa (%)
-  const tot = est.reunioes.filter(marcada);
+  const tot = doAno().filter(marcada);
   const pct = EQUIPA.map((p) => tot.length ? Math.round((tot.filter((r) => r.presencas[p.mec] === "P").length / tot.length) * 100) : 0);
   desenharGrafico("chPresPes", {
     type: "bar",
@@ -605,13 +621,14 @@ $("btnEqGuardar").addEventListener("click", async () => {
 function reunioesDoPeriodo() {
   const per = $("fPeriodo").value;
   if (per === "tudo") return est.reunioes;
-  const d = new Date(), ini = per === "mes" ? new Date(d.getFullYear(), d.getMonth(), 1) : per === "mesant" ? new Date(d.getFullYear(), d.getMonth() - 1, 1) : new Date(d.getFullYear(), 0, 1);
+  if (per === "ano") return doAno();
+  const d = new Date(), ini = per === "mes" ? new Date(d.getFullYear(), d.getMonth(), 1) : new Date(d.getFullYear(), d.getMonth() - 1, 1);
   const fim = per === "mesant" ? new Date(d.getFullYear(), d.getMonth(), 0) : new Date(2999, 0, 1);
   const iso = (x) => `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, "0")}-${String(x.getDate()).padStart(2, "0")}`;
   return est.reunioes.filter((r) => r.data >= iso(ini) && r.data <= iso(fim));
 }
 const nomePeriodo = () => $("fPeriodo").selectedOptions[0].textContent;
-$("btnExportar").addEventListener("click", () => { $("expStatus").textContent = ""; mostrar("vRelatorio"); desenharRelatorio(); });
+$("btnExportar").addEventListener("click", () => { $("expStatus").textContent = ""; $("fPeriodo").querySelector('[value="ano"]').textContent = `Ano ${est.ano || anoAtual()}`; mostrar("vRelatorio"); desenharRelatorio(); });
 $("btnVoltarRel").addEventListener("click", () => mostrar("vPainel"));
 $("fPeriodo").addEventListener("change", desenharRelatorio);
 

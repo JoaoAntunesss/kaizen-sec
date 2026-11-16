@@ -2,7 +2,7 @@ import { GROQ_API_KEY, FIREBASE_CONFIG, COL_REUNIOES, COL_FOTOS, EQUIPA } from "
 
 const FB = "https://www.gstatic.com/firebasejs/10.12.2/";
 const COLS = ["A fazer", "Em curso", "Pendente", "Concluído"];
-const COL_CORES = ["#1f4e79", "#3f7cb8", "#c48a1a", "#2e8b57"];
+const COL_CORES = ["var(--s0)", "var(--s1)", "var(--s2)", "var(--s3)"];
 const MODELOS_VISAO = ["qwen/qwen3.8-27b", "qwen/qwen3.6-27b", "meta-llama/llama-4-scout-17b-16e-instruct", "meta-llama/llama-4-maverick-17b-128e-instruct"];
 const EST_PRES = { P: "Presente", F: "Falta", J: "Justificada" };
 
@@ -128,7 +128,81 @@ function desenharPainel() {
   $("mapa").innerHTML = rs.length ? `<table class="mapa"><thead><tr><th>N.º Mec.</th><th>Nome</th>${rs.map((r) => `<th class="c">${esc(fmtCurto(r.data))}</th>`).join("")}<th class="c">Total</th></tr></thead><tbody>${
     EQUIPA.map((p) => `<tr><td class="num">${esc(p.mec)}</td><td>${esc(p.nome)}</td>${rs.map((r) => { const v = r.presencas[p.mec]; return `<td class="c"><span class="mk ${v || ""}" title="${esc(EST_PRES[v] || "sem registo")}">${v === "P" ? "✓" : v || "·"}</span></td>`; }).join("")}<td class="c"><b>${rs.filter((r) => r.presencas[p.mec] === "P").length}</b></td></tr>`).join("")
   }<tr><td></td><td><b>Presentes</b></td>${rs.map((r) => `<td class="c"><b>${contaPres(r)}</b></td>`).join("")}<td></td></tr></tbody></table>` : `<p class="empty">As presenças aparecem aqui quando registar a primeira reunião.</p>`;
+  desenharIndicadores();
 }
+/* ---------------- Indicadores (estilo Power BI) ---------------- */
+const graficos = {};
+function cssVar(n) { return getComputedStyle(document.documentElement).getPropertyValue(n).trim(); }
+function tabelaHTML(cab, linhas) { return `<table><thead><tr>${cab.map((c, i) => `<th${i ? ' class="num"' : ""}>${esc(c)}</th>`).join("")}</tr></thead><tbody>${linhas.map((l) => `<tr>${l.map((v, i) => `<td${i ? ' class="num"' : ""}>${esc(v)}</td>`).join("")}</tr>`).join("")}</tbody></table>`; }
+function legendaEstados(id) { $(id).innerHTML = COLS.map((c, i) => `<span><i class="sw" style="background:var(--s${i})"></i>${esc(c)}</span>`).join(""); }
+function desenharGrafico(id, cfg) {
+  if (!window.Chart) return;
+  Chart.defaults.font.family = "'Public Sans', system-ui, -apple-system, 'Segoe UI', sans-serif";
+  if (graficos[id]) graficos[id].destroy();
+  graficos[id] = new Chart($(id), cfg);
+}
+function baseOpcoes(extra = {}) {
+  const txt = cssVar("--muted"), grid = cssVar("--grid");
+  return {
+    responsive: true, maintainAspectRatio: false, animation: false,
+    interaction: { mode: "nearest", intersect: true },
+    plugins: { legend: { display: false }, tooltip: { backgroundColor: cssVar("--surface"), titleColor: cssVar("--ink"), bodyColor: cssVar("--ink"), borderColor: grid, borderWidth: 1, padding: 10 } },
+    scales: {
+      x: { grid: { display: false }, ticks: { color: txt, font: { size: 12 } }, border: { color: grid } },
+      y: { beginAtZero: true, grid: { color: grid }, ticks: { color: txt, precision: 0, font: { size: 12 } }, border: { display: false } }
+    },
+    ...extra
+  };
+}
+function desenharIndicadores() {
+  const sur = cssVar("--surface");
+  const cores = [0, 1, 2, 3].map((i) => cssVar("--s" + i));
+  const rs = [...est.reunioes].reverse().slice(-12);
+  const ref = hoje();
+  // 1. Estado das tarefas por reunião (barras empilhadas)
+  legendaEstados("lgEstados");
+  desenharGrafico("chEstados", {
+    type: "bar",
+    data: { labels: rs.map((r) => fmtCurto(r.data)), datasets: COLS.map((c, i) => ({ label: c, data: rs.map((r) => r.tarefas.filter((t) => colIdx(t.coluna) === i).length), backgroundColor: cores[i], borderColor: sur, borderWidth: { top: 2 }, borderSkipped: false, borderRadius: 4, maxBarThickness: 36 })) },
+    options: baseOpcoes({ scales: { ...baseOpcoes().scales, x: { ...baseOpcoes().scales.x, stacked: true }, y: { ...baseOpcoes().scales.y, stacked: true } } })
+  });
+  $("tbEstados").innerHTML = tabelaHTML(["Reunião", ...COLS], rs.map((r) => [fmt(r.data), ...COLS.map((c, i) => r.tarefas.filter((t) => colIdx(t.coluna) === i).length)]));
+
+  // 2. Presença por reunião (%)
+  const rp = rs.filter(marcada);
+  desenharGrafico("chPresReu", {
+    type: "bar",
+    data: { labels: rp.map((r) => fmtCurto(r.data)), datasets: [{ label: "Presença", data: rp.map((r) => Math.round((contaPres(r) / EQUIPA.length) * 100)), backgroundColor: cores[1], borderRadius: 4, borderSkipped: "start", maxBarThickness: 36 }] },
+    options: baseOpcoes({ plugins: { ...baseOpcoes().plugins, tooltip: { ...baseOpcoes().plugins.tooltip, callbacks: { label: (c) => ` ${c.parsed.y}% (${contaPres(rp[c.dataIndex])} de ${EQUIPA.length})` } } }, scales: { ...baseOpcoes().scales, y: { ...baseOpcoes().scales.y, max: 100, ticks: { ...baseOpcoes().scales.y.ticks, callback: (v) => v + "%" } } } })
+  });
+  $("tbPresReu").innerHTML = tabelaHTML(["Reunião", "Presentes", "%"], rp.map((r) => [fmt(r.data), `${contaPres(r)} de ${EQUIPA.length}`, Math.round((contaPres(r) / EQUIPA.length) * 100) + "%"]));
+
+  // 3. Tarefas por responsável (última reunião, empilhado por estado)
+  const ult = est.reunioes[0];
+  const ts = ult ? ult.tarefas : [];
+  $("subResp").textContent = ult ? `reunião de ${fmt(ult.data)}` : "";
+  const nomes = [...new Set(ts.map((t) => (t.responsavel || "").trim() || "Sem responsável"))].sort((a, b) => ts.filter((t) => ((t.responsavel || "").trim() || "Sem responsável") === b).length - ts.filter((t) => ((t.responsavel || "").trim() || "Sem responsável") === a).length);
+  const conta = (n, i) => ts.filter((t) => ((t.responsavel || "").trim() || "Sem responsável") === n && colIdx(t.coluna) === i).length;
+  legendaEstados("lgResp");
+  desenharGrafico("chResp", {
+    type: "bar",
+    data: { labels: nomes, datasets: COLS.map((c, i) => ({ label: c, data: nomes.map((n) => conta(n, i)), backgroundColor: cores[i], borderColor: sur, borderWidth: { right: 2 }, borderSkipped: false, borderRadius: 4, maxBarThickness: 26 })) },
+    options: baseOpcoes({ indexAxis: "y", scales: { x: { ...baseOpcoes().scales.y, stacked: true }, y: { ...baseOpcoes().scales.x, stacked: true } } })
+  });
+  $("tbResp").innerHTML = tabelaHTML(["Responsável", ...COLS, "Em atraso"], nomes.map((n) => [n, ...COLS.map((c, i) => conta(n, i)), ts.filter((t) => ((t.responsavel || "").trim() || "Sem responsável") === n && emAtraso(t, ref)).length]));
+
+  // 4. Assiduidade por pessoa (%)
+  const tot = est.reunioes.filter(marcada);
+  const pct = EQUIPA.map((p) => tot.length ? Math.round((tot.filter((r) => r.presencas[p.mec] === "P").length / tot.length) * 100) : 0);
+  desenharGrafico("chPresPes", {
+    type: "bar",
+    data: { labels: EQUIPA.map((p) => p.nome), datasets: [{ label: "Assiduidade", data: pct, backgroundColor: cores[3], borderRadius: 4, borderSkipped: "start", maxBarThickness: 22 }] },
+    options: baseOpcoes({ indexAxis: "y", plugins: { ...baseOpcoes().plugins, tooltip: { ...baseOpcoes().plugins.tooltip, callbacks: { label: (c) => ` ${c.parsed.x}% (${tot.filter((r) => r.presencas[EQUIPA[c.dataIndex].mec] === "P").length} de ${tot.length} reuniões)` } } }, scales: { x: { ...baseOpcoes().scales.y, max: 100, ticks: { ...baseOpcoes().scales.y.ticks, callback: (v) => v + "%" } }, y: { ...baseOpcoes().scales.x } } })
+  });
+  $("tbPresPes").innerHTML = tabelaHTML(["Pessoa", "Presenças", "%"], EQUIPA.map((p, i) => [p.nome, `${tot.filter((r) => r.presencas[p.mec] === "P").length} de ${tot.length}`, pct[i] + "%"]));
+}
+window.matchMedia("(prefers-color-scheme: dark)").addEventListener?.("change", () => { if (!$("vPainel").hidden) desenharIndicadores(); });
+
 $("meetList").addEventListener("click", (e) => { const b = e.target.closest("[data-id]"); if (b) abrirReuniao(b.dataset.id); });
 
 /* ---------------- Mudar o estado de uma tarefa ---------------- */

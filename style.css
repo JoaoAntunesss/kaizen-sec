@@ -3,6 +3,7 @@
   --accent:#1f4e79; --on-accent:#ffffff; --accent-soft:#e3ecf5;
   --late:#b3261e; --late-soft:#fbe9e7; --ok:#1e6b3a; --ok-soft:#e3f2e8;
   --font:'Public Sans',system-ui,-apple-system,'Segoe UI',sans-serif;
+  --s0:#eb6834; --s1:#2a78d6; --s2:#eda100; --s3:#1baf7a; --grid:#e6e8eb;
   color-scheme:light;
 }
 @media (prefers-color-scheme: dark){
@@ -10,6 +11,7 @@
     --bg:#11161c; --surface:#1a2129; --ink:#e7ecf1; --muted:#a3adb8; --line:#2d3743;
     --accent:#7fb0e0; --on-accent:#0d1b2a; --accent-soft:#1d2f42;
     --late:#ff8a80; --late-soft:#3a1d1b; --ok:#7fd39a; --ok-soft:#18301f;
+    --s0:#d95926; --s1:#3987e5; --s2:#c98500; --s3:#199e70; --grid:#2a323c;
     color-scheme:dark;
   }
 }
@@ -210,10 +212,10 @@ input[type=text],input[type=date],input[type=number],select,textarea{border:1px 
 .estado button{border:0;background:transparent;padding:6px 10px;min-height:36px;font-size:13px;font-weight:600;color:var(--muted)}
 .estado button+button{border-left:1px solid var(--line)}
 .estado button[aria-pressed="true"]{color:#fff}
-.estado button.e0[aria-pressed="true"]{background:#1f4e79}
-.estado button.e1[aria-pressed="true"]{background:#3f7cb8}
-.estado button.e2[aria-pressed="true"]{background:#a8720f}
-.estado button.e3[aria-pressed="true"]{background:#2e7d4f}
+.estado button.e0[aria-pressed="true"]{background:var(--s0);color:#fff}
+.estado button.e1[aria-pressed="true"]{background:var(--s1);color:#fff}
+.estado button.e2[aria-pressed="true"]{background:var(--s2);color:#1a1a1a}
+.estado button.e3[aria-pressed="true"]{background:var(--s3);color:#0b0b0b}
 .card .estado{align-self:flex-start}
 .card .estado button{padding:5px 7px;font-size:12px;min-height:34px}
 .tarefa-row{display:flex;flex-wrap:wrap;gap:8px 14px;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--line)}
@@ -241,3 +243,12 @@ input[type=text],input[type=date],input[type=number],select,textarea{border:1px 
 .card .estado button:nth-child(odd){border-right:1px solid var(--line)}
 .card .estado button:nth-child(-n+2){border-top:0}
 @media (max-width:520px){.card .estado{grid-template-columns:repeat(4,minmax(0,1fr))}.card .estado button{border-top:0;border-right:1px solid var(--line)}.card .estado button:last-child{border-right:0}}
+
+/* ---------- Indicadores (gráficos) ---------- */
+.charts{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
+@media (max-width:900px){.charts{grid-template-columns:minmax(0,1fr)}}
+.chart-card{gap:10px}
+.cv{position:relative;height:240px}
+.cv.tall{height:280px}
+.chart-card details summary{font-size:13px}
+.legend .sw{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:6px;vertical-align:-1px}

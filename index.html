@@ -61,6 +61,13 @@
       <div class="tile"><span class="n" id="tReunioes">–</span><span class="l">Reuniões</span></div>
     </div>
 
+    <div class="charts">
+      <div class="panel chart-card"><div class="panel-head"><h2>Estado das tarefas por reunião</h2></div><div class="legend" id="lgEstados"></div><div class="cv"><canvas id="chEstados" role="img" aria-label="Tarefas por estado em cada reunião"></canvas></div><details><summary>Ver tabela</summary><div class="scroll" id="tbEstados"></div></details></div>
+      <div class="panel chart-card"><div class="panel-head"><h2>Presença por reunião</h2><span class="sub">% da equipa presente</span></div><div class="cv"><canvas id="chPresReu" role="img" aria-label="Percentagem da equipa presente em cada reunião"></canvas></div><details><summary>Ver tabela</summary><div class="scroll" id="tbPresReu"></div></details></div>
+      <div class="panel chart-card"><div class="panel-head"><h2>Tarefas por responsável</h2><span class="sub" id="subResp"></span></div><div class="legend" id="lgResp"></div><div class="cv tall"><canvas id="chResp" role="img" aria-label="Tarefas por responsável e estado"></canvas></div><details><summary>Ver tabela</summary><div class="scroll" id="tbResp"></div></details></div>
+      <div class="panel chart-card"><div class="panel-head"><h2>Assiduidade por pessoa</h2><span class="sub">% das reuniões em que esteve</span></div><div class="cv tall"><canvas id="chPresPes" role="img" aria-label="Percentagem de presenças de cada pessoa"></canvas></div><details><summary>Ver tabela</summary><div class="scroll" id="tbPresPes"></div></details></div>
+    </div>
+
     <div class="dash">
     <div class="dash-main">
     <div class="panel">
@@ -182,6 +189,7 @@
   <span>Registar reunião</span>
 </button>
 
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script type="module" src="app.js"></script>
 </body>
 </html>

@@ -8,12 +8,12 @@ export const GROQ_API_KEY = "__GROQ_API_KEY__";
 // Firebase → Definições do projeto → As tuas apps → app Web → firebaseConfig.
 // Estes valores não são secretos: o acesso é controlado pelas regras do Firestore.
 export const FIREBASE_CONFIG = {
-  apiKey: "",
-  authDomain: "",
-  projectId: "",
-  storageBucket: "",
-  messagingSenderId: "",
-  appId: ""
+  apiKey: "AIzaSyDlDfDdCTDTCFgxyKKrh3xe8I23iqNH0pg",
+  authDomain: "congelador-bdba6.firebaseapp.com",
+  projectId: "congelador-bdba6",
+  storageBucket: "congelador-bdba6.firebasestorage.app",
+  messagingSenderId: "761914486599",
+  appId: "1:761914486599:web:53cc9a7c1b8ef591966662"
 };
 
 // Coleções no Firestore (separadas das do Freezer).

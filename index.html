@@ -54,36 +54,46 @@
   <!-- Painel -->
   <section id="vPainel" class="view" hidden>
     <div class="tiles">
-      <div class="tile"><span class="n" id="tAbertas">–</span><span class="l">Por fechar</span></div>
+      <div class="tile"><span class="n" id="tAbertas">–</span><span class="l">Tarefas por fechar</span></div>
       <div class="tile late"><span class="n" id="tAtraso">–</span><span class="l">Em atraso</span></div>
-      <div class="tile ok"><span class="n" id="tFeitas">–</span><span class="l">Concluídas</span></div>
+      <div class="tile"><span class="n" id="tPresenca">–</span><span class="l">Presença média</span></div>
       <div class="tile"><span class="n" id="tReunioes">–</span><span class="l">Reuniões</span></div>
     </div>
 
     <div class="panel">
-      <div class="panel-head">
-        <h2 id="boardTitle">Quadro da reunião</h2>
-        <div class="row-actions">
-          <button class="btn small" id="btnImprimir" type="button" hidden>Folhas para imprimir</button>
-          <button class="btn small" id="btnEditar" type="button" hidden>Editar</button>
-          <button class="btn small danger" id="btnApagar" type="button" hidden>Apagar</button>
-        </div>
-      </div>
-      <div id="confirmBox" hidden></div>
-      <div class="board" id="board"></div>
-      <div id="extra"></div>
+      <div class="panel-head"><h2>Reuniões</h2><span class="sub">abra uma reunião para ver tudo o que ficou registado</span></div>
+      <div class="meet-list" id="meetList"></div>
     </div>
 
-    <div class="two">
-      <div class="panel">
-        <div class="panel-head"><h2>Por responsável</h2></div>
-        <div class="scroll"><table id="respTable"><thead><tr><th>Responsável</th><th class="num">Abertas</th><th class="num">Atraso</th><th class="num">Feitas</th></tr></thead><tbody></tbody></table></div>
+    <div class="panel">
+      <div class="panel-head"><h2>Mapa de presenças</h2><span class="sub" id="mapaSub"></span></div>
+      <div class="scroll" id="mapa"></div>
+    </div>
+  </section>
+
+  <!-- Uma reunião -->
+  <section id="vReuniao" class="view" hidden>
+    <div class="panel">
+      <div class="panel-head">
+        <div><button class="btn small ghost" id="btnVoltar3" type="button">← Reuniões</button></div>
+        <div class="row-actions">
+          <button class="btn small" id="btnImprimir" type="button">Imprimir</button>
+          <button class="btn small" id="btnEditar" type="button">Editar</button>
+          <button class="btn small danger" id="btnApagar" type="button">Apagar</button>
+        </div>
       </div>
-      <div class="panel">
-        <div class="panel-head"><h2>Histórico</h2><span class="sub">toque numa reunião para a ver</span></div>
-        <div class="legend" id="legend"></div>
-        <div class="scroll"><table id="histTable"><thead><tr><th>Data</th><th>Sem.</th><th class="num">Tarefas</th><th>Distribuição</th></tr></thead><tbody></tbody></table></div>
+      <div><h1 id="rTitulo">Reunião</h1><p class="muted" id="rSub"></p></div>
+      <div id="confirmBox" hidden></div>
+      <div class="tabs" role="tablist">
+        <button class="tab" role="tab" data-tab="presencas" type="button">Presenças</button>
+        <button class="tab" role="tab" data-tab="postits" type="button">Post-its</button>
+        <button class="tab" role="tab" data-tab="acoes" type="button">Folha de ações</button>
+        <button class="tab" role="tab" data-tab="notas" type="button">Apontamentos</button>
       </div>
+      <div class="tabpane" data-pane="presencas" id="pPresencas"></div>
+      <div class="tabpane" data-pane="postits"><div class="board" id="board"></div><div id="fotoPostits"></div></div>
+      <div class="tabpane" data-pane="acoes" id="pAcoes"></div>
+      <div class="tabpane" data-pane="notas" id="pNotas"></div>
     </div>
   </section>
 
@@ -95,9 +105,18 @@
         <label class="f" for="fData">Data da reunião<input type="date" id="fData"></label>
         <label class="f" for="fSemana">Semana n.º<input type="number" id="fSemana" min="1" max="53" inputmode="numeric"></label>
       </div>
+    </div>
 
+    <div class="panel">
+      <div class="panel-head"><h2>1. Presenças</h2><button class="btn small" id="btnTodos" type="button">Todos presentes</button></div>
+      <div id="presEdit"></div>
+      <label class="f" for="fConvidados">Convidados / outras pessoas (opcional)<input type="text" id="fConvidados" placeholder="Ex.: Eng.º Pedro Pinto (DCEPSP)"></label>
+    </div>
+
+    <div class="panel">
+      <div class="panel-head"><h2>2. Post-its do quadro</h2><span class="sub">tire a foto ao quadro no fim da reunião</span></div>
       <div class="cam" id="camBox">
-        <video id="video" playsinline muted autoplay></video>
+        <video id="video" playsinline muted autoplay hidden></video>
         <div class="frame" aria-hidden="true"><span>Enquadre o quadro inteiro dentro da moldura</span></div>
         <img id="shot" alt="Foto tirada do quadro" hidden>
       </div>
@@ -109,30 +128,35 @@
         <input type="file" id="fGaleria" accept="image/*" class="vh">
       </div>
       <p class="status" id="readStatus"></p>
-
-      <div class="panel-head"><h2 class="h3">Tarefas</h2><span class="sub">Confirme e corrija antes de guardar.</span></div>
+      <div class="panel-head"><h2 class="h3">Tarefas (folha de ações)</h2><span class="sub">confirme e corrija antes de guardar</span></div>
       <div id="rows"></div>
-      <button class="btn small" id="btnAddRow" type="button">+ Acrescentar tarefa</button>
+      <div><button class="btn small" id="btnAddRow" type="button">+ Acrescentar tarefa</button></div>
+    </div>
 
-      <label class="f" for="fNotas">Notas da reunião (opcional)<textarea id="fNotas" rows="3"></textarea></label>
+    <div class="panel">
+      <div class="panel-head"><h2>3. Apontamentos da reunião</h2></div>
+      <label class="f" for="fNotas"><span class="vh">Apontamentos</span><textarea id="fNotas" rows="6" placeholder="Assuntos falados, decisões, o que fica para a próxima reunião…"></textarea></label>
       <div class="actions">
         <span class="status" id="saveStatus"></span>
         <button class="btn primary big" id="btnGuardar" type="button">Guardar reunião</button>
       </div>
     </div>
   </section>
+
   <!-- Imprimir -->
   <section id="vImprimir" class="view" hidden>
     <div class="panel no-print">
       <div class="panel-head"><h2>Folhas para imprimir</h2><button class="btn small ghost" id="btnVoltar2" type="button">Voltar</button></div>
-      <p class="muted">As folhas ficam preenchidas com as tarefas lidas da foto desta reunião. No computador, escolha a impressora e o papel certo (A4 ou A3) e desligue «Ajustar à página».</p>
+      <p class="muted">As folhas ficam preenchidas com o que ficou registado nesta reunião. No computador, escolha a impressora e o papel certo (A4 ou A3) e desligue «Ajustar à página».</p>
       <div class="cam-actions">
+        <button class="btn primary" id="btnPrintPres" type="button">Imprimir presenças (A4)</button>
         <button class="btn primary" id="btnPrintA4" type="button">Imprimir folha de ações (A4)</button>
         <button class="btn primary" id="btnPrintA3" type="button">Imprimir quadro (A3)</button>
       </div>
     </div>
     <div class="sheets">
-      <div class="sheet-wrap"><div class="sheet a4" id="folhaAcoes"></div></div>
+      <div class="sheet-wrap"><div class="sheet a4 pres" id="folhaPres"></div></div>
+      <div class="sheet-wrap"><div class="sheet a4 acoes" id="folhaAcoes"></div></div>
       <div class="sheet-wrap"><div class="sheet a3" id="folhaQuadro"></div></div>
     </div>
   </section>

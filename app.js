@@ -1,25 +1,28 @@
-import { GROQ_API_KEY, FIREBASE_CONFIG, COL_REUNIOES, COL_FOTOS } from "./config.js";
+import { GROQ_API_KEY, FIREBASE_CONFIG, COL_REUNIOES, COL_FOTOS, EQUIPA } from "./config.js";
 
 const FB = "https://www.gstatic.com/firebasejs/10.12.2/";
 const COLS = ["A fazer", "Em curso", "Pendente", "Concluído"];
 const COL_CORES = ["#1f4e79", "#3f7cb8", "#c48a1a", "#2e8b57"];
 const MODELOS_VISAO = ["qwen/qwen3.8-27b", "qwen/qwen3.6-27b", "meta-llama/llama-4-scout-17b-16e-instruct", "meta-llama/llama-4-maverick-17b-128e-instruct"];
+const EST_PRES = { P: "Presente", F: "Falta", J: "Justificada" };
 
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 const hoje = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; };
 const isoData = (s) => /^\d{4}-\d{2}-\d{2}$/.test(s || "");
 const fmt = (s) => { if (!isoData(s)) return s || ""; const [a, m, d] = s.split("-"); return `${d}/${m}/${a}`; };
+const fmtCurto = (s) => isoData(s) ? `${s.slice(8, 10)}/${s.slice(5, 7)}` : s || "";
 const semanaISO = (s) => { const d = new Date(s + "T12:00:00"); if (isNaN(d)) return ""; d.setDate(d.getDate() + 3 - ((d.getDay() + 6) % 7)); const w1 = new Date(d.getFullYear(), 0, 4); return 1 + Math.round(((d - w1) / 864e5 - 3 + ((w1.getDay() + 6) % 7)) / 7); };
 const colIdx = (c) => Math.max(0, COLS.indexOf(c));
 const emAtraso = (t, ref) => t.coluna !== "Concluído" && isoData(t.prazo) && t.prazo < ref;
 
-const est = { user: null, reunioes: [], selId: null, editId: null, foto: null, fotoUrl: null, linhas: [], stream: null };
-let fb = null; // { db, auth, mod }
+const est = { user: null, reunioes: [], abertaId: null, tab: "presencas", editId: null, foto: null, linhas: [], pres: {}, stream: null };
+let fb = null;
 
 /* ---------------- Vistas ---------------- */
+const VISTAS = ["vLogin", "vConfig", "vPainel", "vReuniao", "vRegistar", "vImprimir"];
 function mostrar(v) {
-  for (const id of ["vLogin", "vConfig", "vPainel", "vRegistar", "vImprimir"]) $(id).hidden = id !== v;
+  for (const id of VISTAS) $(id).hidden = id !== v;
   $("fab").hidden = v !== "vPainel";
   $("btnSair").hidden = !est.user;
   if (v !== "vRegistar") pararCamera();
@@ -52,12 +55,12 @@ async function iniciarFirebase() {
   fb.A.onAuthStateChanged(fb.auth, (u) => {
     est.user = u;
     if (!u) { mostrar("vLogin"); return; }
-    mostrar("vPainel");
+    if ($("vLogin").hidden === false || $("vConfig").hidden === false || VISTAS.every((v) => $(v).hidden)) mostrar("vPainel");
     subscrever();
   });
 }
 function msgErroLogin(e) {
-  const c = e && e.code || "";
+  const c = (e && e.code) || "";
   if (c.includes("unauthorized-domain")) return "Este endereço ainda não está autorizado no Firebase (Authentication → Settings → Authorized domains).";
   if (c.includes("popup-closed")) return "A janela de login foi fechada antes de terminar.";
   return "Não foi possível entrar. Tente outra vez.";
@@ -80,56 +83,84 @@ function subscrever() {
   const { D, db } = fb;
   pararSub = D.onValue(D.ref(db, COL_REUNIOES), (snap) => {
     const v = snap.val() || {};
-    est.reunioes = Object.keys(v).map((id) => ({ id, ...v[id], tarefas: Object.values(v[id].tarefas || {}) }))
+    est.reunioes = Object.keys(v).map((id) => ({ id, ...v[id], tarefas: Object.values(v[id].tarefas || {}), presencas: v[id].presencas || {} }))
       .sort((a, b) => String(b.data || "").localeCompare(String(a.data || "")));
-    if (est.selId && !est.reunioes.some((r) => r.id === est.selId)) est.selId = null;
-    desenhar();
+    desenharPainel();
+    if (!$("vReuniao").hidden) { if (reuniaoAberta()) desenharReuniao(); else mostrar("vPainel"); }
   }, (e) => {
-    $("board").innerHTML = `<div class="empty">${String(e.code || e.message).includes("permission") ? "Sem permissão para ler as reuniões. Confirme as regras da base de dados." : "Não consegui ligar aos dados. Verifique a internet."}</div>`;
+    $("meetList").innerHTML = `<p class="empty">${String(e.code || e.message).includes("permission") ? "Sem permissão para ler as reuniões. Confirme as regras da base de dados." : "Não consegui ligar aos dados. Verifique a internet."}</p>`;
   });
 }
 
 /* ---------------- Painel ---------------- */
-const selecionada = () => est.reunioes.find((r) => r.id === est.selId) || est.reunioes[0] || null;
+const contaPres = (r) => EQUIPA.filter((p) => r.presencas[p.mec] === "P").length;
+const marcada = (r) => Object.keys(r.presencas || {}).length > 0;
 
-function desenhar() {
-  const r = selecionada();
-  if (r) est.selId = r.id;
-  const ts = r ? r.tarefas || [] : [];
+function desenharPainel() {
   const ref = hoje();
+  const ult = est.reunioes[0];
+  const ts = ult ? ult.tarefas : [];
   $("tAbertas").textContent = ts.filter((t) => t.coluna !== "Concluído").length;
   $("tAtraso").textContent = ts.filter((t) => emAtraso(t, ref)).length;
-  $("tFeitas").textContent = ts.filter((t) => t.coluna === "Concluído").length;
+  const comPres = est.reunioes.filter(marcada);
+  $("tPresenca").textContent = comPres.length ? Math.round((comPres.reduce((s, r) => s + contaPres(r), 0) / (comPres.length * EQUIPA.length)) * 100) + "%" : "–";
   $("tReunioes").textContent = est.reunioes.length;
-  $("boardTitle").textContent = r ? `Reunião de ${fmt(r.data)}${r.semana ? " · semana " + r.semana : ""}` : "Ainda não há reuniões";
-  $("btnEditar").hidden = $("btnApagar").hidden = $("btnImprimir").hidden = !r;
 
+  $("meetList").innerHTML = est.reunioes.length ? est.reunioes.map((r) => {
+    const t = r.tarefas, ab = t.filter((x) => x.coluna !== "Concluído").length, at = t.filter((x) => emAtraso(x, ref)).length;
+    return `<button class="meet" type="button" data-id="${esc(r.id)}">
+      <div><div class="d">${esc(fmt(r.data))}</div><div class="w">${r.semana ? "Semana " + esc(r.semana) : ""}</div></div>
+      <div class="info">${marcada(r) ? `<span class="chip ok">${contaPres(r)}/${EQUIPA.length} presentes</span>` : ""}<span class="chip">${t.length} post-its</span>${ab ? `<span class="chip">${ab} por fechar</span>` : ""}${at ? `<span class="chip late">${at} em atraso</span>` : ""}${r.notas ? `<span class="chip">apontamentos</span>` : ""}${r.temFoto ? `<span class="chip">foto</span>` : ""}</div>
+      <span class="go" aria-hidden="true">Abrir →</span></button>`;
+  }).join("") : `<p class="empty">Ainda não há reuniões. Depois da reunião, carregue em «Registar reunião».</p>`;
+
+  // Mapa de presenças (como a folha em papel, com a coluna Total)
+  const rs = [...est.reunioes].filter(marcada).reverse().slice(-12);
+  $("mapaSub").textContent = rs.length ? `últimas ${rs.length} reuniões` : "";
+  $("mapa").innerHTML = rs.length ? `<table class="mapa"><thead><tr><th>N.º Mec.</th><th>Nome</th>${rs.map((r) => `<th class="c">${esc(fmtCurto(r.data))}</th>`).join("")}<th class="c">Total</th></tr></thead><tbody>${
+    EQUIPA.map((p) => `<tr><td class="num">${esc(p.mec)}</td><td>${esc(p.nome)}</td>${rs.map((r) => { const v = r.presencas[p.mec]; return `<td class="c"><span class="mk ${v || ""}" title="${esc(EST_PRES[v] || "sem registo")}">${v === "P" ? "✓" : v || "·"}</span></td>`; }).join("")}<td class="c"><b>${rs.filter((r) => r.presencas[p.mec] === "P").length}</b></td></tr>`).join("")
+  }<tr><td></td><td><b>Presentes</b></td>${rs.map((r) => `<td class="c"><b>${contaPres(r)}</b></td>`).join("")}<td></td></tr></tbody></table>` : `<p class="empty">As presenças aparecem aqui quando registar a primeira reunião.</p>`;
+}
+$("meetList").addEventListener("click", (e) => { const b = e.target.closest("[data-id]"); if (b) abrirReuniao(b.dataset.id); });
+
+/* ---------------- Uma reunião ---------------- */
+const reuniaoAberta = () => est.reunioes.find((r) => r.id === est.abertaId) || null;
+function abrirReuniao(id, tab) { est.abertaId = id; if (tab) est.tab = tab; esconderConfirm(); desenharReuniao(); mostrar("vReuniao"); }
+function desenharReuniao() {
+  const r = reuniaoAberta(); if (!r) return;
+  const ref = hoje(), ts = r.tarefas;
+  $("rTitulo").textContent = `Reunião de ${fmt(r.data)}`;
+  $("rSub").textContent = [r.semana ? `Semana ${r.semana}` : "", r.criadoPor ? `registada por ${r.criadoPor}` : ""].filter(Boolean).join(" · ");
+  document.querySelectorAll(".tab").forEach((b) => b.setAttribute("aria-selected", String(b.dataset.tab === est.tab)));
+  document.querySelectorAll(".tabpane").forEach((p) => (p.hidden = p.dataset.pane !== est.tab));
+
+  // Presenças
+  $("pPresencas").innerHTML = (marcada(r) ? `<p class="muted">${contaPres(r)} de ${EQUIPA.length} presentes.</p>` : `<p class="empty">As presenças desta reunião não foram registadas. Use «Editar» para as marcar.</p>`) +
+    EQUIPA.map((p) => { const v = r.presencas[p.mec]; return `<div class="pres-row"><span class="m">${esc(p.mec)}</span><span>${esc(p.nome)}</span><span class="st ${v || "N"}">${esc(EST_PRES[v] || "—")}</span></div>`; }).join("") +
+    (r.convidados ? `<p><strong>Convidados:</strong> ${esc(r.convidados)}</p>` : "");
+
+  // Post-its
   $("board").innerHTML = COLS.map((c, ci) => {
-    const lista = ts.filter((t) => colIdx(t.coluna) === ci);
-    return `<div class="col"><div class="col-h" style="border-bottom-color:${COL_CORES[ci]}"><span>${esc(c)}</span><span class="c">${lista.length}</span></div><div class="col-b">${
-      lista.length ? lista.map((t) => {
-        const at = emAtraso(t, ref);
-        return `<div class="card"><div class="t">${esc(t.tarefa)}</div><div class="meta">${t.responsavel ? `<span class="chip">${esc(t.responsavel)}</span>` : `<span class="chip none">sem responsável</span>`}${t.prazo ? `<span class="chip ${at ? "late" : t.coluna === "Concluído" ? "ok" : ""}">${at ? "Atrasada · " : "Até "}${esc(fmt(t.prazo))}</span>` : ""}</div></div>`;
-      }).join("") : `<div class="empty">${r ? "Sem post-its" : "Toque em «Registar reunião» depois da reunião."}</div>`
+    const l = ts.filter((t) => colIdx(t.coluna) === ci);
+    return `<div class="col"><div class="col-h" style="border-bottom-color:${COL_CORES[ci]}"><span>${esc(c)}</span><span class="c">${l.length}</span></div><div class="col-b">${
+      l.length ? l.map((t) => { const at = emAtraso(t, ref); return `<div class="card"><div class="t">${esc(t.tarefa)}</div><div class="meta">${t.responsavel ? `<span class="chip">${esc(t.responsavel)}</span>` : `<span class="chip none">sem responsável</span>`}${t.prazo ? `<span class="chip ${at ? "late" : t.coluna === "Concluído" ? "ok" : ""}">${at ? "Atrasada · " : "Até "}${esc(fmt(t.prazo))}</span>` : ""}</div></div>`; }).join("") : `<div class="empty">Sem post-its</div>`
     }</div></div>`;
   }).join("");
-
-  $("extra").innerHTML = r ? `${r.temFoto ? `<details id="fotoDet"><summary>Ver a foto original do quadro</summary><div id="fotoBox" class="status">A carregar…</div></details>` : ""}${r.notas ? `<p><strong>Notas:</strong> ${esc(r.notas)}</p>` : ""}` : "";
+  $("fotoPostits").innerHTML = r.temFoto ? `<details id="fotoDet"><summary>Ver a foto original do quadro</summary><div id="fotoBox" class="status">A carregar…</div></details>` : "";
   const det = $("fotoDet");
   if (det) det.addEventListener("toggle", () => { if (det.open) carregarFoto(r.id); }, { once: true });
 
-  const mapa = {};
-  ts.forEach((t) => { const k = (t.responsavel || "").trim() || "Sem responsável"; const m = (mapa[k] ||= { a: 0, l: 0, c: 0 }); t.coluna === "Concluído" ? m.c++ : m.a++; if (emAtraso(t, ref)) m.l++; });
-  const nomes = Object.keys(mapa).sort((a, b) => mapa[b].a - mapa[a].a || a.localeCompare(b, "pt"));
-  $("respTable").tBodies[0].innerHTML = nomes.length ? nomes.map((n) => `<tr><td>${esc(n)}</td><td class="num">${mapa[n].a}</td><td class="num"${mapa[n].l ? ' style="color:var(--late);font-weight:700"' : ""}>${mapa[n].l}</td><td class="num">${mapa[n].c}</td></tr>`).join("") : `<tr><td colspan="4" class="empty">Sem dados.</td></tr>`;
+  // Folha de ações
+  const ord = [...ts].sort((a, b) => colIdx(a.coluna) - colIdx(b.coluna));
+  $("pAcoes").innerHTML = ord.length ? `<div class="scroll"><table><thead><tr><th class="num">N.º</th><th>O que fazer</th><th>Responsável</th><th>Prazo</th><th>Estado</th></tr></thead><tbody>${
+    ord.map((t, i) => `<tr><td class="num">${i + 1}</td><td>${esc(t.tarefa)}</td><td>${esc(t.responsavel)}</td><td>${esc(fmt(t.prazo))}${emAtraso(t, ref) ? ' <span class="chip late">atraso</span>' : ""}</td><td><span class="chip ${t.coluna === "Concluído" ? "ok" : ""}">${esc(t.coluna)}</span></td></tr>`).join("")
+  }</tbody></table></div>` : `<p class="empty">Sem tarefas registadas.</p>`;
 
-  $("legend").innerHTML = COLS.map((c, i) => `<span><i style="background:${COL_CORES[i]}"></i>${esc(c)}</span>`).join("");
-  $("histTable").tBodies[0].innerHTML = est.reunioes.length ? est.reunioes.map((m) => {
-    const t = m.tarefas || [], tot = t.length || 1;
-    const barra = COLS.map((c, i) => { const n = t.filter((x) => colIdx(x.coluna) === i).length; return n ? `<span title="${esc(c)}: ${n}" style="width:${(n / tot) * 100}%;background:${COL_CORES[i]}"></span>` : ""; }).join("");
-    return `<tr class="hist-row${m.id === est.selId ? " sel" : ""}" data-id="${esc(m.id)}" tabindex="0"><td>${esc(fmt(m.data))}</td><td>${esc(m.semana ?? "")}</td><td class="num">${t.length}</td><td><div class="minibar">${barra}</div></td></tr>`;
-  }).join("") : `<tr><td colspan="4" class="empty">Sem reuniões registadas.</td></tr>`;
+  // Apontamentos
+  $("pNotas").innerHTML = r.notas ? `<p class="notes">${esc(r.notas)}</p>` : `<p class="empty">Sem apontamentos. Use «Editar» para os escrever.</p>`;
 }
+document.querySelectorAll(".tab").forEach((b) => b.addEventListener("click", () => { est.tab = b.dataset.tab; desenharReuniao(); }));
+$("btnVoltar3").addEventListener("click", () => mostrar("vPainel"));
 
 async function carregarFoto(id) {
   const box = $("fotoBox"); if (!box) return;
@@ -140,52 +171,51 @@ async function carregarFoto(id) {
   } catch { box.textContent = "Não consegui carregar a foto."; }
 }
 
-$("histTable").addEventListener("click", (e) => { const tr = e.target.closest("tr[data-id]"); if (tr) { est.selId = tr.dataset.id; esconderConfirm(); desenhar(); window.scrollTo({ top: 0, behavior: "smooth" }); } });
-$("histTable").addEventListener("keydown", (e) => { if (e.key === "Enter") { const tr = e.target.closest("tr[data-id]"); if (tr) { est.selId = tr.dataset.id; desenhar(); } } });
-
 function esconderConfirm() { $("confirmBox").hidden = true; $("confirmBox").innerHTML = ""; }
 $("btnApagar").addEventListener("click", () => {
-  const r = selecionada(); if (!r) return;
+  const r = reuniaoAberta(); if (!r) return;
   const box = $("confirmBox"); box.hidden = false;
-  box.innerHTML = `<div class="confirm"><span>Apagar a reunião de <strong>${esc(fmt(r.data))}</strong> e as ${(r.tarefas || []).length} tarefas? Não dá para desfazer.</span><button class="btn small danger" id="cSim" type="button">Apagar</button><button class="btn small" id="cNao" type="button">Cancelar</button></div>`;
+  box.innerHTML = `<div class="confirm"><span>Apagar a reunião de <strong>${esc(fmt(r.data))}</strong> com presenças, post-its e apontamentos? Não dá para desfazer.</span><button class="btn small danger" id="cSim" type="button">Apagar</button><button class="btn small" id="cNao" type="button">Cancelar</button></div>`;
   $("cNao").onclick = esconderConfirm;
   $("cSim").onclick = async () => {
-    try { await fb.D.remove(fb.D.ref(fb.db, COL_REUNIOES + "/" + r.id)); await fb.D.remove(fb.D.ref(fb.db, COL_FOTOS + "/" + r.id)).catch(() => {}); est.selId = null; esconderConfirm(); }
-    catch { box.innerHTML = `<div class="confirm">Não consegui apagar. Verifique a ligação e as permissões.</div>`; }
+    try { await fb.D.remove(fb.D.ref(fb.db, COL_REUNIOES + "/" + r.id)); await fb.D.remove(fb.D.ref(fb.db, COL_FOTOS + "/" + r.id)).catch(() => {}); est.abertaId = null; mostrar("vPainel"); }
+    catch { box.innerHTML = `<div class="confirm">Não consegui apagar. Verifique a ligação.</div>`; }
   };
 });
 
-/* ---------------- Folhas para imprimir ---------------- */
+/* ---------------- Imprimir ---------------- */
 const CAB = (titulo) => `<div class="sh-head"><img src="icons/logo-matosinhos.png" alt="Câmara Municipal de Matosinhos"><div class="sh-title"><b>${titulo}</b><span>Subunidade Orgânica da Conservação — Secretaria</span></div><img src="icons/logo-kaizen.png" alt="Kaizen Institute"></div>`;
 function abrirImprimir() {
-  const r = selecionada(); if (!r) return;
-  const ts = r.tarefas || [], ref = r.data || hoje();
-  const meta = `<div class="sh-meta"><span>Data: <b>${esc(fmt(r.data))}</b></span><span>Semana n.º: <b>${esc(r.semana ?? "")}</b></span><span>Tarefas: <b>${ts.length}</b></span></div>`;
-  // A4: tarefas ordenadas por coluna (abertas primeiro), com linhas em branco até 15
+  const r = reuniaoAberta(); if (!r) return;
+  const ts = r.tarefas;
+  const meta = `<div class="sh-meta"><span>Data: <b>${esc(fmt(r.data))}</b></span><span>Semana n.º: <b>${esc(r.semana ?? "")}</b></span></div>`;
+  $("folhaPres").innerHTML = CAB("Reunião Kaizen — Presenças") + meta +
+    `<table class="sh-table"><thead><tr><th class="c" style="width:22mm">N.º Mec.</th><th>Nome</th><th style="width:40mm">Presença</th></tr></thead><tbody>${
+      EQUIPA.map((p) => `<tr><td class="c">${esc(p.mec)}</td><td>${esc(p.nome)}</td><td>${esc(EST_PRES[r.presencas[p.mec]] || "")}</td></tr>`).join("")
+    }<tr><td></td><td><b>Presentes</b></td><td><b>${contaPres(r)} de ${EQUIPA.length}</b></td></tr></tbody></table>` +
+    (r.convidados ? `<div class="sh-notes"><b>Convidados</b><div class="box" style="min-height:0">${esc(r.convidados)}</div></div>` : "") +
+    `<div class="sh-notes"><b>Apontamentos da reunião</b><div class="box" style="min-height:90mm">${esc(r.notas || "")}</div></div>`;
   const ord = [...ts].sort((a, b) => colIdx(a.coluna) - colIdx(b.coluna));
-  const linhas = ord.map((t, i) => {
-    const at = emAtraso(t, hoje());
-    return `<tr><td class="c">${i + 1}</td><td>${esc(t.tarefa)}</td><td>${esc(t.responsavel)}</td><td>${esc(fmt(t.prazo))}${at ? ' <span class="sh-tag late">atraso</span>' : ""}</td><td><span class="sh-tag">${esc(t.coluna)}</span></td><td class="c"><span class="sh-box">${t.coluna === "Concluído" ? "✓" : ""}</span></td></tr>`;
-  });
+  const hj = hoje();
+  const linhas = ord.map((t, i) => `<tr><td class="c">${i + 1}</td><td>${esc(t.tarefa)}</td><td>${esc(t.responsavel)}</td><td>${esc(fmt(t.prazo))}${emAtraso(t, hj) ? ' <span class="sh-tag late">atraso</span>' : ""}</td><td><span class="sh-tag">${esc(t.coluna)}</span></td><td class="c"><span class="sh-box">${t.coluna === "Concluído" ? "✓" : ""}</span></td></tr>`);
   for (let i = ord.length; i < Math.max(15, ord.length); i++) linhas.push(`<tr><td class="c">${i + 1}</td><td></td><td></td><td></td><td></td><td class="c"><span class="sh-box"></span></td></tr>`);
   $("folhaAcoes").innerHTML = CAB("Reunião Kaizen — Ações") + meta +
-    `<table class="sh-table"><thead><tr><th class="c" style="width:9mm">N.º</th><th>O que fazer</th><th style="width:34mm">Responsável</th><th style="width:26mm">Prazo</th><th style="width:22mm">Estado</th><th class="c" style="width:13mm">Feito</th></tr></thead><tbody>${linhas.join("")}</tbody></table>` +
-    `<div class="sh-notes"><b>Notas / assuntos para a próxima reunião</b><div class="box">${esc(r.notas || "")}</div></div>`;
-  // A3: quadro com os post-its em cada coluna
+    `<table class="sh-table"><thead><tr><th class="c" style="width:9mm">N.º</th><th>O que fazer</th><th style="width:34mm">Responsável</th><th style="width:26mm">Prazo</th><th style="width:22mm">Estado</th><th class="c" style="width:13mm">Feito</th></tr></thead><tbody>${linhas.join("")}</tbody></table>`;
   $("folhaQuadro").innerHTML = CAB("Quadro Kaizen") + meta + `<div class="sh-board">${COLS.map((c, ci) => {
     const l = ts.filter((t) => colIdx(t.coluna) === ci);
-    return `<div class="sh-col"><div class="sh-col-h"><b>${esc(c)}</b><span>${l.length}</span></div><div class="sh-col-b">${l.map((t) => `<div class="sh-post${emAtraso(t, hoje()) ? " late" : ""}"><b>${esc(t.tarefa)}</b>${t.responsavel ? `<small>${esc(t.responsavel)}</small>` : ""}${t.prazo ? `<small>Até ${esc(fmt(t.prazo))}</small>` : ""}</div>`).join("")}</div></div>`;
+    return `<div class="sh-col"><div class="sh-col-h"><b>${esc(c)}</b><span>${l.length}</span></div><div class="sh-col-b">${l.map((t) => `<div class="sh-post${emAtraso(t, hj) ? " late" : ""}"><b>${esc(t.tarefa)}</b>${t.responsavel ? `<small>${esc(t.responsavel)}</small>` : ""}${t.prazo ? `<small>Até ${esc(fmt(t.prazo))}</small>` : ""}</div>`).join("")}</div></div>`;
   }).join("")}</div><div class="sh-foot"><span>Em cada post-it: o quê · quem · até quando</span><span>Registado a partir da foto do quadro</span></div>`;
   mostrar("vImprimir");
 }
 function imprimir(tipo) {
-  document.body.classList.remove("p-a4", "p-a3");
+  document.body.classList.remove("p-a4", "p-a3", "p-pres");
   document.body.classList.add("p-" + tipo);
   setTimeout(() => window.print(), 50);
 }
-window.addEventListener("afterprint", () => document.body.classList.remove("p-a4", "p-a3"));
+window.addEventListener("afterprint", () => document.body.classList.remove("p-a4", "p-a3", "p-pres"));
 $("btnImprimir").addEventListener("click", abrirImprimir);
-$("btnVoltar2").addEventListener("click", () => mostrar("vPainel"));
+$("btnVoltar2").addEventListener("click", () => mostrar("vReuniao"));
+$("btnPrintPres").addEventListener("click", () => imprimir("pres"));
 $("btnPrintA4").addEventListener("click", () => imprimir("a4"));
 $("btnPrintA3").addEventListener("click", () => imprimir("a3"));
 
@@ -197,19 +227,35 @@ function abrirRegisto(r) {
   $("fData").value = r ? r.data : hoje();
   $("fSemana").value = r ? r.semana ?? "" : semanaISO(hoje());
   $("fNotas").value = r ? r.notas || "" : "";
-  est.linhas = r ? (r.tarefas || []).map((t) => ({ ...t })) : [];
+  $("fConvidados").value = r ? r.convidados || "" : "";
+  est.pres = r ? { ...r.presencas } : {};
+  est.linhas = r ? r.tarefas.map((t) => ({ ...t })) : [];
   $("shot").hidden = true; $("video").hidden = true;
   $("btnCamera").hidden = false; $("btnTirar").hidden = true; $("btnRepetir").hidden = true;
-  $("readStatus").textContent = GROQ_API_KEY.startsWith("__") ? "A leitura automática ainda não está configurada (falta a chave do Groq). Pode escrever as tarefas à mão." : "";
+  $("readStatus").textContent = GROQ_API_KEY.startsWith("__") ? "A leitura automática ainda não está configurada (falta a chave do Groq). Pode escrever as tarefas à mão." : (r && r.temFoto ? "Esta reunião já tem foto. Tire outra só se quiser substituir." : "");
   $("readStatus").className = "status";
   $("saveStatus").textContent = "";
+  desenharPres();
   desenharLinhas();
   mostrar("vRegistar");
 }
 $("fab").addEventListener("click", () => abrirRegisto(null));
-$("btnEditar").addEventListener("click", () => { const r = selecionada(); if (r) abrirRegisto(r); });
-$("btnVoltar").addEventListener("click", () => mostrar("vPainel"));
+$("btnEditar").addEventListener("click", () => { const r = reuniaoAberta(); if (r) abrirRegisto(r); });
+$("btnVoltar").addEventListener("click", () => (est.editId ? abrirReuniao(est.editId) : mostrar("vPainel")));
 $("fData").addEventListener("change", () => { if (!est.editId) $("fSemana").value = semanaISO($("fData").value); });
+
+function desenharPres() {
+  $("presEdit").innerHTML = EQUIPA.map((p) => `<div class="pres-row"><span class="m">${esc(p.mec)}</span><span>${esc(p.nome)}</span><span class="seg" role="group" aria-label="Presença de ${esc(p.nome)}">${
+    Object.keys(EST_PRES).map((k) => `<button type="button" class="${k}" data-mec="${esc(p.mec)}" data-v="${k}" aria-pressed="${est.pres[p.mec] === k}">${k === "P" ? "Presente" : k === "F" ? "Falta" : "Just."}</button>`).join("")
+  }</span></div>`).join("");
+}
+$("presEdit").addEventListener("click", (e) => {
+  const b = e.target.closest("[data-mec]"); if (!b) return;
+  const m = b.dataset.mec, v = b.dataset.v;
+  if (est.pres[m] === v) delete est.pres[m]; else est.pres[m] = v;
+  desenharPres();
+});
+$("btnTodos").addEventListener("click", () => { EQUIPA.forEach((p) => { if (!est.pres[p.mec] || est.pres[p.mec] === "F") est.pres[p.mec] = "P"; }); desenharPres(); });
 
 function desenharLinhas() {
   const box = $("rows");
@@ -217,9 +263,10 @@ function desenharLinhas() {
   box.innerHTML = est.linhas.map((t, i) => `<div class="task" data-i="${i}">
     <select id="c${i}" aria-label="Coluna da tarefa ${i + 1}">${COLS.map((c) => `<option${c === t.coluna ? " selected" : ""}>${esc(c)}</option>`).join("")}</select>
     <input class="tk" type="text" id="t${i}" aria-label="Tarefa ${i + 1}" placeholder="O que fazer" value="${esc(t.tarefa)}">
-    <input type="text" id="r${i}" aria-label="Responsável da tarefa ${i + 1}" placeholder="Responsável" value="${esc(t.responsavel)}">
+    <input type="text" id="r${i}" aria-label="Responsável da tarefa ${i + 1}" placeholder="Responsável" value="${esc(t.responsavel)}" list="nomesEquipa">
     <input type="date" id="p${i}" aria-label="Prazo da tarefa ${i + 1}" value="${isoData(t.prazo) ? t.prazo : ""}">
-    <button class="btn small danger del" type="button" data-del="${i}" aria-label="Remover tarefa ${i + 1}">✕</button></div>`).join("");
+    <button class="btn small danger del" type="button" data-del="${i}" aria-label="Remover tarefa ${i + 1}">✕</button></div>`).join("") +
+    `<datalist id="nomesEquipa">${EQUIPA.map((p) => `<option value="${esc(p.nome.split(" ")[0])}"></option>`).join("")}</datalist>`;
 }
 function lerLinhas() {
   est.linhas = est.linhas.map((t, i) => ({ coluna: $("c" + i)?.value ?? t.coluna, tarefa: ($("t" + i)?.value ?? t.tarefa).trim(), responsavel: ($("r" + i)?.value ?? t.responsavel).trim(), prazo: $("p" + i)?.value ?? t.prazo }));
@@ -317,13 +364,13 @@ Responde APENAS com JSON: {"tarefas":[{"coluna":"A fazer|Em curso|Pendente|Concl
   }
 }
 
+
 /* ---------------- Guardar ---------------- */
 $("btnGuardar").addEventListener("click", async () => {
   lerLinhas();
   const st = $("saveStatus"), btn = $("btnGuardar");
   const data = $("fData").value;
   if (!data) { st.textContent = "Indique a data da reunião."; st.className = "status err"; return; }
-  const tarefas = est.linhas.filter((t) => t.tarefa);
   btn.disabled = true; st.className = "status"; st.textContent = "A guardar…";
   try {
     const { D, db } = fb;
@@ -331,14 +378,15 @@ $("btnGuardar").addEventListener("click", async () => {
     const ant = est.reunioes.find((r) => r.id === est.editId);
     const agora = new Date().toISOString();
     await D.set(ref, {
-      data, semana: $("fSemana").value ? Number($("fSemana").value) : null, notas: $("fNotas").value.trim(), tarefas,
+      data, semana: $("fSemana").value ? Number($("fSemana").value) : null,
+      presencas: est.pres, convidados: $("fConvidados").value.trim(),
+      tarefas: est.linhas.filter((t) => t.tarefa), notas: $("fNotas").value.trim(),
       temFoto: !!est.foto || !!(ant && ant.temFoto),
       criadoPor: ant?.criadoPor || est.user.email || "", criadoEm: ant?.criadoEm || agora,
       atualizadoPor: est.user.email || "", atualizadoEm: agora
     });
     if (est.foto) await D.set(D.ref(db, COL_FOTOS + "/" + ref.key), { img: est.foto });
-    est.selId = ref.key;
-    mostrar("vPainel");
+    abrirReuniao(ref.key, "postits");
   } catch (e) {
     st.className = "status err";
     st.textContent = String(e.code || e.message).includes("permission") ? "Sem permissão para guardar. Confirme as regras da base de dados." : "Não consegui guardar. Verifique a internet e tente outra vez.";

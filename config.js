@@ -20,3 +20,15 @@ export const FIREBASE_CONFIG = {
 // Nós no Realtime Database (separados dos do Freezer).
 export const COL_REUNIOES = "kaizen_reunioes";
 export const COL_FOTOS = "kaizen_fotos";
+
+// Equipa (mapa de presenças). Para acrescentar alguém, juntar uma linha e fazer push.
+export const EQUIPA = [
+  { mec: "5195", nome: "Cristina Delca" },
+  { mec: "3746", nome: "Bárbara Dias" },
+  { mec: "5215", nome: "Carlos Ribeiro" },
+  { mec: "4564", nome: "Daniela Rodrigues" },
+  { mec: "4539", nome: "Inês Miranda" },
+  { mec: "4544", nome: "Isabel Pereira" },
+  { mec: "4523", nome: "João Antunes" },
+  { mec: "4553", nome: "Sandra Peixoto" }
+];

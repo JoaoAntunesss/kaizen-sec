@@ -107,7 +107,31 @@ function subscrever() {
 }
 
 /* ---------------- Painel ---------------- */
-const contaPres = (r) => EQUIPA.filter((p) => r.presencas[p.mec] === "P").length;
+// Equipa de cada reunião: guardada com a reunião (quem fazia parte nessa altura). Reuniões antigas sem essa
+// informação usam a equipa atual mais quem tenha presença registada nelas.
+function nomesConhecidos() {
+  const m = {};
+  EQUIPA_INICIAL.forEach((p) => (m[p.mec] = p.nome));
+  Object.entries(est.equipaBD || {}).forEach(([mec, p]) => { if (p && p.nome) m[mec] = p.nome; });
+  est.reunioes.forEach((r) => (r.equipa || []).forEach((p) => { if (p && p.mec && !m[p.mec]) m[p.mec] = p.nome; }));
+  EQUIPA.forEach((p) => (m[p.mec] = p.nome));
+  return m;
+}
+function equipaDe(r) {
+  if (Array.isArray(r.equipa) && r.equipa.length) return r.equipa;
+  const nomes = nomesConhecidos(), l = EQUIPA.map((p) => ({ mec: p.mec, nome: p.nome }));
+  Object.keys(r.presencas || {}).forEach((mec) => { if (!l.some((p) => p.mec === mec)) l.push({ mec, nome: nomes[mec] || mec }); });
+  return l;
+}
+function equipaDoConjunto(rs) {
+  const vistos = new Map();
+  EQUIPA.forEach((p) => { if (rs.some((r) => equipaDe(r).some((q) => q.mec === p.mec))) vistos.set(p.mec, p); });
+  rs.forEach((r) => equipaDe(r).forEach((p) => { if (!vistos.has(p.mec)) vistos.set(p.mec, { ...p, saiu: !EQUIPA.some((q) => q.mec === p.mec) }); }));
+  const l = [...vistos.values()];
+  return l.length ? l : EQUIPA;
+}
+const contaPres = (r) => equipaDe(r).filter((p) => r.presencas[p.mec] === "P").length;
+const tamEq = (r) => equipaDe(r).length;
 const marcada = (r) => Object.keys(r.presencas || {}).length > 0;
 
 /* Ano em consulta: o painel mostra um ano de cada vez (o histórico dos anos anteriores fica consultável) */
@@ -132,7 +156,7 @@ function desenharPainel() {
   $("tAbertas").textContent = ts.filter((t) => t.coluna !== "Concluído").length;
   $("tAtraso").textContent = ts.filter((t) => emAtraso(t, ref)).length;
   const comPres = doAno().filter(marcada);
-  $("tPresenca").textContent = comPres.length ? Math.round((comPres.reduce((s, r) => s + contaPres(r), 0) / (comPres.length * EQUIPA.length)) * 100) + "%" : "–";
+  $("tPresenca").textContent = comPres.length ? Math.round((comPres.reduce((s, r) => s + contaPres(r), 0) / comPres.reduce((s, r) => s + tamEq(r), 0)) * 100) + "%" : "–";
   $("tReunioes").textContent = doAno().length;
 
   // Tarefas por fechar da última reunião, com troca rápida de estado
@@ -145,15 +169,15 @@ function desenharPainel() {
     const t = r.tarefas, ab = t.filter((x) => x.coluna !== "Concluído").length, at = t.filter((x) => emAtraso(x, ref)).length;
     return `<button class="meet" type="button" data-id="${esc(r.id)}">
       <div><div class="d">${esc(fmt(r.data))}</div><div class="w">${r.semana ? "Semana " + esc(r.semana) : ""}</div></div>
-      <div class="info">${marcada(r) ? `<span class="chip ok">${contaPres(r)}/${EQUIPA.length} presentes</span>` : ""}<span class="chip">${t.length} post-its</span>${ab ? `<span class="chip">${ab} por fechar</span>` : ""}${at ? `<span class="chip late">${at} em atraso</span>` : ""}${r.notas ? `<span class="chip">apontamentos</span>` : ""}${Object.keys(TIPOS_FOTO).some((k) => temFotoDe(r, k)) ? `<span class="chip">fotos</span>` : ""}</div>
+      <div class="info">${marcada(r) ? `<span class="chip ok">${contaPres(r)}/${tamEq(r)} presentes</span>` : ""}<span class="chip">${t.length} post-its</span>${ab ? `<span class="chip">${ab} por fechar</span>` : ""}${at ? `<span class="chip late">${at} em atraso</span>` : ""}${r.notas ? `<span class="chip">apontamentos</span>` : ""}${Object.keys(TIPOS_FOTO).some((k) => temFotoDe(r, k)) ? `<span class="chip">fotos</span>` : ""}</div>
       <span class="go" aria-hidden="true">Abrir →</span></button>`;
   }).join("") : `<p class="empty">Ainda não há reuniões. Depois da reunião, carregue em «Registar reunião».</p>`;
 
   // Mapa de presenças (como a folha em papel, com a coluna Total)
   const rs = [...doAno()].filter(marcada).reverse().slice(-12);
-  $("mapaSub").textContent = rs.length ? `últimas ${rs.length} reuniões` : "";
+  $("mapaSub").textContent = rs.length === 1 ? "1 reunião" : rs.length ? `últimas ${rs.length} reuniões` : "";
   $("mapa").innerHTML = rs.length ? `<table class="mapa"><thead><tr><th>N.º Mec.</th><th>Nome</th>${rs.map((r) => `<th class="c">${esc(fmtCurto(r.data))}</th>`).join("")}<th class="c">Total</th></tr></thead><tbody>${
-    EQUIPA.map((p) => `<tr><td class="num">${esc(p.mec)}</td><td>${esc(p.nome)}</td>${rs.map((r) => { const v = r.presencas[p.mec]; return `<td class="c"><span class="mk ${v || ""}" title="${esc(EST_PRES[v] || "sem registo")}">${v === "P" ? "✓" : v || "·"}</span></td>`; }).join("")}<td class="c"><b>${rs.filter((r) => r.presencas[p.mec] === "P").length}</b></td></tr>`).join("")
+    equipaDoConjunto(rs).map((p) => `<tr><td class="num">${esc(p.mec)}</td><td>${esc(p.nome)}${p.saiu ? ' <span class="chip none">saiu</span>' : ""}</td>${rs.map((r) => { const v = r.presencas[p.mec]; return `<td class="c"><span class="mk ${v || ""}" title="${esc(EST_PRES[v] || "sem registo")}">${v === "P" ? "✓" : v || "·"}</span></td>`; }).join("")}<td class="c"><b>${rs.filter((r) => r.presencas[p.mec] === "P").length}</b></td></tr>`).join("")
   }<tr><td></td><td><b>Presentes</b></td>${rs.map((r) => `<td class="c"><b>${contaPres(r)}</b></td>`).join("")}<td></td></tr></tbody></table>` : `<p class="empty">As presenças aparecem aqui quando registar a primeira reunião.</p>`;
   desenharIndicadores();
 }
@@ -199,10 +223,10 @@ function desenharIndicadores() {
   const rp = rs.filter(marcada);
   desenharGrafico("chPresReu", {
     type: "bar",
-    data: { labels: rp.map((r) => fmtCurto(r.data)), datasets: [{ label: "Presença", data: rp.map((r) => Math.round((contaPres(r) / EQUIPA.length) * 100)), backgroundColor: cores[1], borderRadius: 4, borderSkipped: "start", maxBarThickness: 36 }] },
-    options: baseOpcoes({ plugins: { ...baseOpcoes().plugins, tooltip: { ...baseOpcoes().plugins.tooltip, callbacks: { label: (c) => ` ${c.parsed.y}% (${contaPres(rp[c.dataIndex])} de ${EQUIPA.length})` } } }, scales: { ...baseOpcoes().scales, y: { ...baseOpcoes().scales.y, max: 100, ticks: { ...baseOpcoes().scales.y.ticks, callback: (v) => v + "%" } } } })
+    data: { labels: rp.map((r) => fmtCurto(r.data)), datasets: [{ label: "Presença", data: rp.map((r) => Math.round((contaPres(r) / tamEq(r)) * 100)), backgroundColor: cores[1], borderRadius: 4, borderSkipped: "start", maxBarThickness: 36 }] },
+    options: baseOpcoes({ plugins: { ...baseOpcoes().plugins, tooltip: { ...baseOpcoes().plugins.tooltip, callbacks: { label: (c) => ` ${c.parsed.y}% (${contaPres(rp[c.dataIndex])} de ${tamEq(rp[c.dataIndex])})` } } }, scales: { ...baseOpcoes().scales, y: { ...baseOpcoes().scales.y, max: 100, ticks: { ...baseOpcoes().scales.y.ticks, callback: (v) => v + "%" } } } })
   });
-  $("tbPresReu").innerHTML = tabelaHTML(["Reunião", "Presentes", "%"], rp.map((r) => [fmt(r.data), `${contaPres(r)} de ${EQUIPA.length}`, Math.round((contaPres(r) / EQUIPA.length) * 100) + "%"]));
+  $("tbPresReu").innerHTML = tabelaHTML(["Reunião", "Presentes", "%"], rp.map((r) => [fmt(r.data), `${contaPres(r)} de ${tamEq(r)}`, Math.round((contaPres(r) / tamEq(r)) * 100) + "%"]));
 
   // 3. Tarefas por responsável (última reunião, empilhado por estado)
   const ult = doAno()[0];
@@ -220,13 +244,15 @@ function desenharIndicadores() {
 
   // 4. Assiduidade por pessoa (%)
   const tot = doAno().filter(marcada);
-  const pct = EQUIPA.map((p) => tot.length ? Math.round((tot.filter((r) => r.presencas[p.mec] === "P").length / tot.length) * 100) : 0);
+  const eqA = equipaDoConjunto(tot);
+  const deles = (p) => tot.filter((r) => equipaDe(r).some((q) => q.mec === p.mec));
+  const pct = eqA.map((p) => { const d = deles(p); return d.length ? Math.round((d.filter((r) => r.presencas[p.mec] === "P").length / d.length) * 100) : 0; });
   desenharGrafico("chPresPes", {
     type: "bar",
-    data: { labels: EQUIPA.map((p) => p.nome), datasets: [{ label: "Assiduidade", data: pct, backgroundColor: cores[3], borderRadius: 4, borderSkipped: "start", maxBarThickness: 22 }] },
-    options: baseOpcoes({ indexAxis: "y", plugins: { ...baseOpcoes().plugins, tooltip: { ...baseOpcoes().plugins.tooltip, callbacks: { label: (c) => ` ${c.parsed.x}% (${tot.filter((r) => r.presencas[EQUIPA[c.dataIndex].mec] === "P").length} de ${tot.length} reuniões)` } } }, scales: { x: { ...baseOpcoes().scales.y, max: 100, ticks: { ...baseOpcoes().scales.y.ticks, callback: (v) => v + "%" } }, y: { ...baseOpcoes().scales.x } } })
+    data: { labels: eqA.map((p) => p.nome + (p.saiu ? " (saiu)" : "")), datasets: [{ label: "Assiduidade", data: pct, backgroundColor: cores[3], borderRadius: 4, borderSkipped: "start", maxBarThickness: 22 }] },
+    options: baseOpcoes({ indexAxis: "y", plugins: { ...baseOpcoes().plugins, tooltip: { ...baseOpcoes().plugins.tooltip, callbacks: { label: (c) => ` ${c.parsed.x}% (${deles(eqA[c.dataIndex]).filter((r) => r.presencas[eqA[c.dataIndex].mec] === "P").length} de ${deles(eqA[c.dataIndex]).length} reuniões)` } } }, scales: { x: { ...baseOpcoes().scales.y, max: 100, ticks: { ...baseOpcoes().scales.y.ticks, callback: (v) => v + "%" } }, y: { ...baseOpcoes().scales.x } } })
   });
-  $("tbPresPes").innerHTML = tabelaHTML(["Pessoa", "Presenças", "%"], EQUIPA.map((p, i) => [p.nome, `${tot.filter((r) => r.presencas[p.mec] === "P").length} de ${tot.length}`, pct[i] + "%"]));
+  $("tbPresPes").innerHTML = tabelaHTML(["Pessoa", "Presenças", "%"], eqA.map((p, i) => [p.nome + (p.saiu ? " (saiu)" : ""), `${deles(p).filter((r) => r.presencas[p.mec] === "P").length} de ${deles(p).length}`, pct[i] + "%"]));
 }
 window.matchMedia("(prefers-color-scheme: dark)").addEventListener?.("change", () => { if (!$("vPainel").hidden) desenharIndicadores(); });
 
@@ -259,8 +285,8 @@ function desenharReuniao() {
   document.querySelectorAll(".tabpane").forEach((p) => (p.hidden = p.dataset.pane !== est.tab));
 
   // Presenças
-  $("pPresencas").innerHTML = (marcada(r) ? `<p class="muted">${contaPres(r)} de ${EQUIPA.length} presentes.</p>` : `<p class="empty">As presenças desta reunião não foram registadas. Use «Editar» para as marcar.</p>`) +
-    EQUIPA.map((p) => { const v = r.presencas[p.mec]; return `<div class="pres-row"><span class="m">${esc(p.mec)}</span><span>${esc(p.nome)}</span><span class="st ${v || "N"}">${esc(EST_PRES[v] || "—")}</span></div>`; }).join("") +
+  $("pPresencas").innerHTML = (marcada(r) ? `<p class="muted">${contaPres(r)} de ${tamEq(r)} presentes.</p>` : `<p class="empty">As presenças desta reunião não foram registadas. Use «Editar» para as marcar.</p>`) +
+    equipaDe(r).map((p) => { const v = r.presencas[p.mec]; return `<div class="pres-row"><span class="m">${esc(p.mec)}</span><span>${esc(p.nome)}</span><span class="st ${v || "N"}">${esc(EST_PRES[v] || "—")}</span></div>`; }).join("") +
     (r.convidados ? `<p><strong>Convidados:</strong> ${esc(r.convidados)}</p>` : "") + blocoFoto(r, "presencas");
 
   // Post-its
@@ -319,8 +345,8 @@ function abrirImprimir() {
   const meta = `<div class="sh-meta"><span>Data: <b>${esc(fmt(r.data))}</b></span><span>Semana n.º: <b>${esc(r.semana ?? "")}</b></span></div>`;
   $("folhaPres").innerHTML = CAB("Reunião Kaizen — Presenças") + meta +
     `<table class="sh-table"><thead><tr><th class="c" style="width:22mm">N.º Mec.</th><th>Nome</th><th style="width:40mm">Presença</th></tr></thead><tbody>${
-      EQUIPA.map((p) => `<tr><td class="c">${esc(p.mec)}</td><td>${esc(p.nome)}</td><td>${esc(EST_PRES[r.presencas[p.mec]] || "")}</td></tr>`).join("")
-    }<tr><td></td><td><b>Presentes</b></td><td><b>${contaPres(r)} de ${EQUIPA.length}</b></td></tr></tbody></table>` +
+      equipaDe(r).map((p) => `<tr><td class="c">${esc(p.mec)}</td><td>${esc(p.nome)}</td><td>${esc(EST_PRES[r.presencas[p.mec]] || "")}</td></tr>`).join("")
+    }<tr><td></td><td><b>Presentes</b></td><td><b>${contaPres(r)} de ${tamEq(r)}</b></td></tr></tbody></table>` +
     (r.convidados ? `<div class="sh-notes"><b>Convidados</b><div class="box" style="min-height:0">${esc(r.convidados)}</div></div>` : "") +
     `<div class="sh-notes"><b>Apontamentos da reunião</b><div class="box" style="min-height:90mm">${esc(r.notas || "")}</div></div>`;
   const ord = [...ts].sort((a, b) => colIdx(a.coluna) - colIdx(b.coluna));
@@ -358,6 +384,7 @@ function abrirRegisto(r) {
   $("fNotas").value = r ? r.notas || "" : "";
   $("fConvidados").value = r ? r.convidados || "" : "";
   est.pres = r ? { ...r.presencas } : {};
+  est.eqForm = r ? equipaDe(r).map((p) => ({ mec: p.mec, nome: p.nome })) : EQUIPA.map((p) => ({ mec: p.mec, nome: p.nome }));
   est.linhas = r ? r.tarefas.map((t) => ({ ...t })) : [];
   $("shot").hidden = true; $("video").hidden = true;
   $("btnCamera").hidden = false; $("btnTirar").hidden = true; $("btnRepetir").hidden = true;
@@ -375,7 +402,7 @@ $("btnVoltar").addEventListener("click", () => (est.editId ? abrirReuniao(est.ed
 $("fData").addEventListener("change", () => { if (!est.editId) $("fSemana").value = semanaISO($("fData").value); });
 
 function desenharPres() {
-  $("presEdit").innerHTML = EQUIPA.map((p) => `<div class="pres-row"><span class="m">${esc(p.mec)}</span><span>${esc(p.nome)}</span><span class="seg" role="group" aria-label="Presença de ${esc(p.nome)}">${
+  $("presEdit").innerHTML = est.eqForm.map((p) => `<div class="pres-row"><span class="m">${esc(p.mec)}</span><span>${esc(p.nome)}</span><span class="seg" role="group" aria-label="Presença de ${esc(p.nome)}">${
     Object.keys(EST_PRES).map((k) => `<button type="button" class="${k}" data-mec="${esc(p.mec)}" data-v="${k}" aria-pressed="${est.pres[p.mec] === k}">${k === "P" ? "Presente" : k === "F" ? "Falta" : "Just."}</button>`).join("")
   }</span></div>`).join("");
 }
@@ -385,7 +412,7 @@ $("presEdit").addEventListener("click", (e) => {
   if (est.pres[m] === v) delete est.pres[m]; else est.pres[m] = v;
   desenharPres();
 });
-$("btnTodos").addEventListener("click", () => { EQUIPA.forEach((p) => { if (!est.pres[p.mec] || est.pres[p.mec] === "F") est.pres[p.mec] = "P"; }); desenharPres(); });
+$("btnTodos").addEventListener("click", () => { est.eqForm.forEach((p) => { if (!est.pres[p.mec] || est.pres[p.mec] === "F") est.pres[p.mec] = "P"; }); desenharPres(); });
 
 function desenharLinhas() {
   const box = $("rows");
@@ -521,7 +548,7 @@ async function lerFolha(tipo, file) {
   const dataRef = $("fData").value || hoje();
   try {
     if (tipo === "presencas") {
-      const lista = EQUIPA.map((p) => `${p.mec} – ${p.nome}`).join("\n");
+      const lista = est.eqForm.map((p) => `${p.mec} – ${p.nome}`).join("\n");
       const v = await groqVisao(grande, `Lê uma folha de presenças em papel de uma reunião Kaizen (câmara municipal portuguesa).
 Equipa (N.º mecanográfico – nome):
 ${lista}
@@ -533,10 +560,10 @@ ${REGRAS}
 Formato: {"presencas":{"N.º mecanográfico":"P|F|J"},"convidados":"nomes separados por vírgula ou vazio"}`);
       const pres = v.presencas || {};
       let n = 0;
-      for (const p of EQUIPA) { const x = String(pres[p.mec] || "").toUpperCase(); if (["P", "F", "J"].includes(x)) { est.pres[p.mec] = x; n++; } }
+      for (const p of est.eqForm) { const x = String(pres[p.mec] || "").toUpperCase(); if (["P", "F", "J"].includes(x)) { est.pres[p.mec] = x; n++; } }
       if (v.convidados && !$("fConvidados").value.trim()) $("fConvidados").value = String(v.convidados).trim();
       desenharPres();
-      st.textContent = n ? `Marquei ${n} de ${EQUIPA.length} pessoas a partir da folha. Confirme em cima.` : "Não consegui ler presenças nesta foto. Marque à mão.";
+      st.textContent = n ? `Marquei ${n} de ${est.eqForm.length} pessoas a partir da folha. Confirme em cima.` : "Não consegui ler presenças nesta foto. Marque à mão.";
       st.className = n ? "status" : "status err";
     } else if (tipo === "acoes") {
       const v = await groqVisao(grande, `Lê uma folha em papel "Reunião Kaizen — Ações" preenchida à mão (câmara municipal portuguesa).
@@ -638,7 +665,7 @@ function desenharRelatorio() {
   const ult = rs[0];
   const abertas = ult ? ult.tarefas.filter((t) => t.coluna !== "Concluído") : [];
   const comPres = rs.filter(marcada);
-  const media = comPres.length ? Math.round((comPres.reduce((s, r) => s + contaPres(r), 0) / (comPres.length * EQUIPA.length)) * 100) : null;
+  const media = comPres.length ? Math.round((comPres.reduce((s, r) => s + contaPres(r), 0) / comPres.reduce((s, r) => s + tamEq(r), 0)) * 100) : null;
   const CAB = `<div class="sh-head"><img src="icons/logo-matosinhos.png" alt="Câmara Municipal de Matosinhos"><div class="sh-title"><b>Relatório Kaizen</b><span>Subunidade Orgânica da Conservação — Secretaria</span></div><img src="icons/logo-kaizen.png" alt="Kaizen Institute"></div>`;
   const kpi = (n, l) => `<div class="rk"><b>${n}</b><span>${l}</span></div>`;
   const ordRs = [...rs].reverse();
@@ -646,13 +673,13 @@ function desenharRelatorio() {
     `<div class="sh-meta"><span>Período: <b>${esc(nomePeriodo())}</b></span><span>Reuniões: <b>${rs.length}</b></span><span>Gerado a <b>${esc(fmt(ref))}</b></span></div>` +
     `<div class="rel-kpis">${kpi(rs.length, "Reuniões")}${kpi(media == null ? "–" : media + "%", "Presença média")}${kpi(todas.filter((t) => t.coluna === "Concluído").length, "Tarefas concluídas (registos)")}${kpi(abertas.length, "Por fechar na última reunião")}${kpi(abertas.filter((t) => emAtraso(t, ref)).length, "Em atraso")}</div>` +
     `<h3 class="rel-h">Reuniões</h3><table class="sh-table"><thead><tr><th>Data</th><th class="c">Semana</th><th class="c">Presentes</th>${COLS.map((c) => `<th class="c">${esc(c)}</th>`).join("")}</tr></thead><tbody>${
-      rs.map((r) => `<tr><td>${esc(fmt(r.data))}</td><td class="c">${esc(r.semana ?? "")}</td><td class="c">${marcada(r) ? `${contaPres(r)}/${EQUIPA.length}` : "—"}</td>${COLS.map((c, i) => `<td class="c">${r.tarefas.filter((t) => colIdx(t.coluna) === i).length}</td>`).join("")}</tr>`).join("") || `<tr><td colspan="7">Sem reuniões neste período.</td></tr>`
+      rs.map((r) => `<tr><td>${esc(fmt(r.data))}</td><td class="c">${esc(r.semana ?? "")}</td><td class="c">${marcada(r) ? `${contaPres(r)}/${tamEq(r)}` : "—"}</td>${COLS.map((c, i) => `<td class="c">${r.tarefas.filter((t) => colIdx(t.coluna) === i).length}</td>`).join("")}</tr>`).join("") || `<tr><td colspan="7">Sem reuniões neste período.</td></tr>`
     }</tbody></table>` +
     `<h3 class="rel-h">Tarefas por fechar${ult ? ` (reunião de ${esc(fmt(ult.data))})` : ""}</h3><table class="sh-table"><thead><tr><th>O que fazer</th><th>Responsável</th><th>Prazo</th><th>Estado</th></tr></thead><tbody>${
       abertas.map((t) => `<tr><td>${esc(t.tarefa)}</td><td>${esc(t.responsavel)}</td><td>${esc(fmt(t.prazo))}${emAtraso(t, ref) ? ' <span class="sh-tag late">atraso</span>' : ""}</td><td>${esc(t.coluna)}</td></tr>`).join("") || `<tr><td colspan="4">Nenhuma.</td></tr>`
     }</tbody></table>` +
     `<h3 class="rel-h">Presenças</h3><table class="sh-table rel-pres"><thead><tr><th>N.º</th><th>Nome</th>${ordRs.map((r) => `<th class="c">${esc(fmtCurto(r.data))}</th>`).join("")}<th class="c">Total</th></tr></thead><tbody>${
-      EQUIPA.map((p) => `<tr><td>${esc(p.mec)}</td><td>${esc(p.nome)}</td>${ordRs.map((r) => { const v = r.presencas[p.mec]; return `<td class="c">${v === "P" ? "✓" : esc(v || "")}</td>`; }).join("")}<td class="c"><b>${ordRs.filter((r) => r.presencas[p.mec] === "P").length}</b></td></tr>`).join("")
+      equipaDoConjunto(rs).map((p) => `<tr><td>${esc(p.mec)}</td><td>${esc(p.nome)}${p.saiu ? " (saiu)" : ""}</td>${ordRs.map((r) => { const v = r.presencas[p.mec]; return `<td class="c">${v === "P" ? "✓" : esc(v || "")}</td>`; }).join("")}<td class="c"><b>${ordRs.filter((r) => r.presencas[p.mec] === "P").length}</b></td></tr>`).join("")
     }</tbody></table>`;
 }
 $("btnPdf").addEventListener("click", () => {
@@ -696,9 +723,9 @@ async function exportarExcel() {
     const rs = [...reunioesDoPeriodo()].reverse(), ref = hoje();
     const ESTN = { P: "Presente", F: "Falta", J: "Justificada" };
     const folhas = {
-      2: rs.map((r) => [{ d: r.data }, r.semana ?? "", marcada(r) ? contaPres(r) : "", EQUIPA.length, marcada(r) ? contaPres(r) / EQUIPA.length : "", ...COLS.map((c, i) => r.tarefas.filter((t) => colIdx(t.coluna) === i).length), r.tarefas.filter((t) => emAtraso(t, ref)).length, r.notas || "", r.convidados || ""]),
+      2: rs.map((r) => [{ d: r.data }, r.semana ?? "", marcada(r) ? contaPres(r) : "", tamEq(r), marcada(r) ? contaPres(r) / tamEq(r) : "", ...COLS.map((c, i) => r.tarefas.filter((t) => colIdx(t.coluna) === i).length), r.tarefas.filter((t) => emAtraso(t, ref)).length, r.notas || "", r.convidados || ""]),
       3: rs.flatMap((r) => r.tarefas.map((t) => [{ d: r.data }, t.tarefa, t.responsavel || "", { d: t.prazo }, t.coluna, emAtraso(t, ref) ? "Sim" : "Não"])),
-      4: rs.flatMap((r) => EQUIPA.filter((p) => r.presencas[p.mec]).map((p) => [{ d: r.data }, String(p.mec), p.nome, ESTN[r.presencas[p.mec]]]))
+      4: rs.flatMap((r) => equipaDe(r).filter((p) => r.presencas[p.mec]).map((p) => [{ d: r.data }, String(p.mec), p.nome, ESTN[r.presencas[p.mec]]]))
     };
     const tam = {};
     for (const [i, linhas] of Object.entries(folhas)) {
@@ -713,7 +740,7 @@ async function exportarExcel() {
     // Painel: responsáveis da última reunião e equipa
     const ult = rs[rs.length - 1];
     const resp = ult ? [...new Set(ult.tarefas.map((t) => (t.responsavel || "").trim()).filter(Boolean))].slice(0, 20) : [];
-    const eq = EQUIPA.slice(0, 20);
+    const eq = equipaDoConjunto(rs).slice(0, 20);
     let pn = await zip.file("xl/worksheets/sheet1.xml").async("string");
     for (let k = 0; k < 20; k++) {
       pn = porCelula(pn, `A${20 + k}`, celula(`A${20 + k}`, resp[k] ?? ""));
@@ -751,7 +778,7 @@ $("btnGuardar").addEventListener("click", async () => {
     const agora = new Date().toISOString();
     await D.set(ref, {
       data, semana: $("fSemana").value ? Number($("fSemana").value) : null,
-      presencas: est.pres, convidados: $("fConvidados").value.trim(),
+      presencas: est.pres, equipa: est.eqForm, convidados: $("fConvidados").value.trim(),
       tarefas: est.linhas.filter((t) => t.tarefa).map(({ _k, ...t }) => t), notas: $("fNotas").value.trim(),
       temFoto: !!est.fotos.postits || !!(ant && ant.temFoto),
       fotos: Object.fromEntries(Object.keys(TIPOS_FOTO).map((k) => [k, !!est.fotos[k] || !!(ant && temFotoDe(ant, k))])),

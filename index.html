@@ -109,6 +109,7 @@
 
     <div class="panel">
       <div class="panel-head"><h2>1. Presenças</h2><button class="btn small" id="btnTodos" type="button">Todos presentes</button></div>
+      <div class="sheet-read"><label class="btn" for="fPresFoto">Fotografar folha de presenças</label><input type="file" id="fPresFoto" accept="image/*" capture="environment" class="vh"><p class="status" id="presStatus"></p></div>
       <div id="presEdit"></div>
       <label class="f" for="fConvidados">Convidados / outras pessoas (opcional)<input type="text" id="fConvidados" placeholder="Ex.: Eng.º Pedro Pinto (DCEPSP)"></label>
     </div>
@@ -129,12 +130,14 @@
       </div>
       <p class="status" id="readStatus"></p>
       <div class="panel-head"><h2 class="h3">Tarefas (folha de ações)</h2><span class="sub">confirme e corrija antes de guardar</span></div>
+      <div class="sheet-read"><label class="btn" for="fAcoesFoto">Fotografar folha de ações</label><input type="file" id="fAcoesFoto" accept="image/*" capture="environment" class="vh"><p class="status" id="acoesStatus"></p></div>
       <div id="rows"></div>
       <div><button class="btn small" id="btnAddRow" type="button">+ Acrescentar tarefa</button></div>
     </div>
 
     <div class="panel">
       <div class="panel-head"><h2>3. Apontamentos da reunião</h2></div>
+      <div class="sheet-read"><label class="btn" for="fNotasFoto">Fotografar apontamentos</label><input type="file" id="fNotasFoto" accept="image/*" capture="environment" class="vh"><p class="status" id="notasStatus"></p></div>
       <label class="f" for="fNotas"><span class="vh">Apontamentos</span><textarea id="fNotas" rows="6" placeholder="Assuntos falados, decisões, o que fica para a próxima reunião…"></textarea></label>
       <div class="actions">
         <span class="status" id="saveStatus"></span>

@@ -200,3 +200,7 @@ input[type=text],input[type=date],input[type=number],select,textarea{border:1px 
 .mapa .mk{font-weight:800}
 .mk.P{color:var(--ok)} .mk.F{color:var(--late)} .mk.J{color:#8a5a00}
 .notes{white-space:pre-wrap;line-height:1.6;margin:0}
+
+.sheet-read{display:flex;flex-wrap:wrap;gap:8px 12px;align-items:center}
+.sheet-read .status{flex:1;min-width:200px}
+.foto-orig{margin-top:12px}

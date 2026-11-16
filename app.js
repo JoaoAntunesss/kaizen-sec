@@ -16,7 +16,9 @@ const semanaISO = (s) => { const d = new Date(s + "T12:00:00"); if (isNaN(d)) re
 const colIdx = (c) => Math.max(0, COLS.indexOf(c));
 const emAtraso = (t, ref) => t.coluna !== "Concluído" && isoData(t.prazo) && t.prazo < ref;
 
-const est = { user: null, reunioes: [], abertaId: null, tab: "presencas", editId: null, foto: null, linhas: [], pres: {}, stream: null };
+const est = { user: null, reunioes: [], abertaId: null, tab: "presencas", editId: null, fotos: {}, linhas: [], pres: {}, stream: null };
+const TIPOS_FOTO = { postits: "quadro de post-its", presencas: "folha de presenças", acoes: "folha de ações", notas: "folha de apontamentos" };
+const temFotoDe = (r, k) => !!((r.fotos && r.fotos[k]) || (k === "postits" && r.temFoto));
 let fb = null;
 
 /* ---------------- Vistas ---------------- */
@@ -110,7 +112,7 @@ function desenharPainel() {
     const t = r.tarefas, ab = t.filter((x) => x.coluna !== "Concluído").length, at = t.filter((x) => emAtraso(x, ref)).length;
     return `<button class="meet" type="button" data-id="${esc(r.id)}">
       <div><div class="d">${esc(fmt(r.data))}</div><div class="w">${r.semana ? "Semana " + esc(r.semana) : ""}</div></div>
-      <div class="info">${marcada(r) ? `<span class="chip ok">${contaPres(r)}/${EQUIPA.length} presentes</span>` : ""}<span class="chip">${t.length} post-its</span>${ab ? `<span class="chip">${ab} por fechar</span>` : ""}${at ? `<span class="chip late">${at} em atraso</span>` : ""}${r.notas ? `<span class="chip">apontamentos</span>` : ""}${r.temFoto ? `<span class="chip">foto</span>` : ""}</div>
+      <div class="info">${marcada(r) ? `<span class="chip ok">${contaPres(r)}/${EQUIPA.length} presentes</span>` : ""}<span class="chip">${t.length} post-its</span>${ab ? `<span class="chip">${ab} por fechar</span>` : ""}${at ? `<span class="chip late">${at} em atraso</span>` : ""}${r.notas ? `<span class="chip">apontamentos</span>` : ""}${Object.keys(TIPOS_FOTO).some((k) => temFotoDe(r, k)) ? `<span class="chip">fotos</span>` : ""}</div>
       <span class="go" aria-hidden="true">Abrir →</span></button>`;
   }).join("") : `<p class="empty">Ainda não há reuniões. Depois da reunião, carregue em «Registar reunião».</p>`;
 
@@ -137,7 +139,7 @@ function desenharReuniao() {
   // Presenças
   $("pPresencas").innerHTML = (marcada(r) ? `<p class="muted">${contaPres(r)} de ${EQUIPA.length} presentes.</p>` : `<p class="empty">As presenças desta reunião não foram registadas. Use «Editar» para as marcar.</p>`) +
     EQUIPA.map((p) => { const v = r.presencas[p.mec]; return `<div class="pres-row"><span class="m">${esc(p.mec)}</span><span>${esc(p.nome)}</span><span class="st ${v || "N"}">${esc(EST_PRES[v] || "—")}</span></div>`; }).join("") +
-    (r.convidados ? `<p><strong>Convidados:</strong> ${esc(r.convidados)}</p>` : "");
+    (r.convidados ? `<p><strong>Convidados:</strong> ${esc(r.convidados)}</p>` : "") + blocoFoto(r, "presencas");
 
   // Post-its
   $("board").innerHTML = COLS.map((c, ci) => {
@@ -146,27 +148,31 @@ function desenharReuniao() {
       l.length ? l.map((t) => { const at = emAtraso(t, ref); return `<div class="card"><div class="t">${esc(t.tarefa)}</div><div class="meta">${t.responsavel ? `<span class="chip">${esc(t.responsavel)}</span>` : `<span class="chip none">sem responsável</span>`}${t.prazo ? `<span class="chip ${at ? "late" : t.coluna === "Concluído" ? "ok" : ""}">${at ? "Atrasada · " : "Até "}${esc(fmt(t.prazo))}</span>` : ""}</div></div>`; }).join("") : `<div class="empty">Sem post-its</div>`
     }</div></div>`;
   }).join("");
-  $("fotoPostits").innerHTML = r.temFoto ? `<details id="fotoDet"><summary>Ver a foto original do quadro</summary><div id="fotoBox" class="status">A carregar…</div></details>` : "";
-  const det = $("fotoDet");
-  if (det) det.addEventListener("toggle", () => { if (det.open) carregarFoto(r.id); }, { once: true });
+  $("fotoPostits").innerHTML = blocoFoto(r, "postits");
 
   // Folha de ações
   const ord = [...ts].sort((a, b) => colIdx(a.coluna) - colIdx(b.coluna));
   $("pAcoes").innerHTML = ord.length ? `<div class="scroll"><table><thead><tr><th class="num">N.º</th><th>O que fazer</th><th>Responsável</th><th>Prazo</th><th>Estado</th></tr></thead><tbody>${
     ord.map((t, i) => `<tr><td class="num">${i + 1}</td><td>${esc(t.tarefa)}</td><td>${esc(t.responsavel)}</td><td>${esc(fmt(t.prazo))}${emAtraso(t, ref) ? ' <span class="chip late">atraso</span>' : ""}</td><td><span class="chip ${t.coluna === "Concluído" ? "ok" : ""}">${esc(t.coluna)}</span></td></tr>`).join("")
   }</tbody></table></div>` : `<p class="empty">Sem tarefas registadas.</p>`;
+  $("pAcoes").innerHTML += blocoFoto(r, "acoes");
 
   // Apontamentos
-  $("pNotas").innerHTML = r.notas ? `<p class="notes">${esc(r.notas)}</p>` : `<p class="empty">Sem apontamentos. Use «Editar» para os escrever.</p>`;
+  $("pNotas").innerHTML = (r.notas ? `<p class="notes">${esc(r.notas)}</p>` : `<p class="empty">Sem apontamentos. Use «Editar» para os escrever.</p>`) + blocoFoto(r, "notas");
+  document.querySelectorAll("details[data-foto]").forEach((d) => d.addEventListener("toggle", () => { if (d.open) carregarFoto(r.id, d.dataset.foto, d.querySelector(".fbox")); }, { once: true }));
 }
 document.querySelectorAll(".tab").forEach((b) => b.addEventListener("click", () => { est.tab = b.dataset.tab; desenharReuniao(); }));
 $("btnVoltar3").addEventListener("click", () => mostrar("vPainel"));
 
-async function carregarFoto(id) {
-  const box = $("fotoBox"); if (!box) return;
+function blocoFoto(r, k) {
+  return temFotoDe(r, k) ? `<details data-foto="${k}" class="foto-orig"><summary>Ver a foto original da ${esc(TIPOS_FOTO[k])}</summary><div class="fbox status">A carregar…</div></details>` : "";
+}
+async function carregarFoto(id, k, box) {
+  if (!box) return;
   try {
     const d = await fb.D.get(fb.D.ref(fb.db, COL_FOTOS + "/" + id));
-    const img = d.exists() ? String(d.val().img || "") : "";
+    const v = d.exists() ? d.val() : {};
+    const img = String((k === "postits" ? v.postits || v.img : v[k]) || "");
     box.outerHTML = img.startsWith("data:image/") ? `<img class="photo" src="${esc(img)}" alt="Foto do quadro de post-its">` : `<p class="status">Foto não encontrada.</p>`;
   } catch { box.textContent = "Não consegui carregar a foto."; }
 }
@@ -222,7 +228,8 @@ $("btnPrintA3").addEventListener("click", () => imprimir("a3"));
 /* ---------------- Registar / editar ---------------- */
 function abrirRegisto(r) {
   est.editId = r ? r.id : null;
-  est.foto = null;
+  est.fotos = {};
+  for (const id of ["presStatus", "acoesStatus", "notasStatus"]) { $(id).textContent = ""; $(id).className = "status"; }
   $("regTitle").textContent = r ? "Editar reunião" : "Registar reunião";
   $("fData").value = r ? r.data : hoje();
   $("fSemana").value = r ? r.semana ?? "" : semanaISO(hoje());
@@ -232,7 +239,7 @@ function abrirRegisto(r) {
   est.linhas = r ? r.tarefas.map((t) => ({ ...t })) : [];
   $("shot").hidden = true; $("video").hidden = true;
   $("btnCamera").hidden = false; $("btnTirar").hidden = true; $("btnRepetir").hidden = true;
-  $("readStatus").textContent = GROQ_API_KEY.startsWith("__") ? "A leitura automática ainda não está configurada (falta a chave do Groq). Pode escrever as tarefas à mão." : (r && r.temFoto ? "Esta reunião já tem foto. Tire outra só se quiser substituir." : "");
+  $("readStatus").textContent = GROQ_API_KEY.startsWith("__") ? "A leitura automática ainda não está configurada (falta a chave do Groq). Pode escrever as tarefas à mão." : (r && temFotoDe(r, "postits") ? "Esta reunião já tem foto do quadro. Tire outra só se quiser substituir." : "");
   $("readStatus").className = "status";
   $("saveStatus").textContent = "";
   desenharPres();
@@ -309,8 +316,8 @@ function reduzir(blob, max, q) {
 async function usarFoto(blob) {
   try {
     const grande = await reduzir(blob, 1600, 0.85);
-    est.foto = await reduzir(blob, 1000, 0.6); // guardada no Realtime Database junto da reunião
-    const s = $("shot"); s.src = grande; s.hidden = false; $("video").hidden = true;
+    est.fotos.postits = await reduzir(blob, 1000, 0.6);
+    const sh = $("shot"); sh.src = grande; sh.hidden = false; $("video").hidden = true;
     $("btnCamera").hidden = true; $("btnTirar").hidden = true; $("btnRepetir").hidden = false;
     lerPostits(grande);
   } catch { $("readStatus").textContent = "Não consegui abrir essa imagem. Tente outra."; $("readStatus").className = "status err"; }
@@ -330,40 +337,114 @@ function extrairJSON(txt) {
   const a = limpo.indexOf("{"), b = limpo.lastIndexOf("}");
   return JSON.parse(a >= 0 && b > a ? limpo.slice(a, b + 1) : limpo);
 }
+const semChave = () => !GROQ_API_KEY || GROQ_API_KEY.startsWith("__");
+async function groqVisao(dataUrl, prompt) {
+  const modelo = await escolherModelo();
+  const r = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: "Bearer " + GROQ_API_KEY },
+    body: JSON.stringify({ model: modelo, temperature: 0.1, messages: [{ role: "user", content: [{ type: "text", text: prompt }, { type: "image_url", image_url: { url: dataUrl } }] }] })
+  });
+  if (!r.ok) throw new Error("groq " + r.status);
+  const j = await r.json();
+  return extrairJSON(j.choices?.[0]?.message?.content || "");
+}
+const erroGroq = (e, oQue) => String(e && e.message).includes("429") ? "Muitos pedidos seguidos à IA. Espere um minuto e tente outra vez." : `A leitura da ${oQue} falhou. Tente outra foto ou preencha à mão.`;
+const REGRAS = `Não inventes: palavras ilegíveis ficam [?]. Corrige só erros de ortografia óbvios. Responde APENAS com JSON, sem texto à volta.`;
+const normTarefa = (t) => String(t || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^a-z0-9]+/g, " ").trim();
+function juntarTarefas(novas) {
+  lerLinhas();
+  const atuais = est.linhas.filter((t) => t.tarefa);
+  let juntas = 0;
+  for (const n of novas) {
+    const k = normTarefa(n.tarefa);
+    const igual = atuais.find((t) => { const a = normTarefa(t.tarefa); return a && k && (a === k || a.includes(k) || k.includes(a)); });
+    if (igual) { igual.responsavel ||= n.responsavel; igual.prazo ||= n.prazo; if (n.coluna === "Concluído") igual.coluna = "Concluído"; juntas++; }
+    else atuais.push(n);
+  }
+  est.linhas = atuais; desenharLinhas();
+  return juntas;
+}
+const prazoOk = (p) => (isoData(p) ? p : "");
+
 async function lerPostits(dataUrl) {
-  if (GROQ_API_KEY.startsWith("__") || !GROQ_API_KEY) return;
+  if (semChave()) return;
   const st = $("readStatus"); st.className = "status"; st.textContent = "A ler os post-its… (uns segundos)";
   const dataRef = $("fData").value || hoje();
   const prompt = `Transcreve um quadro Kaizen de post-its de uma equipa de secretaria de uma câmara municipal portuguesa.
 O quadro tem 4 colunas: "A fazer", "Em curso", "Pendente", "Concluído". Cada post-it é uma tarefa, normalmente com: o quê, quem (responsável) e até quando (prazo).
 Transcreve TODOS os post-its legíveis e indica a coluna onde cada um está colado.
 A reunião foi a ${dataRef}. Converte prazos escritos à mão (ex.: "20/11", "sexta", "fim do mês") para AAAA-MM-DD a partir dessa data; sem prazo claro usa "".
-Não inventes: palavras ilegíveis ficam [?]. Corrige só erros de ortografia óbvios.
-Responde APENAS com JSON: {"tarefas":[{"coluna":"A fazer|Em curso|Pendente|Concluído","tarefa":"texto","responsavel":"nome ou vazio","prazo":"AAAA-MM-DD ou vazio"}]}`;
+${REGRAS}
+Formato: {"tarefas":[{"coluna":"A fazer|Em curso|Pendente|Concluído","tarefa":"texto","responsavel":"nome ou vazio","prazo":"AAAA-MM-DD ou vazio"}]}`;
   try {
-    const modelo = await escolherModelo();
-    const r = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-      method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: "Bearer " + GROQ_API_KEY },
-      body: JSON.stringify({ model: modelo, temperature: 0.1, messages: [{ role: "user", content: [{ type: "text", text: prompt }, { type: "image_url", image_url: { url: dataUrl } }] }] })
-    });
-    if (!r.ok) throw new Error("groq " + r.status);
-    const j = await r.json();
-    const v = extrairJSON(j.choices?.[0]?.message?.content || "");
-    const novos = (Array.isArray(v.tarefas) ? v.tarefas : []).filter((t) => t && t.tarefa).map((t) => ({
-      coluna: COLS.includes(t.coluna) ? t.coluna : "A fazer", tarefa: String(t.tarefa).trim(), responsavel: String(t.responsavel || "").trim(), prazo: isoData(t.prazo) ? t.prazo : ""
-    }));
-    lerLinhas();
-    est.linhas = est.linhas.filter((t) => t.tarefa).concat(novos);
-    desenharLinhas();
-    st.textContent = novos.length ? `Li ${novos.length} post-its. Confirme a lista e corrija o que for preciso.` : "Não consegui ler post-its. Tire outra foto mais de frente e com mais luz, ou escreva à mão.";
+    const v = await groqVisao(dataUrl, prompt);
+    const novos = (Array.isArray(v.tarefas) ? v.tarefas : []).filter((t) => t && t.tarefa).map((t) => ({ coluna: COLS.includes(t.coluna) ? t.coluna : "A fazer", tarefa: String(t.tarefa).trim(), responsavel: String(t.responsavel || "").trim(), prazo: prazoOk(t.prazo) }));
+    const j = juntarTarefas(novos);
+    st.textContent = novos.length ? `Li ${novos.length} post-its${j ? ` (${j} já estavam na lista e foram juntos)` : ""}. Confirme e corrija o que for preciso.` : "Não consegui ler post-its. Tire outra foto mais de frente e com mais luz, ou escreva à mão.";
     st.className = novos.length ? "status" : "status err";
-  } catch (e) {
-    st.className = "status err";
-    st.textContent = String(e.message).includes("429") ? "Muitos pedidos seguidos à IA. Espere um minuto e tente outra vez (Repetir foto)." : "A leitura falhou. Tente outra vez ou escreva as tarefas à mão.";
-  }
+  } catch (e) { st.className = "status err"; st.textContent = erroGroq(e, "foto do quadro"); }
 }
 
+/* Folhas em papel: presenças, ações e apontamentos */
+async function lerFolha(tipo, file) {
+  const stId = { presencas: "presStatus", acoes: "acoesStatus", notas: "notasStatus" }[tipo];
+  const st = $(stId);
+  if (semChave()) { st.textContent = "A leitura automática não está configurada."; st.className = "status err"; return; }
+  let grande;
+  try { grande = await reduzir(file, 1600, 0.85); est.fotos[tipo] = await reduzir(file, 1000, 0.6); }
+  catch { st.textContent = "Não consegui abrir essa imagem."; st.className = "status err"; return; }
+  st.className = "status"; st.textContent = `A ler a ${TIPOS_FOTO[tipo]}… (uns segundos)`;
+  const dataRef = $("fData").value || hoje();
+  try {
+    if (tipo === "presencas") {
+      const lista = EQUIPA.map((p) => `${p.mec} – ${p.nome}`).join("\n");
+      const v = await groqVisao(grande, `Lê uma folha de presenças em papel de uma reunião Kaizen (câmara municipal portuguesa).
+Equipa (N.º mecanográfico – nome):
+${lista}
+A reunião foi a ${dataRef} (formato AAAA-MM-DD; na folha aparece como ${fmtCurto(dataRef)} ou ${fmt(dataRef)}).
+A folha pode ser (a) de uma só reunião, com coluna de assinatura ou presença, ou (b) um mapa semanal com uma coluna por data — nesse caso usa SÓ a coluna da data ${fmtCurto(dataRef)}.
+Para cada pessoa da equipa: "P" se tem ✓, x, visto, rubrica ou assinatura; "F" se tem F ou falta; "J" se tem J ou justificada. Se a célula estiver vazia ou não conseguires ler, não incluas a pessoa.
+Identifica as pessoas pelo número mecanográfico ou pelo nome. Pessoas escritas na folha que não estão na equipa vão para "convidados".
+${REGRAS}
+Formato: {"presencas":{"N.º mecanográfico":"P|F|J"},"convidados":"nomes separados por vírgula ou vazio"}`);
+      const pres = v.presencas || {};
+      let n = 0;
+      for (const p of EQUIPA) { const x = String(pres[p.mec] || "").toUpperCase(); if (["P", "F", "J"].includes(x)) { est.pres[p.mec] = x; n++; } }
+      if (v.convidados && !$("fConvidados").value.trim()) $("fConvidados").value = String(v.convidados).trim();
+      desenharPres();
+      st.textContent = n ? `Marquei ${n} de ${EQUIPA.length} pessoas a partir da folha. Confirme em cima.` : "Não consegui ler presenças nesta foto. Marque à mão.";
+      st.className = n ? "status" : "status err";
+    } else if (tipo === "acoes") {
+      const v = await groqVisao(grande, `Lê uma folha em papel "Reunião Kaizen — Ações" preenchida à mão (câmara municipal portuguesa).
+A tabela tem colunas: N.º, O que fazer, Responsável, Prazo e Feito (um quadrado que pode estar assinalado). No fundo pode haver uma caixa "Notas / assuntos para a próxima reunião".
+Transcreve todas as linhas preenchidas. A reunião foi a ${dataRef}: converte prazos para AAAA-MM-DD a partir dessa data; sem prazo usa "". "feito" é true se o quadrado estiver assinalado.
+${REGRAS}
+Formato: {"tarefas":[{"tarefa":"texto","responsavel":"nome ou vazio","prazo":"AAAA-MM-DD ou vazio","feito":false}],"notas":"texto da caixa de notas ou vazio"}`);
+      const novas = (Array.isArray(v.tarefas) ? v.tarefas : []).filter((t) => t && t.tarefa).map((t) => ({ coluna: t.feito ? "Concluído" : "A fazer", tarefa: String(t.tarefa).trim(), responsavel: String(t.responsavel || "").trim(), prazo: prazoOk(t.prazo) }));
+      const j = juntarTarefas(novas);
+      if (v.notas) juntarNotas(String(v.notas), "Notas da folha de ações");
+      st.textContent = novas.length ? `Li ${novas.length} linhas${j ? ` (${j} já existiam e foram juntas)` : ""}${v.notas ? " e as notas" : ""}. Confirme na lista.` : "Não consegui ler linhas nesta folha. Preencha à mão.";
+      st.className = novas.length ? "status" : "status err";
+    } else {
+      const v = await groqVisao(grande, `Transcreve os apontamentos manuscritos desta folha de uma reunião Kaizen (câmara municipal portuguesa), mantendo a ordem e as quebras de linha. Usa "- " no início de cada ponto quando forem tópicos.
+${REGRAS}
+Formato: {"texto":"transcrição"}`);
+      const t = String(v.texto || "").trim();
+      if (t) juntarNotas(t);
+      st.textContent = t ? "Apontamentos transcritos para a caixa em cima. Reveja o texto." : "Não consegui ler texto nesta foto. Escreva à mão.";
+      st.className = t ? "status" : "status err";
+    }
+  } catch (e) { st.className = "status err"; st.textContent = erroGroq(e, TIPOS_FOTO[tipo]); }
+}
+function juntarNotas(texto, titulo) {
+  const cx = $("fNotas"), atual = cx.value.trim();
+  const bloco = titulo ? `${titulo}:\n${texto}` : texto;
+  cx.value = atual ? `${atual}\n\n${bloco}` : bloco;
+}
+for (const [id, tipo] of [["fPresFoto", "presencas"], ["fAcoesFoto", "acoes"], ["fNotasFoto", "notas"]]) {
+  $(id).addEventListener("change", (e) => { const f = e.target.files && e.target.files[0]; if (f) lerFolha(tipo, f); e.target.value = ""; });
+}
 
 /* ---------------- Guardar ---------------- */
 $("btnGuardar").addEventListener("click", async () => {
@@ -381,11 +462,13 @@ $("btnGuardar").addEventListener("click", async () => {
       data, semana: $("fSemana").value ? Number($("fSemana").value) : null,
       presencas: est.pres, convidados: $("fConvidados").value.trim(),
       tarefas: est.linhas.filter((t) => t.tarefa), notas: $("fNotas").value.trim(),
-      temFoto: !!est.foto || !!(ant && ant.temFoto),
+      temFoto: !!est.fotos.postits || !!(ant && ant.temFoto),
+      fotos: Object.fromEntries(Object.keys(TIPOS_FOTO).map((k) => [k, !!est.fotos[k] || !!(ant && temFotoDe(ant, k))])),
       criadoPor: ant?.criadoPor || est.user.email || "", criadoEm: ant?.criadoEm || agora,
       atualizadoPor: est.user.email || "", atualizadoEm: agora
     });
-    if (est.foto) await D.set(D.ref(db, COL_FOTOS + "/" + ref.key), { img: est.foto });
+    const novasFotos = Object.fromEntries(Object.entries(est.fotos).filter(([, v]) => v));
+    if (Object.keys(novasFotos).length) await D.update(D.ref(db, COL_FOTOS + "/" + ref.key), novasFotos);
     abrirReuniao(ref.key, "postits");
   } catch (e) {
     st.className = "status err";

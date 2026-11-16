@@ -19,7 +19,7 @@ let fb = null; // { db, auth, mod }
 
 /* ---------------- Vistas ---------------- */
 function mostrar(v) {
-  for (const id of ["vLogin", "vConfig", "vPainel", "vRegistar"]) $(id).hidden = id !== v;
+  for (const id of ["vLogin", "vConfig", "vPainel", "vRegistar", "vImprimir"]) $(id).hidden = id !== v;
   $("fab").hidden = v !== "vPainel";
   $("btnSair").hidden = !est.user;
   if (v !== "vRegistar") pararCamera();
@@ -102,7 +102,7 @@ function desenhar() {
   $("tFeitas").textContent = ts.filter((t) => t.coluna === "Concluído").length;
   $("tReunioes").textContent = est.reunioes.length;
   $("boardTitle").textContent = r ? `Reunião de ${fmt(r.data)}${r.semana ? " · semana " + r.semana : ""}` : "Ainda não há reuniões";
-  $("btnEditar").hidden = $("btnApagar").hidden = !r;
+  $("btnEditar").hidden = $("btnApagar").hidden = $("btnImprimir").hidden = !r;
 
   $("board").innerHTML = COLS.map((c, ci) => {
     const lista = ts.filter((t) => colIdx(t.coluna) === ci);
@@ -154,6 +154,40 @@ $("btnApagar").addEventListener("click", () => {
     catch { box.innerHTML = `<div class="confirm">Não consegui apagar. Verifique a ligação e as permissões.</div>`; }
   };
 });
+
+/* ---------------- Folhas para imprimir ---------------- */
+const CAB = (titulo) => `<div class="sh-head"><img src="icons/logo-matosinhos.png" alt="Câmara Municipal de Matosinhos"><div class="sh-title"><b>${titulo}</b><span>Subunidade Orgânica da Conservação — Secretaria</span></div><img src="icons/logo-kaizen.png" alt="Kaizen Institute"></div>`;
+function abrirImprimir() {
+  const r = selecionada(); if (!r) return;
+  const ts = r.tarefas || [], ref = r.data || hoje();
+  const meta = `<div class="sh-meta"><span>Data: <b>${esc(fmt(r.data))}</b></span><span>Semana n.º: <b>${esc(r.semana ?? "")}</b></span><span>Tarefas: <b>${ts.length}</b></span></div>`;
+  // A4: tarefas ordenadas por coluna (abertas primeiro), com linhas em branco até 15
+  const ord = [...ts].sort((a, b) => colIdx(a.coluna) - colIdx(b.coluna));
+  const linhas = ord.map((t, i) => {
+    const at = emAtraso(t, hoje());
+    return `<tr><td class="c">${i + 1}</td><td>${esc(t.tarefa)}</td><td>${esc(t.responsavel)}</td><td>${esc(fmt(t.prazo))}${at ? ' <span class="sh-tag late">atraso</span>' : ""}</td><td><span class="sh-tag">${esc(t.coluna)}</span></td><td class="c"><span class="sh-box">${t.coluna === "Concluído" ? "✓" : ""}</span></td></tr>`;
+  });
+  for (let i = ord.length; i < Math.max(15, ord.length); i++) linhas.push(`<tr><td class="c">${i + 1}</td><td></td><td></td><td></td><td></td><td class="c"><span class="sh-box"></span></td></tr>`);
+  $("folhaAcoes").innerHTML = CAB("Reunião Kaizen — Ações") + meta +
+    `<table class="sh-table"><thead><tr><th class="c" style="width:9mm">N.º</th><th>O que fazer</th><th style="width:34mm">Responsável</th><th style="width:26mm">Prazo</th><th style="width:22mm">Estado</th><th class="c" style="width:13mm">Feito</th></tr></thead><tbody>${linhas.join("")}</tbody></table>` +
+    `<div class="sh-notes"><b>Notas / assuntos para a próxima reunião</b><div class="box">${esc(r.notas || "")}</div></div>`;
+  // A3: quadro com os post-its em cada coluna
+  $("folhaQuadro").innerHTML = CAB("Quadro Kaizen") + meta + `<div class="sh-board">${COLS.map((c, ci) => {
+    const l = ts.filter((t) => colIdx(t.coluna) === ci);
+    return `<div class="sh-col"><div class="sh-col-h"><b>${esc(c)}</b><span>${l.length}</span></div><div class="sh-col-b">${l.map((t) => `<div class="sh-post${emAtraso(t, hoje()) ? " late" : ""}"><b>${esc(t.tarefa)}</b>${t.responsavel ? `<small>${esc(t.responsavel)}</small>` : ""}${t.prazo ? `<small>Até ${esc(fmt(t.prazo))}</small>` : ""}</div>`).join("")}</div></div>`;
+  }).join("")}</div><div class="sh-foot"><span>Em cada post-it: o quê · quem · até quando</span><span>Registado a partir da foto do quadro</span></div>`;
+  mostrar("vImprimir");
+}
+function imprimir(tipo) {
+  document.body.classList.remove("p-a4", "p-a3");
+  document.body.classList.add("p-" + tipo);
+  setTimeout(() => window.print(), 50);
+}
+window.addEventListener("afterprint", () => document.body.classList.remove("p-a4", "p-a3"));
+$("btnImprimir").addEventListener("click", abrirImprimir);
+$("btnVoltar2").addEventListener("click", () => mostrar("vPainel"));
+$("btnPrintA4").addEventListener("click", () => imprimir("a4"));
+$("btnPrintA3").addEventListener("click", () => imprimir("a3"));
 
 /* ---------------- Registar / editar ---------------- */
 function abrirRegisto(r) {

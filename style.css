@@ -116,3 +116,56 @@ input[type=text],input[type=date],input[type=number],select,textarea{border:1px 
 
 .fab{position:fixed;right:16px;bottom:calc(16px + env(safe-area-inset-bottom));z-index:6;display:flex;align-items:center;gap:8px;background:var(--accent);color:var(--on-accent);border:0;border-radius:999px;padding:14px 20px;font-weight:700;box-shadow:0 6px 20px rgba(0,0,0,.25);min-height:52px}
 @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+
+/* ---------- Folhas para imprimir ---------- */
+.sheets{display:flex;flex-direction:column;gap:20px;align-items:center}
+.sheet-wrap{width:100%;overflow-x:auto;display:flex;justify-content:center}
+.sheet{background:#fff;color:#1a1a1a;box-shadow:0 2px 14px rgba(0,0,0,.18);box-sizing:border-box;font-family:var(--font);flex:none}
+.sheet.a4{width:210mm;min-height:297mm;padding:12mm 13mm}
+.sheet.a3{width:420mm;min-height:297mm;padding:12mm 14mm}
+.sh-head{display:flex;align-items:center;justify-content:space-between;gap:6mm;padding-bottom:4mm;border-bottom:.7mm solid #1F4E79}
+.sh-head img{height:14mm;width:42mm;object-fit:contain}
+.sh-head img:first-child{object-position:left center}.sh-head img:last-child{object-position:right center}
+.sh-title{flex:1;text-align:center;display:flex;flex-direction:column;gap:1mm}
+.sh-title b{font-size:20pt;font-weight:800;color:#1F4E79;line-height:1.1}
+.sh-title span{font-size:10.5pt;font-weight:600;color:#333}
+.a3 .sh-head img{height:24mm;width:75mm}
+.a3 .sh-title b{font-size:34pt}.a3 .sh-title span{font-size:15pt}
+.sh-meta{display:flex;flex-wrap:wrap;gap:3mm 10mm;margin:5mm 0;font-size:10.5pt;color:#333}
+.sh-meta b{color:#1a1a1a}
+.sh-table{width:100%;border-collapse:collapse;font-size:10pt;border:.4mm solid #444}
+.sh-table th{background:#1F4E79;color:#fff;font-size:9pt;text-transform:none;letter-spacing:0;padding:2.5mm 2mm;text-align:left;border-left:.3mm solid #fff}
+.sh-table td{border-top:.3mm solid #8c8c8c;border-left:.3mm solid #8c8c8c;padding:2mm;height:10mm;vertical-align:middle;color:#1a1a1a}
+.sh-table td.c,.sh-table th.c{text-align:center}
+.sh-box{display:inline-block;width:4.2mm;height:4.2mm;border:.4mm solid #444;border-radius:.6mm;vertical-align:middle;text-align:center;line-height:4mm;font-size:9pt;font-weight:800}
+.sh-tag{display:inline-block;font-size:8pt;font-weight:700;padding:.3mm 2mm;border-radius:3mm;background:#e3ecf5;color:#1F4E79;white-space:nowrap}
+.sh-tag.late{background:#fbe9e7;color:#b3261e}
+.sh-notes{margin-top:5mm;font-size:10pt}
+.sh-notes .box{border:.3mm solid #8c8c8c;border-radius:1mm;min-height:30mm;padding:3mm;white-space:pre-wrap}
+.sh-board{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:5mm;margin-top:5mm}
+.sh-col{border:.6mm solid #1F4E79;border-radius:2.5mm;overflow:hidden;min-height:205mm;display:flex;flex-direction:column}
+.sh-col-h{background:#1F4E79;color:#fff;padding:3mm 4mm;display:flex;justify-content:space-between;align-items:baseline}
+.sh-col-h b{font-size:17pt}.sh-col-h span{font-size:11pt;opacity:.9}
+.sh-col-b{flex:1;background:#f4f6f9;padding:4mm;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:3mm;align-content:start}
+.sh-post{background:#FFE98A;border-radius:1mm;padding:3mm;min-height:30mm;display:flex;flex-direction:column;gap:2mm;box-shadow:0 .4mm 1mm rgba(0,0,0,.15);font-size:10.5pt;line-height:1.3}
+.sh-post b{font-weight:700;overflow-wrap:anywhere}
+.sh-post small{font-size:9pt;color:#333}
+.sh-post.late{outline:.6mm solid #b3261e}
+.sh-foot{display:flex;justify-content:space-between;margin-top:4mm;font-size:9.5pt;color:#555}
+
+@media print{
+  @page a4{size:A4 portrait;margin:0}
+  @page a3{size:A3 landscape;margin:0}
+  body{background:#fff;padding:0}
+  body.p-a4{page:a4} body.p-a3{page:a3}
+  .sheet.a4{height:297mm;min-height:0;overflow:hidden} .sheet.a3{height:296mm;min-height:0;overflow:hidden}
+  .sh-col{min-height:0;height:218mm}
+  .topbar,.install-ios,.fab,.no-print,#vLogin,#vConfig,#vPainel,#vRegistar{display:none!important}
+  .wrap,.view{padding:0;max-width:none;gap:0;display:block}
+  .sheets{gap:0;display:block}
+  .sheet-wrap{overflow:visible;display:block}
+  .sheet{box-shadow:none}
+  .sheet.a4{page:a4}.sheet.a3{page:a3}
+  body.p-a4 .sheet.a3,body.p-a3 .sheet.a4{display:none}
+  *{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+}

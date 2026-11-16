@@ -64,6 +64,7 @@
       <div class="panel-head">
         <h2 id="boardTitle">Quadro da reunião</h2>
         <div class="row-actions">
+          <button class="btn small" id="btnImprimir" type="button" hidden>Folhas para imprimir</button>
           <button class="btn small" id="btnEditar" type="button" hidden>Editar</button>
           <button class="btn small danger" id="btnApagar" type="button" hidden>Apagar</button>
         </div>
@@ -118,6 +119,21 @@
         <span class="status" id="saveStatus"></span>
         <button class="btn primary big" id="btnGuardar" type="button">Guardar reunião</button>
       </div>
+    </div>
+  </section>
+  <!-- Imprimir -->
+  <section id="vImprimir" class="view" hidden>
+    <div class="panel no-print">
+      <div class="panel-head"><h2>Folhas para imprimir</h2><button class="btn small ghost" id="btnVoltar2" type="button">Voltar</button></div>
+      <p class="muted">As folhas ficam preenchidas com as tarefas lidas da foto desta reunião. No computador, escolha a impressora e o papel certo (A4 ou A3) e desligue «Ajustar à página».</p>
+      <div class="cam-actions">
+        <button class="btn primary" id="btnPrintA4" type="button">Imprimir folha de ações (A4)</button>
+        <button class="btn primary" id="btnPrintA3" type="button">Imprimir quadro (A3)</button>
+      </div>
+    </div>
+    <div class="sheets">
+      <div class="sheet-wrap"><div class="sheet a4" id="folhaAcoes"></div></div>
+      <div class="sheet-wrap"><div class="sheet a3" id="folhaQuadro"></div></div>
     </div>
   </section>
 </main>

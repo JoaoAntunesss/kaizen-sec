@@ -414,13 +414,13 @@ a.btn{text-decoration:none}
 .mestre-btn[hidden]{display:none}
 .mestre-btn.aberto{opacity:.0;pointer-events:none}
 body:has(#fab:not([hidden])) .mestre-btn{bottom:calc(88px + env(safe-area-inset-bottom))}
-.mestre-av{display:inline-flex;align-items:center;justify-content:center;width:36px;height:36px;border-radius:50%;background:#fff;color:var(--accent);font-weight:800;font-size:16px;flex:none}
+.mestre-av{display:block;width:38px;height:38px;border-radius:50%;flex:none;box-shadow:0 0 0 2px rgba(255,255,255,.9)}
 .mestre{position:fixed;right:20px;bottom:calc(20px + env(safe-area-inset-bottom));z-index:41;width:400px;height:min(640px,calc(100vh - 100px));display:flex;flex-direction:column;background:var(--surface);border:1px solid var(--line);border-radius:16px;box-shadow:0 18px 48px rgba(16,32,64,.30);overflow:hidden;animation:mestreIn .18s ease-out}
 .mestre[hidden]{display:none}
 @keyframes mestreIn{from{opacity:0;transform:translateY(12px) scale(.98)}to{opacity:1;transform:none}}
 @media (prefers-reduced-motion:reduce){.mestre{animation:none}.mestre-btn{transition:none}}
 .mestre-h{display:flex;align-items:center;gap:8px;padding:10px 10px 10px 12px;background:var(--accent);color:var(--on-accent)}
-.mestre-h .mestre-av{width:32px;height:32px;font-size:14px}
+.mestre-h .mestre-av{width:34px;height:34px}
 .mestre-t{display:flex;flex-direction:column;line-height:1.15;margin-right:auto}
 .mestre-t small{font-size:11px;opacity:.85;font-weight:500}
 .mh-b{border:1px solid rgba(255,255,255,.35);background:transparent;color:inherit;border-radius:8px;padding:5px 9px;font-size:12px;font-weight:600;cursor:pointer}

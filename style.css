@@ -288,7 +288,7 @@ input[type=text],input[type=date],input[type=number],select,textarea{border:1px 
 .badge{display:inline-flex;align-items:center;justify-content:center;min-width:20px;height:20px;padding:0 6px;border-radius:999px;background:var(--accent);color:var(--on-accent);font-size:12px;font-weight:700}
 .badge[hidden]{display:none}
 .badge.late{background:var(--late);color:#fff}
-.urg-form{display:grid;grid-template-columns:minmax(150px,1fr) minmax(180px,2fr) minmax(150px,1fr) minmax(130px,.8fr) auto;gap:10px;align-items:end}
+.urg-form{display:grid;grid-template-columns:minmax(140px,1fr) minmax(170px,1.8fr) minmax(140px,1fr) minmax(150px,1fr) minmax(130px,.8fr) auto;gap:10px;align-items:end}
 @media (max-width:900px){.urg-form{grid-template-columns:repeat(2,minmax(0,1fr))}.urg-form .btn{grid-column:1/-1}}
 .urg-list{display:flex;flex-direction:column;gap:8px}
 .urg-item{display:flex;gap:12px;align-items:center;justify-content:space-between;border:1px solid var(--line);border-left:4px solid var(--accent);border-radius:10px;padding:10px 12px;background:var(--surface)}
@@ -325,3 +325,15 @@ input[type=text],input[type=date],input[type=number],select,textarea{border:1px 
 .leg-l{margin:0;padding-left:18px;display:flex;flex-direction:column;gap:6px;font-size:14px}
 .leg-links{margin-top:8px}
 .leg a{color:var(--accent);font-weight:600}
+
+/* Situação, filtros, modelos e verificação */
+.urg-filtros,.mod-tabs{display:flex;flex-wrap:wrap;gap:6px}
+.fchip{border:1px solid var(--line);background:var(--surface);border-radius:999px;padding:5px 12px;font-size:13px;font-weight:600;min-height:32px}
+.fchip.on{background:var(--accent);border-color:var(--accent);color:var(--on-accent)}
+.urg-sit{width:auto;min-height:30px;padding:3px 8px;font-size:12px;font-weight:600;border-radius:999px;background:var(--accent-soft)}
+#modTexto{width:100%;margin-top:10px;font:inherit;font-size:14px;line-height:1.5;resize:vertical}
+.chk{display:flex;flex-direction:column;gap:8px}
+.chk-i{display:flex;gap:10px;align-items:flex-start;font-size:14px;cursor:pointer}
+.chk-i input{width:20px;height:20px;margin-top:1px;flex:none;accent-color:var(--ok)}
+.chk-i input:checked+span{color:var(--muted);text-decoration:line-through}
+.ok-t{color:var(--ok);font-weight:700}

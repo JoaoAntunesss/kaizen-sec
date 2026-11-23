@@ -665,20 +665,28 @@ $("btnExportar").addEventListener("click", () => { $("expStatus").textContent = 
 $("btnVoltarRel").addEventListener("click", () => mostrar("vPainel"));
 
 /* ---------------- Trabalho diário: Edocs urgentes ---------------- */
+const SITUACOES = ["Por oficiar", "Ofício por assinar", "Aguarda execução", "Aguarda entidade externa", "Em análise técnica", "Outro"];
+let urgFiltro = "";
+const diasDesde = (iso) => { const d = new Date(iso); return isNaN(d) ? null : Math.max(0, Math.floor((Date.now() - d) / 864e5)); };
 const quem = () => (est.user && (est.user.displayName || est.user.email)) || "";
 const quando = (iso) => { const d = new Date(iso); return isNaN(d) ? "" : d.toLocaleString("pt-PT", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }); };
 function opcoesResp() {
   const sel = $("urgResp"), atual = sel.value;
   sel.innerHTML = `<option value="">— Sem responsável —</option>` + EQUIPA.map((p) => `<option>${esc(p.nome)}</option>`).join("");
   sel.value = atual;
+  if (!$("urgSit").options.length) $("urgSit").innerHTML = SITUACOES.map((s) => `<option>${esc(s)}</option>`).join("");
 }
 function itemUrg(u, feito) {
   const atraso = !feito && isoData(u.prazo) && u.prazo < hoje();
   const prazoHoje = !feito && u.prazo === hoje();
+  const dsit = diasDesde(u.situacaoEm || u.criadoEm);
   const chips = [
     u.resp ? `<span class="chip">${esc(u.resp)}</span>` : "",
     isoData(u.prazo) ? `<span class="chip ${atraso ? "late" : prazoHoje ? "warn" : ""}">${atraso ? "Em atraso · " : prazoHoje ? "Hoje · " : "Prazo "}${esc(fmt(u.prazo))}</span>` : "",
+    !feito && dsit !== null ? `<span class="chip ${dsit > 7 ? "late" : "none"}">${dsit === 0 ? "nesta situação desde hoje" : `há ${dsit} dia${dsit === 1 ? "" : "s"} nesta situação`}</span>` : "",
   ].join("");
+  const sit = feito ? (u.situacao ? `<span class="chip">${esc(u.situacao)}</span>` : "")
+    : `<select class="urg-sit" data-urg="sit" data-id="${esc(u.id)}" aria-label="Situação do ${esc(u.edoc)}">${SITUACOES.map((s) => `<option${s === (u.situacao || "Outro") ? " selected" : ""}>${esc(s)}</option>`).join("")}</select>`;
   const meta = feito ? `Tratado por ${esc(u.tratadoPor || "")} a ${esc(quando(u.tratadoEm))}` : `Adicionado por ${esc(u.criadoPor || "")} a ${esc(quando(u.criadoEm))}`;
   const acts = feito
     ? `<button class="btn small ghost" type="button" data-urg="desfazer" data-id="${esc(u.id)}">Desfazer</button>`
@@ -686,14 +694,19 @@ function itemUrg(u, feito) {
        <button class="btn small ghost danger" type="button" data-urg="apagar" data-id="${esc(u.id)}" aria-label="Apagar ${esc(u.edoc)}">Apagar</button>`;
   return `<div class="urg-item${atraso ? " late" : ""}${feito ? " done" : ""}">
     <div class="urg-main"><strong class="urg-edoc">${esc(u.edoc)}</strong>${u.nota ? `<span class="urg-nota">${esc(u.nota)}</span>` : ""}
-      <div class="urg-chips">${chips}</div><span class="urg-meta">${meta}</span></div>
+      <div class="urg-chips">${sit}${chips}</div><span class="urg-meta">${meta}</span></div>
     <div class="urg-acts">${acts}</div></div>`;
 }
 function desenharUrgentes() {
   const abertos = est.urgentes.filter((u) => !u.tratado)
     .sort((a, b) => (a.prazo || "9999").localeCompare(b.prazo || "9999") || String(a.criadoEm).localeCompare(String(b.criadoEm)));
   const feitos = est.urgentes.filter((u) => u.tratado).sort((a, b) => String(b.tratadoEm).localeCompare(String(a.tratadoEm)));
-  $("urgLista").innerHTML = abertos.length ? abertos.map((u) => itemUrg(u, false)).join("") : `<p class="empty">Sem Edocs urgentes por tratar.</p>`;
+  const cont = {}; abertos.forEach((u) => { const s = u.situacao || "Outro"; cont[s] = (cont[s] || 0) + 1; });
+  if (urgFiltro && !cont[urgFiltro]) urgFiltro = "";
+  $("urgFiltros").innerHTML = abertos.length ? [["", `Todos (${abertos.length})`], ...SITUACOES.filter((s) => cont[s]).map((s) => [s, `${s} (${cont[s]})`])]
+    .map(([v, t]) => `<button type="button" class="fchip${v === urgFiltro ? " on" : ""}" data-filtro="${esc(v)}" aria-pressed="${v === urgFiltro}">${esc(t)}</button>`).join("") : "";
+  const vis = urgFiltro ? abertos.filter((u) => (u.situacao || "Outro") === urgFiltro) : abertos;
+  $("urgLista").innerHTML = vis.length ? vis.map((u) => itemUrg(u, false)).join("") : `<p class="empty">Sem Edocs urgentes por tratar.</p>`;
   $("urgFeitos").innerHTML = feitos.length ? feitos.slice(0, 100).map((u) => itemUrg(u, true)).join("") : `<p class="empty">Ainda nenhum tratado.</p>`;
   $("urgFeitosN").textContent = `(${feitos.length})`;
   $("bdgUrg").hidden = !abertos.length; $("bdgUrg").textContent = abertos.length;
@@ -711,14 +724,21 @@ $("urgForm").addEventListener("submit", async (e) => {
   try {
     await fb.D.set(fb.D.push(fb.D.ref(fb.db, COL_URGENTES)), {
       edoc, nota: $("urgNota").value.trim(), resp: $("urgResp").value, prazo: $("urgPrazo").value || "",
+      situacao: $("urgSit").value || "Outro", situacaoEm: new Date().toISOString(),
       tratado: false, criadoPor: quem(), criadoEm: new Date().toISOString(),
     });
-    $("urgForm").reset(); st.textContent = `${edoc} adicionado.`; st.className = "status"; $("urgEdoc").focus();
+    $("urgForm").reset(); $("urgSit").value = SITUACOES[0]; st.textContent = `${edoc} adicionado.`; st.className = "status"; $("urgEdoc").focus();
   } catch { st.textContent = "Não consegui guardar. Verifique a internet."; st.className = "status err"; }
   $("btnUrgAdd").disabled = false;
 });
+$("urgFiltros").addEventListener("click", (e) => { const b = e.target.closest("[data-filtro]"); if (!b) return; urgFiltro = b.dataset.filtro; desenharUrgentes(); });
+$("urgLista").addEventListener("change", async (e) => {
+  const s = e.target.closest('[data-urg="sit"]'); if (!s) return;
+  try { await fb.D.update(fb.D.ref(fb.db, `${COL_URGENTES}/${s.dataset.id}`), { situacao: s.value, situacaoEm: new Date().toISOString(), situacaoPor: quem() }); }
+  catch { $("urgStatus").textContent = "Não consegui guardar. Verifique a internet."; $("urgStatus").className = "status err"; }
+});
 $("vDiario").addEventListener("click", async (e) => {
-  const b = e.target.closest("[data-urg]"); if (!b) return;
+  const b = e.target.closest("button[data-urg]"); if (!b) return;
   const id = b.dataset.id, acao = b.dataset.urg, ref = fb.D.ref(fb.db, `${COL_URGENTES}/${id}`);
   const st = $("urgStatus");
   if (acao === "apagar" && b.dataset.ok !== "1") { b.dataset.ok = "1"; b.textContent = "Confirmar apagar"; setTimeout(() => { b.dataset.ok = ""; b.textContent = "Apagar"; }, 4000); return; }
@@ -729,6 +749,80 @@ $("vDiario").addEventListener("click", async (e) => {
     else if (acao === "apagar") await fb.D.remove(ref);
   } catch { st.textContent = "Não consegui guardar. Verifique a internet."; st.className = "status err"; b.disabled = false; }
 });
+
+/* ---------------- Ferramentas: modelos de resposta e verificação de ofícios ---------------- */
+const MODELOS = [
+  ["Ponto de situação", `Exmo.(a) Senhor(a) [Nome do requerente],
+
+Na sequência da exposição apresentada por V. Ex.ª em [data], registada com a referência [n.º do Edoc], relativa a [assunto] em [local], informamos que a situação se encontra em tratamento pelos serviços municipais competentes.
+
+Neste momento, [descrever o passo em curso: ex.: aguarda a execução dos trabalhos / está em análise técnica], prevendo-se [próximo passo ou data prevista, se conhecida].
+
+Logo que a intervenção esteja concluída, daremos conhecimento a V. Ex.ª.
+
+Com os melhores cumprimentos,`],
+  ["Serviço executado", `Exmo.(a) Senhor(a) [Nome do requerente],
+
+Na sequência da exposição apresentada por V. Ex.ª em [data], registada com a referência [n.º do Edoc], informamos que a intervenção de [descrição dos trabalhos] em [local] foi concluída em [data de conclusão].
+
+Agradecemos a colaboração de V. Ex.ª na identificação da situação.
+
+Com os melhores cumprimentos,`],
+  ["Depende de entidade externa", `Exmo.(a) Senhor(a) [Nome do requerente],
+
+Na sequência da exposição apresentada por V. Ex.ª em [data], registada com a referência [n.º do Edoc], relativa a [assunto] em [local], informamos que a resolução da situação é da responsabilidade de [entidade: ex.: E-Redes / Indaqua / concessionário], a quem o Município solicitou a intervenção em [data do pedido].
+
+O Município continuará a acompanhar o assunto junto dessa entidade.
+
+Com os melhores cumprimentos,`],
+  ["Insistência (já em tratamento)", `Exmo.(a) Senhor(a) [Nome do requerente],
+
+Em resposta à comunicação de V. Ex.ª de [data], registada com a referência [n.º do Edoc], informamos que o assunto está a ser tratado no âmbito do processo [n.º do processo original], apresentado em [data do pedido original].
+
+Ponto de situação: [descrever o estado atual e o próximo passo].
+
+Com os melhores cumprimentos,`],
+  ["Fora da competência municipal", `Exmo.(a) Senhor(a) [Nome do requerente],
+
+Na sequência da exposição apresentada por V. Ex.ª em [data], registada com a referência [n.º do Edoc], informamos que a situação descrita em [local] respeita a [propriedade privada / entidade responsável], pelo que a sua resolução não compete ao Município de Matosinhos.
+
+Sugerimos que o assunto seja apresentado a [entidade e contacto, se conhecido].
+
+Com os melhores cumprimentos,`],
+];
+let modAtual = 0;
+function desenharModelos() {
+  $("modTabs").innerHTML = MODELOS.map(([t], i) => `<button type="button" class="fchip${i === modAtual ? " on" : ""}" data-mod="${i}" aria-pressed="${i === modAtual}">${esc(t)}</button>`).join("");
+  $("modTexto").value = MODELOS[modAtual][1]; $("modStatus").textContent = "";
+}
+$("modTabs").addEventListener("click", (e) => { const b = e.target.closest("[data-mod]"); if (!b) return; modAtual = +b.dataset.mod; desenharModelos(); });
+$("btnModCopiar").addEventListener("click", async () => {
+  const st = $("modStatus");
+  try { await navigator.clipboard.writeText($("modTexto").value); st.textContent = "Texto copiado."; st.className = "status"; }
+  catch { $("modTexto").select(); st.textContent = "Selecionei o texto: use Ctrl+C para copiar."; st.className = "status"; }
+});
+desenharModelos();
+
+const VERIFICAR = [
+  "Nome e morada ou e-mail do destinatário confirmados no 1.º registo do Edoc (não copiados de outro processo)",
+  "Referência do Edoc e, se houver, do processo original indicadas no ofício",
+  "O texto responde ao que o munícipe pediu, com o ponto de situação ou a solução",
+  "Só os dados pessoais necessários; sem dados de terceiros no texto nem nos anexos (RGPD)",
+  "Se a decisão for desfavorável: indicar a audiência prévia ou os meios e prazos para reagir (arts. 114.º e 121.º CPA)",
+  "Ofício enviado para assinatura no próprio dia",
+  "Depois do envio: comprovativo anexado no Edoc e nota com o destinatário certo",
+];
+let chk = {};
+try { chk = JSON.parse(localStorage.getItem("kz-chk-oficio") || "{}"); } catch {}
+function desenharChk() {
+  $("chkLista").innerHTML = VERIFICAR.map((t, i) => `<label class="chk-i"><input type="checkbox" data-chk="${i}"${chk[i] ? " checked" : ""}><span>${esc(t)}</span></label>`).join("");
+  const n = VERIFICAR.filter((_, i) => chk[i]).length;
+  $("chkStatus").textContent = n === VERIFICAR.length ? "Tudo verificado — pode enviar." : `${n} de ${VERIFICAR.length} verificados`;
+  $("chkStatus").className = n === VERIFICAR.length ? "status ok-t" : "status";
+}
+$("chkLista").addEventListener("change", (e) => { const c = e.target.closest("[data-chk]"); if (!c) return; chk[c.dataset.chk] = c.checked; try { localStorage.setItem("kz-chk-oficio", JSON.stringify(chk)); } catch {} desenharChk(); });
+$("btnChkLimpar").addEventListener("click", () => { chk = {}; try { localStorage.removeItem("kz-chk-oficio"); } catch {} desenharChk(); });
+desenharChk();
 
 /* ---------------- Legislação: calculadora de prazos (art. 87.º CPA) ---------------- */
 const isoDe = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;

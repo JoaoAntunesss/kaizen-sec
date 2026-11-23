@@ -201,16 +201,34 @@
         <label class="f">N.º do Edoc<input type="text" id="urgEdoc" placeholder="Ex.: OD/2026/36597" required></label>
         <label class="f">O que há a fazer<input type="text" id="urgNota" placeholder="Ex.: oficiar ao requerente"></label>
         <label class="f">Responsável<select id="urgResp"></select></label>
+        <label class="f">Situação<select id="urgSit"></select></label>
         <label class="f">Prazo<input type="date" id="urgPrazo"></label>
         <button class="btn primary" id="btnUrgAdd" type="submit">+ Adicionar</button>
       </form>
       <p class="status" id="urgStatus"></p>
+      <div class="urg-filtros" id="urgFiltros" role="group" aria-label="Filtrar por situação"></div>
       <div class="urg-list" id="urgLista"></div>
       <details class="urg-done" id="urgFeitosBox">
         <summary>Tratados <span id="urgFeitosN"></span></summary>
         <div class="urg-list" id="urgFeitos"></div>
       </details>
     </div>
+    <div class="panel leg">
+      <div class="panel-head"><h2>Ferramentas</h2><span class="sub">Para as respostas e ofícios do dia a dia</span></div>
+      <details class="leg-sec">
+        <summary>Modelos de resposta ao munícipe</summary>
+        <p class="muted small">Escolha o modelo, copie e ajuste os campos entre [ ] antes de usar no ofício.</p>
+        <div class="mod-tabs" id="modTabs" role="tablist"></div>
+        <textarea id="modTexto" rows="11" aria-label="Texto do modelo"></textarea>
+        <div class="actions"><span class="status" id="modStatus"></span><button class="btn primary" id="btnModCopiar" type="button">Copiar texto</button></div>
+      </details>
+      <details class="leg-sec">
+        <summary>Antes de enviar um ofício</summary>
+        <div class="chk" id="chkLista"></div>
+        <div class="actions"><span class="status" id="chkStatus"></span><button class="btn small ghost" id="btnChkLimpar" type="button">Limpar</button></div>
+      </details>
+    </div>
+
     <div class="panel leg">
       <div class="panel-head"><h2>Legislação de apoio</h2><span class="sub">Guia rápido para o trabalho administrativo · verificado a 23/11/2026</span></div>
 

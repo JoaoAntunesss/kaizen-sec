@@ -743,7 +743,8 @@ $("urgForm").addEventListener("submit", async (e) => {
   const st = $("urgStatus");
   if (!edoc) { $("urgEdoc").focus(); return; }
   const lnk = $("urgLink").value.trim();
-  if (lnk && !linkEdoc(lnk)) { st.textContent = "O link tem de ser de uma página do Edoc (https://edoc.cm-matosinhos.pt/...)."; st.className = "status err"; $("urgLink").focus(); return; }
+  if (!lnk) { st.textContent = "Cole o link da página do Edoc para poder adicionar."; st.className = "status err"; $("urgLink").focus(); return; }
+  if (!linkEdoc(lnk)) { st.textContent = "O link tem de ser de uma página do Edoc (https://edoc.cm-matosinhos.pt/...)."; st.className = "status err"; $("urgLink").focus(); return; }
   if (!$("urgPor").value) { st.textContent = "Escolha quem está a adicionar o Edoc."; st.className = "status err"; $("urgPor").focus(); return; }
   if (est.urgentes.some((u) => !u.tratado && u.edoc === edoc)) { st.textContent = `O ${edoc} já está na lista de urgentes.`; st.className = "status err"; return; }
   $("btnUrgAdd").disabled = true;
@@ -769,8 +770,9 @@ $("urgLista").addEventListener("submit", async (e) => {
   const f = e.target.closest(".urg-linkbox"); if (!f) return;
   e.preventDefault();
   const v = f.querySelector("input").value.trim(), st = $("urgStatus");
-  if (v && !linkEdoc(v)) { st.textContent = "O link tem de ser de uma página do Edoc (https://edoc.cm-matosinhos.pt/...)."; st.className = "status err"; return; }
-  try { await fb.D.update(fb.D.ref(fb.db, `${COL_URGENTES}/${f.dataset.id}`), { link: linkEdoc(v) }); st.textContent = v ? "Link guardado." : "Link retirado."; st.className = "status"; }
+  if (!v) { st.textContent = "O link do Edoc é obrigatório."; st.className = "status err"; return; }
+  if (!linkEdoc(v)) { st.textContent = "O link tem de ser de uma página do Edoc (https://edoc.cm-matosinhos.pt/...)."; st.className = "status err"; return; }
+  try { await fb.D.update(fb.D.ref(fb.db, `${COL_URGENTES}/${f.dataset.id}`), { link: linkEdoc(v) }); st.textContent = "Link guardado."; st.className = "status"; }
   catch { st.textContent = "Não consegui guardar. Verifique a internet."; st.className = "status err"; }
 });
 $("urgLista").addEventListener("click", (e) => { if (e.target.closest("[data-cancel]")) e.target.closest(".urg-linkbox")?.remove(); });

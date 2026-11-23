@@ -818,11 +818,11 @@ let notifPref = { assinar: false, muito: false, meu: false };
 try { notifPref = { ...notifPref, ...JSON.parse(localStorage.getItem(NOTIF_KEY) || "{}") }; } catch {}
 let avisosVistos = null; // estado anterior de cada Edoc: "situação|tratado|prio"
 const euNome = () => { try { return localStorage.getItem("kz-urg-por") || ""; } catch { return ""; } };
-async function avisar(titulo, corpo, filtro) {
+async function avisar(titulo, corpo, filtro, url) {
   if (!("Notification" in window) || Notification.permission !== "granted") return;
-  const opts = { body: corpo, icon: "icons/icon-192.png", badge: "icons/icon-192.png", tag: `kz-${Date.now()}`, data: { filtro } };
+  const opts = { body: corpo, icon: "icons/icon-192.png", badge: "icons/icon-192.png", tag: `kz-${Date.now()}`, data: { filtro, url: url || "" } };
   try { const reg = await navigator.serviceWorker?.getRegistration(); if (reg) { await reg.showNotification(titulo, opts); return; } } catch {}
-  try { const n = new Notification(titulo, opts); n.onclick = () => { window.focus(); abrirDiario(filtro); n.close(); }; } catch {}
+  try { const n = new Notification(titulo, opts); n.onclick = () => { if (url) window.open(url, "_blank", "noopener"); else { window.focus(); abrirDiario(filtro); } n.close(); }; } catch {}
 }
 function verificarAvisos(lista) {
   const agora = {};
@@ -836,7 +836,7 @@ function verificarAvisos(lista) {
     if (u.tratado) {
       const tratadoAntes = antes && antes.split("|")[1] === "1";
       if (notifPref.meu && antes && !tratadoAntes && eu && u.criadoPor === eu && u.tratadoPor !== eu)
-        avisar("Edoc tratado", `${u.edoc}${u.assunto ? " — " + u.assunto : ""}${u.tratadoPor ? " · por " + u.tratadoPor : ""}`, "");
+        avisar("Edoc tratado", `${u.edoc}${u.assunto ? " — " + u.assunto : ""}${u.tratadoPor ? " · por " + u.tratadoPor : ""}${linkDe(u) ? " · clique para abrir no Edoc" : ""}`, "", linkDe(u));
       return;
     }
     const [sitAntes] = (antes || "").split("|");

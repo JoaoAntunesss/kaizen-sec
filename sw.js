@@ -33,6 +33,9 @@ self.addEventListener("fetch", (e) => {
 // Ao clicar numa notificação: abrir (ou trazer para a frente) a app no Trabalho diário.
 self.addEventListener("notificationclick", (e) => {
   e.notification.close();
+  const d = e.notification.data || {};
+  // Notificação com link do Edoc (página da Câmara): abre diretamente o Edoc.
+  if (d.url && /^https:\/\/edoc\.cm-matosinhos\.pt\//.test(d.url)) { e.waitUntil(self.clients.openWindow(d.url)); return; }
   const alvo = new URL("./?abrir=diario", self.registration.scope).href;
   e.waitUntil(self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((ws) => {
     for (const w of ws) { if ("focus" in w) { w.postMessage({ abrir: "diario", filtro: e.notification.data && e.notification.data.filtro }); return w.focus(); } }

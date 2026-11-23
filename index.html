@@ -19,7 +19,7 @@
 <header class="topbar">
   <div class="brand">
     <div class="logos"><img src="icons/logo-matosinhos.png" alt="Câmara Municipal de Matosinhos"><img src="icons/logo-kaizen.png" alt="Kaizen Institute"></div>
-    <div class="ttl"><strong>Quadro Kaizen</strong><span>S.O. Conservação — Secretaria</span></div>
+    <div class="ttl"><strong>Secretaria da Conservação</strong><span>Câmara Municipal de Matosinhos · Departamento de Conservação</span></div>
   </div>
   <div class="top-actions">
     <button class="btn small primary desk" id="btnNovaTop" type="button" hidden>Registar reunião</button>
@@ -203,8 +203,8 @@
   <!-- Trabalho diário -->
   <section id="vDiario" class="view" hidden>
     <div class="panel">
-      <div class="panel-head"><h2>Trabalho diário</h2><button class="btn small ghost" id="btnVoltarDia" type="button" hidden>Voltar</button></div>
-      <div class="urg-head"><h3 class="sec-ttl">Edocs urgentes</h3><button class="btn primary" id="btnUrgNovo" type="button" aria-expanded="false" aria-controls="urgNovo">+ Adicionar Edoc</button></div>
+      <button class="btn small ghost" id="btnVoltarDia" type="button" hidden>Voltar</button>
+      <div class="urg-head"><h2>Edocs urgentes</h2><button class="btn primary" id="btnUrgNovo" type="button" aria-expanded="false" aria-controls="urgNovo">+ Adicionar Edoc</button></div>
       <div class="urg-novo" id="urgNovo" hidden>
       <form class="urg-form" id="urgForm" autocomplete="off">
         <label class="f">N.º do Edoc<input type="text" id="urgEdoc" placeholder="Ex.: OD/2026/36597" required></label>
@@ -225,8 +225,10 @@
       </datalist>
       </div>
       <p class="status" id="urgStatus"></p>
+      <div class="urg-barra">
       <div class="urg-ver"><label class="f">Ver Edocs adicionados por<select id="urgVerDe"></select></label><p class="muted small" id="urgVerRes"></p></div>
       <div class="urg-filtros" id="urgFiltros" role="group" aria-label="Filtrar por situação"></div>
+      </div>
       <div class="urg-list" id="urgLista"></div>
       <details class="urg-done" id="urgFeitosBox">
         <summary>Tratados <span id="urgFeitosN"></span></summary>

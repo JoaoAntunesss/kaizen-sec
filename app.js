@@ -29,12 +29,15 @@ const temFotoDe = (r, k) => !!((r.fotos && r.fotos[k]) || (k === "postits" && r.
 let fb = null;
 
 /* ---------------- Vistas ---------------- */
-const VISTAS = ["vLogin", "vConfig", "vPainel", "vReuniao", "vRegistar", "vImprimir", "vEquipa", "vRelatorio", "vPowerBI", "vDiario", "vMapas"];
+const VISTAS = ["vLogin", "vConfig", "vPainel", "vReuniao", "vRegistar", "vImprimir", "vEquipa", "vRelatorio", "vPowerBI", "vDiario", "vMapas", "vOficios"];
 function mostrar(v) {
   for (const id of VISTAS) $(id).hidden = id !== v;
   $("fab").hidden = v !== "vPainel";
   $("btnNovaTop").hidden = v !== "vPainel";
   $("btnSair").hidden = !est.user;
+  $("mainNav").hidden = !est.user || v === "vLogin" || v === "vConfig";
+  const sec = { vEquipa: "vPainel", vRelatorio: "vPainel", vReuniao: "vPainel", vRegistar: "vPainel", vImprimir: "vPainel" }[v] || v;
+  document.querySelectorAll("#mainNav .nav-b").forEach((b) => b.classList.toggle("on", b.dataset.v === sec));
   if (v !== "vRegistar") pararCamera();
   window.scrollTo(0, 0);
 }
@@ -66,7 +69,7 @@ async function iniciarFirebase() {
     est.user = u;
     $("btnMestreAbrir").hidden = !u; if (u) olaMestre();
     if (!u) { chatLimparUI(); fecharMestre(); mostrar("vLogin"); return; }
-    if ($("vLogin").hidden === false || $("vConfig").hidden === false || VISTAS.every((v) => $(v).hidden)) mostrar("vPainel");
+    if ($("vLogin").hidden === false || $("vConfig").hidden === false || VISTAS.every((v) => $(v).hidden)) abrirDiario();
     subscrever();
   });
 }
@@ -744,7 +747,12 @@ function desenharUrgentes() {
   $("bdgUrg").hidden = !todosAbertos.length; $("bdgUrg").textContent = todosAbertos.length;
   $("bdgUrg").classList.toggle("late", todosAbertos.some((u) => prioDe(u) === 1 || (isoData(u.prazo) && u.prazo < hoje())));
 }
-$("btnDiario").addEventListener("click", () => { opcoesResp(); $("urgStatus").textContent = ""; desenharUrgentes(); mostrar("vDiario"); });
+function abrirDiario() { opcoesResp(); $("urgStatus").textContent = ""; desenharUrgentes(); mostrar("vDiario"); }
+$("btnDiario").addEventListener("click", abrirDiario);
+$("btnOficios").addEventListener("click", () => mostrar("vOficios"));
+$("btnKaizen").addEventListener("click", () => { mostrar("vPainel"); desenharPainel(); });
+function formNovo(abrir) { $("urgNovo").hidden = !abrir; $("btnUrgNovo").setAttribute("aria-expanded", String(abrir)); $("btnUrgNovo").textContent = abrir ? "Fechar" : "+ Adicionar Edoc"; if (abrir) $("urgEdoc").focus(); }
+$("btnUrgNovo").addEventListener("click", () => formNovo($("urgNovo").hidden));
 $("btnVoltarDia").addEventListener("click", () => mostrar("vPainel"));
 $("urgForm").addEventListener("submit", async (e) => {
   e.preventDefault();
@@ -766,7 +774,7 @@ $("urgForm").addEventListener("submit", async (e) => {
       tratado: false, criadoPor: $("urgPor").value, criadoEm: new Date().toISOString(),
     });
     const porEsc = $("urgPor").value; try { localStorage.setItem("kz-urg-por", porEsc); } catch {}
-    $("urgForm").reset(); $("urgSit").value = SITUACOES[0]; $("urgPrio").value = "2"; $("urgPor").value = porEsc; st.textContent = `${edoc} adicionado.`; st.className = "status"; $("urgEdoc").focus();
+    $("urgForm").reset(); $("urgSit").value = SITUACOES[0]; $("urgPrio").value = "2"; $("urgPor").value = porEsc; st.textContent = `${edoc} adicionado.`; st.className = "status"; formNovo(false);
   } catch { st.textContent = "Não consegui guardar. Verifique a internet."; st.className = "status err"; }
   $("btnUrgAdd").disabled = false;
 });
@@ -1277,7 +1285,6 @@ function olaMestre() {
 }
 $("mestreOla").addEventListener("click", () => { $("mestreOla").hidden = true; abrirAssistente(); });
 function fecharMestre() { $("mestreOla").hidden = true; $("mestre").hidden = true; $("btnMestreAbrir").setAttribute("aria-expanded", "false"); $("btnMestreAbrir").classList.remove("aberto"); }
-$("btnAssistente").addEventListener("click", () => ($("mestre").hidden ? abrirAssistente() : fecharMestre()));
 $("btnMestreAbrir").addEventListener("click", () => ($("mestre").hidden ? abrirAssistente() : fecharMestre()));
 $("btnMestreFechar").addEventListener("click", fecharMestre);
 document.addEventListener("keydown", (e) => { if (e.key === "Escape" && !$("mestre").hidden) fecharMestre(); });

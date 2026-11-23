@@ -487,3 +487,16 @@ body:has(#fab:not([hidden])) .mestre-ola{bottom:calc(152px + env(safe-area-inset
 .assinar .actions{justify-content:flex-end}
 .assinar-box:empty{display:none}
 #modAssinar .assinar{margin-top:10px}
+
+/* Navegação principal */
+.mainnav{display:flex;gap:4px;overflow-x:auto;padding:0 max(8px,calc((100% - 1200px)/2 + 8px));background:var(--surface,#fff);border-bottom:1px solid var(--line,#dde3ea);scrollbar-width:none}
+.mainnav::-webkit-scrollbar{display:none}
+.nav-b{flex:none;border:0;background:none;font:inherit;font-size:14px;font-weight:600;color:var(--muted,#5b6b7c);padding:12px 14px 10px;border-bottom:3px solid transparent;cursor:pointer;white-space:nowrap;display:inline-flex;align-items:center;gap:6px}
+.nav-b:hover{color:var(--ink,#1b2733)}
+.nav-b.on{color:var(--accent,#1F4E79);border-bottom-color:var(--accent,#1F4E79)}
+.nav-b:focus-visible{outline:2px solid var(--accent,#1F4E79);outline-offset:-2px}
+.toolbar .tb-sp{flex:1}
+.urg-head{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.urg-head .sec-ttl{margin:0}
+.urg-novo{border:1px solid var(--line,#dde3ea);border-radius:10px;padding:12px;margin:10px 0;background:var(--accent-soft)}
+#notifBox{margin-top:14px}

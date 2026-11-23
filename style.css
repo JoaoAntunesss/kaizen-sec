@@ -459,3 +459,16 @@ body:has(#fab:not([hidden])) .mestre-ola{bottom:calc(152px + env(safe-area-inset
 .mestre-h.pensando .mestre-av{animation:mestrePensa 1.2s ease-in-out infinite}
 @keyframes mestrePensa{0%,100%{box-shadow:0 0 0 2px rgba(255,255,255,.95)}50%{box-shadow:0 0 0 5px rgba(242,184,75,.85)}}
 @media (prefers-reduced-motion:reduce){.mestre-btn .mestre-av,.mestre-btn:hover .mestre-av,.mestre-fig,.mestre-fig .mao,.mestre-h.pensando .mestre-av,.mestre-ola{animation:none}}
+
+/* MESTRE: anexos, ditado, ações */
+.chat-tools{display:flex;gap:6px;flex-wrap:wrap}
+.ct-b{border:1px solid var(--line);background:var(--surface);color:var(--ink);border-radius:8px;padding:4px 10px;font-size:12px;font-weight:600;cursor:pointer;min-height:30px}
+.ct-b:hover{background:var(--accent-soft)}
+.ct-b.on{background:var(--late);border-color:var(--late);color:#fff}
+.chat-anexo{display:flex;gap:8px;align-items:center;justify-content:space-between;font-size:12px;background:var(--accent-soft);border-radius:8px;padding:6px 8px}
+.chat-anexo[hidden]{display:none}
+.anexo-tag{margin-top:6px;font-size:11px;opacity:.85;border-top:1px solid rgba(255,255,255,.35);padding-top:4px}
+.msg-acts{display:flex;gap:6px;flex-wrap:wrap}
+.acao{display:flex;flex-direction:column;gap:6px;border:1px solid var(--accent);border-radius:10px;padding:10px;background:var(--accent-soft);font-size:13px;max-width:100%}
+.acao input{min-height:34px}
+.acao .btn{align-self:flex-start}

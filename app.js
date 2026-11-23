@@ -1029,7 +1029,25 @@ function contextoTrabalho() {
   // Usa o texto da Legislação de apoio e dos modelos que estão na própria app (fonte única).
   const leg = [...document.querySelectorAll("#vDiario .leg-sec")].filter((d) => !d.querySelector("#przIni")).map((d) => d.innerText.replace(/\s+\n/g, "\n").trim()).join("\n\n");
   const mods = MODELOS.map(([t, x]) => `Modelo «${t}»:\n${x}`).join("\n\n");
-  return `${leg}\n\nMODELOS DE RESPOSTA AO MUNÍCIPE USADOS PELA SECRETARIA:\n${mods}`;
+  return `${leg}\n\nMODELOS DE RESPOSTA AO MUNÍCIPE USADOS PELA SECRETARIA:\n${mods}`.slice(0, 9000);
+}
+function dadosApp() {
+  const L = [];
+  const ab = est.urgentes.filter((u) => !u.tratado).sort((x, y) => prioDe(x) - prioDe(y) || (x.prazo || "9").localeCompare(y.prazo || "9"));
+  L.push(`Edocs urgentes por tratar (${ab.length}):`);
+  ab.forEach((u) => L.push(`- ${u.edoc} | ${PRIO[prioDe(u)]} | ${u.situacao || "Outro"}${u.assunto ? " | " + u.assunto : ""}${u.nota ? " | a fazer: " + u.nota : ""}${u.resp ? " | resp.: " + u.resp : ""}${u.prazo ? " | prazo " + fmt(u.prazo) + (u.prazo < hoje() ? " (EM ATRASO)" : "") : ""} | adicionado por ${u.criadoPor || "?"} há ${diasDesde(u.criadoEm) ?? "?"} dias${u.situacaoEm ? ", nesta situação há " + diasDesde(u.situacaoEm) + " dias" : ""}`));
+  const tr = est.urgentes.filter((u) => u.tratado).sort((x, y) => String(y.tratadoEm).localeCompare(String(x.tratadoEm))).slice(0, 15);
+  L.push(`Últimos tratados (${tr.length}):`);
+  tr.forEach((u) => L.push(`- ${u.edoc}${u.assunto ? " | " + u.assunto : ""} | tratado por ${u.tratadoPor || "?"} em ${quando(u.tratadoEm)} | adicionado por ${u.criadoPor || "?"}`));
+  const rs = [...est.reunioes].sort((x, y) => String(y.data).localeCompare(String(x.data))).slice(0, 2);
+  rs.forEach((r) => {
+    const t = r.tarefas.filter((x) => x.coluna !== "Concluído");
+    L.push(`Reunião Kaizen de ${fmt(r.data)}: ${r.tarefas.length} tarefas, ${t.length} por concluir:`);
+    t.slice(0, 25).forEach((x) => L.push(`- ${x.tarefa}${x.responsavel ? " | " + x.responsavel : ""} | ${x.coluna || ""}${x.prazo ? " | até " + fmt(x.prazo) : ""}`));
+  });
+  L.push(`Equipa: ${EQUIPA.map((p) => p.nome).join(", ")}.`);
+  L.push(`Mapas Excel partilhados (só os nomes; o MESTRE não abre os ficheiros): ${[...(MAPAS || []), ...est.mapas].map((m) => m.nome).join("; ")}.`);
+  return L.join("\n").slice(0, 5000);
 }
 function promptSistema() {
   return `Chamas-te MESTRE e és o assistente da Secretaria da Subunidade Orgânica da Conservação (Departamento de Conservação) da Câmara Municipal de Matosinhos.
@@ -1041,9 +1059,17 @@ Regras:
 - Nunca inventes artigos, prazos ou números de processo. Se não tiveres certeza, di-lo e recomenda confirmar no texto da lei ou com os serviços jurídicos.
 - Usa os dados que o utilizador fornecer apenas para a tarefa pedida; não peças dados pessoais que não sejam necessários.
 - A informação de referência abaixo é a que a Secretaria usa; dá-lhe prioridade (verificada a 23/11/2026).
+- Tens acesso aos dados atuais da app (Edocs urgentes, tarefas Kaizen, equipa, mapas) na secção DADOS DA APP. Responde a perguntas como «o que está por assinar?» ou «o que tenho em atraso?» só com base nesses dados; se não estiver lá, diz que não tens essa informação.
+- Quando o utilizador pedir para acrescentar um Edoc aos urgentes, confirma os dados e termina a resposta com uma linha exatamente neste formato (sem mais nada nessa linha):
+[[ADICIONAR_URGENTE {"edoc":"OD/2026/12345","assunto":"...","nota":"o que há a fazer","prio":2,"situacao":"Por oficiar","resp":"","prazo":"AAAA-MM-DD"}]]
+  (prio: 1 muito urgente, 2 urgente, 3 normal; situacao: uma de ${SITUACOES.join(", ")}; resp: nome da equipa ou vazio; prazo vazio se não houver). A app pede depois o link do Edoc e a confirmação.
+- Quando houver um documento anexado, resume-o, diz claramente o que é pedido e, se fizer sentido, propõe um rascunho de resposta.
 
 INFORMAÇÃO DE REFERÊNCIA:
-${contextoTrabalho()}`;
+${contextoTrabalho()}
+
+DADOS DA APP (hoje: ${fmt(hoje())}; utilizador: ${euNome() || quem() || "desconhecido"}):
+${dadosApp()}`;
 }
 function fmtResposta(t) {
   const linhas = esc(t).replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>").split("\n");
@@ -1057,12 +1083,23 @@ function fmtResposta(t) {
   return html + (lista ? "</ul>" : "");
 }
 const limparPensar = (t) => String(t || "").replace(/<think>[\s\S]*?(<\/think>|$)/g, "").trim();
+const RX_ACAO = /\[\[ADICIONAR_URGENTE\s+(\{[\s\S]*?\})\s*\]\]/;
+function lerAcao(t) { const m = String(t || "").match(RX_ACAO); if (!m) return null; try { return JSON.parse(m[1]); } catch { return null; } }
+const semAcao = (t) => limparPensar(t).replace(RX_ACAO, "").trim();
+function msgIA(m, i) {
+  const ac = !chatOcupado || m.t ? lerAcao(m.t) : null;
+  const card = ac && ac.edoc ? `<form class="acao" data-acao="${i}">
+      <div><strong>Adicionar aos Edocs urgentes</strong>: ${esc(normEdocTxt(ac.edoc))}${ac.assunto ? " — " + esc(ac.assunto) : ""}<br><span class="muted small">${esc(PRIO[ac.prio] || PRIO[2])} · ${esc(SITUACOES.includes(ac.situacao) ? ac.situacao : "Outro")}${ac.resp ? " · " + esc(ac.resp) : ""}${isoData(ac.prazo) ? " · prazo " + esc(fmt(ac.prazo)) : ""}</span></div>
+      ${m.feito ? `<span class="ok-t">Adicionado.</span>` : `<input type="url" placeholder="Link do Edoc (obrigatório)" aria-label="Link do Edoc"><button class="btn small primary" type="submit">Adicionar</button>`}</form>` : "";
+  return `<div class="msg ia"><div class="bolha">${fmtResposta(semAcao(m.t)) || '<p class="muted">A pensar…</p>'}</div>${card}${m.t && !(chatOcupado && i === (chatConvs.find((x) => x.id === chatAtual)?.msgs.length || 0) - 1) ? `<div class="msg-acts"><button class="btn small ghost" type="button" data-copiar="${i}">Copiar</button><button class="btn small ghost" type="button" data-word="${i}">Passar a Word</button></div>` : ""}</div>`;
+}
+const normEdocTxt = (s) => String(s || "").trim().toUpperCase().replace(/\s+/g, "");
 function desenharChat() {
   const c = chatConvs.find((x) => x.id === chatAtual);
   const msgs = c ? c.msgs : [];
   $("chatMsgs").innerHTML = msgs.length ? msgs.map((m, i) => m.r === "user"
-    ? `<div class="msg eu"><div class="bolha">${esc(m.t).replace(/\n/g, "<br>")}</div></div>`
-    : `<div class="msg ia"><div class="bolha">${fmtResposta(limparPensar(m.t)) || '<p class="muted">A pensar…</p>'}</div>${m.t ? `<button class="btn small ghost" type="button" data-copiar="${i}">Copiar</button>` : ""}</div>`).join("")
+    ? `<div class="msg eu"><div class="bolha">${esc(m.t).replace(/\n/g, "<br>")}${m.anexo ? `<div class="anexo-tag">Anexo: ${esc(m.anexo)}</div>` : ""}</div></div>`
+    : msgIA(m, i)).join("")
     : `<div class="chat-vazio"><div class="mestre-fig" aria-hidden="true"><img src="icons/mestre-corpo-sem-mao.webp" alt="" width="121" height="200"><img class="mao" src="icons/mestre-mao.webp" alt="" width="121" height="200"></div><p><strong>Olá, sou o MESTRE. Como posso ajudar?</strong></p><p class="muted">Posso redigir ofícios, rever textos, explicar prazos do CPA ou o passo seguinte de um pedido de indemnização.</p></div>`;
   $("chatMsgs").scrollTop = $("chatMsgs").scrollHeight;
   $("chatHist").innerHTML = chatConvs.length ? chatConvs.map((x) => `<div class="hist-i${x.id === chatAtual ? " on" : ""}">
@@ -1074,6 +1111,8 @@ function desenharChat() {
     ["Rever um texto", "Revê este texto, corrige o português e torna-o mais claro e profissional:\n"],
     ["Que prazo se aplica?", "Que prazo se aplica nesta situação e como se conta? Situação: "],
     ["Passo seguinte (indemnização)", "Num pedido de indemnização, qual é o passo seguinte e que ofício devo usar? Situação: "],
+    ["O que está por assinar?", "O que está por assinar e há quanto tempo?"],
+    ["O que está em atraso?", "Que Edocs urgentes estão em atraso ou parados há mais tempo?"],
   ].map(([t, p]) => `<button type="button" class="fchip" data-sug="${esc(p)}">${esc(t)}</button>`).join("");
 }
 function abrirAssistente() {
@@ -1083,22 +1122,106 @@ function abrirAssistente() {
   $("chatStatus").className = semChave() ? "status err" : "status";
   desenharChat(); $("mestreOla").hidden = true; $("mestre").hidden = false; $("btnMestreAbrir").setAttribute("aria-expanded", "true"); $("btnMestreAbrir").classList.add("aberto"); setTimeout(() => $("chatTxt").focus(), 50);
 }
+/* Anexos: imagens vão ao modelo de visão; PDF com texto é lido no browser (pdf.js); PDF digitalizado é convertido em imagens. */
+let chatAnexo = null; // { nome, tipo: "img"|"doc", imgs: [dataUrl], texto }
+let pdfjs = null;
+async function carregarPdfjs() {
+  if (pdfjs) return pdfjs;
+  pdfjs = await import(new URL("vendor/pdf.min.mjs", location.href).href);
+  pdfjs.GlobalWorkerOptions.workerSrc = new URL("vendor/pdf.worker.min.mjs", location.href).href;
+  return pdfjs;
+}
+function lerFicheiroURL(f) { return new Promise((ok, ko) => { const r = new FileReader(); r.onload = () => ok(r.result); r.onerror = ko; r.readAsDataURL(f); }); }
+async function reduzirImagem(src, max = 1600) {
+  const img = new Image(); img.src = src; await img.decode();
+  const k = Math.min(1, max / Math.max(img.width, img.height));
+  const c = document.createElement("canvas"); c.width = Math.round(img.width * k); c.height = Math.round(img.height * k);
+  c.getContext("2d").drawImage(img, 0, 0, c.width, c.height);
+  return c.toDataURL("image/jpeg", 0.82);
+}
+async function prepararAnexo(f) {
+  const st = $("chatStatus");
+  if (f.size > 15 * 1024 * 1024) { st.textContent = "Ficheiro demasiado grande (máximo 15 MB)."; st.className = "status err"; return; }
+  st.textContent = `A ler «${f.name}»…`; st.className = "status";
+  try {
+    if (f.type.startsWith("image/")) chatAnexo = { nome: f.name, tipo: "img", imgs: [await reduzirImagem(await lerFicheiroURL(f))] };
+    else if (f.type === "application/pdf" || /\.pdf$/i.test(f.name)) {
+      const lib = await carregarPdfjs();
+      const pdf = await lib.getDocument({ data: new Uint8Array(await f.arrayBuffer()) }).promise;
+      let texto = "";
+      for (let p = 1; p <= Math.min(pdf.numPages, 20); p++) { const pg = await pdf.getPage(p); const tc = await pg.getTextContent(); texto += tc.items.map((i) => i.str).join(" ") + "\n\n"; }
+      texto = texto.replace(/[ \t]+/g, " ").trim();
+      if (texto.length > 200) chatAnexo = { nome: f.name, tipo: "doc", texto: texto.slice(0, 15000), paginas: pdf.numPages };
+      else {
+        const imgs = [];
+        for (let p = 1; p <= Math.min(pdf.numPages, 3); p++) {
+          const pg = await pdf.getPage(p); const vp = pg.getViewport({ scale: 1.6 });
+          const c = document.createElement("canvas"); c.width = vp.width; c.height = vp.height;
+          await pg.render({ canvasContext: c.getContext("2d"), viewport: vp, canvas: c }).promise;
+          imgs.push(await reduzirImagem(c.toDataURL("image/jpeg", 0.85)));
+        }
+        chatAnexo = { nome: f.name, tipo: "img", imgs, paginas: pdf.numPages };
+      }
+    } else chatAnexo = { nome: f.name, tipo: "doc", texto: (await f.text()).slice(0, 15000) };
+    st.textContent = "";
+  } catch { chatAnexo = null; st.textContent = "Não consegui ler esse ficheiro."; st.className = "status err"; }
+  desenharAnexo();
+}
+function desenharAnexo() {
+  const box = $("chatAnexo");
+  if (!chatAnexo) { box.hidden = true; box.innerHTML = ""; return; }
+  const det = chatAnexo.tipo === "img" ? `${chatAnexo.imgs.length} imagem(ns)` : `${chatAnexo.paginas ? chatAnexo.paginas + " página(s), " : ""}texto lido`;
+  box.innerHTML = `<span>Anexo: <strong>${esc(chatAnexo.nome)}</strong> · ${esc(det)}${chatAnexo.paginas > (chatAnexo.tipo === "img" ? 3 : 20) ? " (só as primeiras páginas)" : ""}</span><button type="button" class="ct-b" id="btnAnexoTirar">Retirar</button>`;
+  box.hidden = false;
+}
+$("btnChatAnexar").addEventListener("click", () => $("chatFicheiro").click());
+$("chatFicheiro").addEventListener("change", (e) => { const f = e.target.files[0]; e.target.value = ""; if (f) prepararAnexo(f); });
+$("chatAnexo").addEventListener("click", (e) => { if (e.target.id === "btnAnexoTirar") { chatAnexo = null; desenharAnexo(); } });
+$("mestre").addEventListener("dragover", (e) => { e.preventDefault(); });
+$("mestre").addEventListener("drop", (e) => { e.preventDefault(); const f = e.dataTransfer.files[0]; if (f) prepararAnexo(f); });
+$("chatTxt").addEventListener("paste", (e) => { const f = [...(e.clipboardData?.files || [])][0]; if (f && f.type.startsWith("image/")) { e.preventDefault(); prepararAnexo(f); } });
+
+/* Ditado por voz (Chrome/Edge) */
+const Reconhecimento = window.SpeechRecognition || window.webkitSpeechRecognition;
+let ditado = null;
+if (!Reconhecimento) $("btnChatDitar").hidden = true;
+$("btnChatDitar").addEventListener("click", () => {
+  if (ditado) { ditado.stop(); return; }
+  ditado = new Reconhecimento(); ditado.lang = "pt-PT"; ditado.continuous = true; ditado.interimResults = true;
+  const base = $("chatTxt").value; let final = "";
+  ditado.onresult = (ev) => {
+    let prov = "";
+    for (let i = ev.resultIndex; i < ev.results.length; i++) { const t = ev.results[i][0].transcript; if (ev.results[i].isFinal) final += t + " "; else prov += t; }
+    $("chatTxt").value = (base ? base + " " : "") + final + prov;
+  };
+  ditado.onerror = (ev) => { $("chatStatus").textContent = ev.error === "not-allowed" ? "Permita o microfone para este site para poder ditar." : "O ditado parou."; $("chatStatus").className = "status err"; };
+  ditado.onend = () => { ditado = null; $("btnChatDitar").textContent = "Ditar"; $("btnChatDitar").setAttribute("aria-pressed", "false"); $("btnChatDitar").classList.remove("on"); };
+  ditado.start(); $("btnChatDitar").textContent = "A ouvir… parar"; $("btnChatDitar").setAttribute("aria-pressed", "true"); $("btnChatDitar").classList.add("on");
+  $("chatStatus").textContent = "Fale normalmente; carregue outra vez para parar."; $("chatStatus").className = "status";
+});
+
 async function enviarChat() {
-  const txt = $("chatTxt").value.trim(), st = $("chatStatus");
+  if (ditado) ditado.stop();
+  const txt = $("chatTxt").value.trim() || (chatAnexo ? "Resume este documento, diz o que é pedido e propõe um rascunho de resposta." : ""), st = $("chatStatus");
   if (!txt || chatOcupado) return;
   if (semChave()) { st.textContent = "O MESTRE ainda não está configurado (falta a chave do Groq)."; st.className = "status err"; return; }
   let c = chatConvs.find((x) => x.id === chatAtual);
   if (!c) { c = { id: "n" + Date.now().toString(36), titulo: txt.slice(0, 60), em: new Date().toISOString(), msgs: [] }; chatConvs.unshift(c); chatAtual = c.id; }
-  c.msgs.push({ r: "user", t: txt }); c.msgs.push({ r: "assistant", t: "" });
+  const anexo = chatAnexo; chatAnexo = null; desenharAnexo();
+  const mu = { r: "user", t: txt };
+  if (anexo) { mu.anexo = anexo.nome; if (anexo.tipo === "doc") mu.doc = anexo.texto; }
+  c.msgs.push(mu); c.msgs.push({ r: "assistant", t: "" });
   c.em = new Date().toISOString(); chatConvs = [c, ...chatConvs.filter((x) => x.id !== c.id)];
   $("chatTxt").value = ""; chatOcupado = true; $("mestreHead").classList.add("pensando"); $("btnChatEnviar").disabled = true; st.textContent = "A responder…"; st.className = "status";
   desenharChat();
   const resp = c.msgs[c.msgs.length - 1];
   try {
-    const hist = c.msgs.slice(0, -1).slice(-20).map((m) => ({ role: m.r, content: limparPensar(m.t) }));
+    const hist = c.msgs.slice(0, -1).slice(-20).map((m) => ({ role: m.r, content: limparPensar(m.t) + (m.doc ? `\n\n[Documento anexado «${m.anexo}»]:\n${m.doc}` : m.anexo ? `\n\n[Foi anexado «${m.anexo}» (imagem)]` : "") }));
+    const comImg = anexo && anexo.tipo === "img";
+    if (comImg) { const u = hist[hist.length - 1]; u.content = [{ type: "text", text: u.content }, ...anexo.imgs.map((url) => ({ type: "image_url", image_url: { url } }))]; }
     const r = await fetch("https://api.groq.com/openai/v1/chat/completions", {
       method: "POST", headers: { "Content-Type": "application/json", Authorization: "Bearer " + GROQ_API_KEY },
-      body: JSON.stringify({ model: await modeloTexto(), temperature: 0.3, stream: true, messages: [{ role: "system", content: promptSistema() }, ...hist] }),
+      body: JSON.stringify({ model: comImg ? await escolherModelo() : await modeloTexto(), temperature: 0.3, stream: true, messages: [{ role: "system", content: promptSistema() }, ...hist] }),
     });
     if (!r.ok || !r.body) throw new Error("groq " + r.status);
     const leitor = r.body.getReader(), dec = new TextDecoder(); let buf = "", ultimo = 0;
@@ -1154,10 +1277,75 @@ $("btnChatApagarTudo").addEventListener("click", (e) => {
   if (b.dataset.ok !== "1") { b.dataset.ok = "1"; b.textContent = "Confirmar apagar tudo"; setTimeout(() => { b.dataset.ok = ""; b.textContent = "Apagar histórico"; }, 4000); return; }
   chatConvs = []; chatAtual = null; fb.D.remove(chatRef()).catch(() => {}); b.dataset.ok = ""; b.textContent = "Apagar histórico"; desenharChat();
 });
+$("chatMsgs").addEventListener("submit", async (e) => {
+  const f = e.target.closest("form.acao"); if (!f) return; e.preventDefault();
+  const c = chatConvs.find((x) => x.id === chatAtual); const m = c && c.msgs[+f.dataset.acao]; const ac = m && lerAcao(m.t); if (!ac) return;
+  const link = linkEdoc(f.querySelector("input").value), st = $("chatStatus");
+  if (!link) { st.textContent = "Cole o link da página do Edoc (https://edoc.cm-matosinhos.pt/...)."; st.className = "status err"; f.querySelector("input").focus(); return; }
+  const edoc = normEdocTxt(ac.edoc);
+  if (est.urgentes.some((u) => !u.tratado && u.edoc === edoc)) { st.textContent = `O ${edoc} já está na lista de urgentes.`; st.className = "status err"; return; }
+  try {
+    await fb.D.set(fb.D.push(fb.D.ref(fb.db, COL_URGENTES)), {
+      edoc, assunto: String(ac.assunto || "").slice(0, 200), prio: [1, 2, 3].includes(+ac.prio) ? +ac.prio : 2, nota: String(ac.nota || "").slice(0, 300),
+      resp: EQUIPA.some((p) => p.nome === ac.resp) ? ac.resp : "", prazo: isoData(ac.prazo) ? ac.prazo : "",
+      situacao: SITUACOES.includes(ac.situacao) ? ac.situacao : "Outro", situacaoEm: new Date().toISOString(), link,
+      tratado: false, criadoPor: euNome() || quem(), criadoEm: new Date().toISOString(),
+    });
+    m.feito = true; await chatGravar(c); desenharChat(); st.textContent = `${edoc} adicionado aos Edocs urgentes.`; st.className = "status";
+  } catch { st.textContent = "Não consegui guardar. Verifique a internet."; st.className = "status err"; }
+});
+let docxPronto = null;
+function carregarDocx() {
+  if (window.docx) return Promise.resolve(window.docx);
+  return docxPronto ||= new Promise((ok, ko) => { const s = document.createElement("script"); s.src = "vendor/docx.iife.js"; s.onload = () => ok(window.docx); s.onerror = ko; document.head.appendChild(s); });
+}
+async function passarAWord(texto) {
+  const D = await carregarDocx();
+  const logo = new Uint8Array(await (await fetch("icons/logo-matosinhos.png")).arrayBuffer());
+  const F = "Arial", run = (t, o = {}) => new D.TextRun({ text: t, font: F, size: 22, ...o });
+  const linhaRich = (l) => l.split(/(\*\*[^*]+\*\*)/).filter(Boolean).map((x) => x.startsWith("**") ? run(x.slice(2, -2), { bold: true }) : run(x));
+  const corpo = [];
+  for (const l of String(texto).split("\n")) {
+    const li = l.match(/^\s*(?:[-*•]|\d+[.)])\s+(.*)$/);
+    if (li) corpo.push(new D.Paragraph({ children: linhaRich(li[1]), bullet: { level: 0 }, spacing: { after: 60 } }));
+    else if (l.trim()) corpo.push(new D.Paragraph({ children: linhaRich(l.replace(/^#{1,4}\s*/, "")), alignment: D.AlignmentType.JUSTIFIED, spacing: { after: 160, line: 300 } }));
+  }
+  const doc = new D.Document({
+    creator: euNome() || "Secretaria", title: "Ofício",
+    styles: { default: { document: { run: { font: F, size: 22 } } } },
+    sections: [{
+      properties: { page: { size: { width: 11906, height: 16838 }, margin: { top: 1900, bottom: 1300, left: 1500, right: 1300, header: 600, footer: 500 } } },
+      headers: { default: new D.Header({ children: [
+        new D.Paragraph({ children: [new D.ImageRun({ type: "png", data: logo, transformation: { width: 170, height: 30 } })] }),
+        new D.Paragraph({ spacing: { before: 80 }, border: { bottom: { style: D.BorderStyle.SINGLE, size: 6, color: "1F4E79", space: 4 } },
+          children: [run("Departamento de Conservação · Subunidade Orgânica da Conservação — Secretaria", { size: 16, color: "595959" })] }),
+      ] }) },
+      footers: { default: new D.Footer({ children: [new D.Paragraph({ alignment: D.AlignmentType.CENTER, children: [run("Câmara Municipal de Matosinhos", { size: 16, color: "7F7F7F" })] })] }) },
+      children: [
+        new D.Paragraph({ alignment: D.AlignmentType.RIGHT, spacing: { after: 240 }, children: [run(`Matosinhos, ${new Date().toLocaleDateString("pt-PT", { day: "numeric", month: "long", year: "numeric" })}`)] }),
+        new D.Paragraph({ spacing: { after: 240 }, children: [run("Assunto: ", { bold: true }), run("[Assunto]")] }),
+        ...corpo,
+        new D.Paragraph({ spacing: { before: 600 }, children: [run("[Nome e cargo de quem assina]", { color: "7F7F7F" })] }),
+      ],
+    }],
+  });
+  const blob = await D.Packer.toBlob(doc);
+  const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = `Oficio_${new Date().toISOString().slice(0, 10)}.docx`; a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+}
 $("chatMsgs").addEventListener("click", async (e) => {
+  const w = e.target.closest("[data-word]");
+  if (w) {
+    const c = chatConvs.find((x) => x.id === chatAtual); const m = c && c.msgs[+w.dataset.word]; if (!m) return;
+    w.disabled = true; w.textContent = "A preparar…";
+    try { await passarAWord(semAcao(m.t)); w.textContent = "Word descarregado"; }
+    catch { $("chatStatus").textContent = "Não consegui gerar o Word."; $("chatStatus").className = "status err"; w.textContent = "Passar a Word"; }
+    setTimeout(() => { w.disabled = false; w.textContent = "Passar a Word"; }, 2500);
+    return;
+  }
   const b = e.target.closest("[data-copiar]"); if (!b) return;
   const c = chatConvs.find((x) => x.id === chatAtual); const m = c && c.msgs[+b.dataset.copiar]; if (!m) return;
-  try { await navigator.clipboard.writeText(limparPensar(m.t)); b.textContent = "Copiado"; setTimeout(() => (b.textContent = "Copiar"), 1500); } catch {}
+  try { await navigator.clipboard.writeText(semAcao(m.t)); b.textContent = "Copiado"; setTimeout(() => (b.textContent = "Copiar"), 1500); } catch {}
 });
 
 /* ---------------- Mapas (Excel partilhados no SharePoint/OneDrive da Câmara) ---------------- */

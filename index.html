@@ -441,9 +441,15 @@
   <div class="chat-sug" id="chatSug"></div>
   <form class="chat-form" id="chatForm">
     <p class="chat-aviso">As mensagens são processadas pelo Groq (serviço externo). Confirme prazos e artigos antes de usar.</p>
+    <div class="chat-anexo" id="chatAnexo" hidden></div>
     <div class="chat-in">
       <textarea id="chatTxt" rows="2" placeholder="Escreva a sua pergunta…" aria-label="Mensagem para o MESTRE"></textarea>
       <button class="btn primary" id="btnChatEnviar" type="submit">Enviar</button>
+    </div>
+    <div class="chat-tools">
+      <button class="ct-b" id="btnChatAnexar" type="button">Anexar foto ou PDF</button>
+      <button class="ct-b" id="btnChatDitar" type="button" aria-pressed="false">Ditar</button>
+      <input type="file" id="chatFicheiro" accept="image/*,application/pdf,.txt" hidden>
     </div>
     <p class="status" id="chatStatus"></p>
   </form>

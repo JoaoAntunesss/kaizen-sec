@@ -475,3 +475,15 @@ body:has(#fab:not([hidden])) .mestre-ola{bottom:calc(152px + env(safe-area-inset
 .mod-tabs{flex-direction:column;gap:8px}
 .mod-g{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
 .mod-gt{font-size:12px;font-weight:700;color:var(--muted);min-width:110px}
+
+/* Valor por extenso, caução, enviar para assinatura */
+.ext{display:grid;grid-template-columns:minmax(200px,320px) auto;gap:10px;align-items:end}
+.ext-res{margin:8px 0 0;font-size:15px;font-weight:600;min-height:1.4em}
+.cau{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;align-items:end}
+@media (max-width:560px){.cau{grid-template-columns:1fr}.ext{grid-template-columns:1fr}}
+.cau-res p{margin:8px 0 0}
+.cau-frase{background:var(--accent-soft);border-radius:8px;padding:8px 10px;font-size:14px}
+.assinar{gap:8px}
+.assinar .actions{justify-content:flex-end}
+.assinar-box:empty{display:none}
+#modAssinar .assinar{margin-top:10px}

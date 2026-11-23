@@ -1,5 +1,6 @@
 import { GROQ_API_KEY, FIREBASE_CONFIG, COL_REUNIOES, COL_FOTOS, EQUIPA as EQUIPA_INICIAL, POWERBI_URL, MAPAS } from "./config.js";
 import { MODELOS_OFICIO, modelosRelevantes } from "./modelos-oficio.js";
+import { lerValor, valorCompleto, fmtEuros, eurosPorExtenso } from "./extenso.js";
 const COL_EQUIPA = "kaizen_equipa";
 const COL_URGENTES = "kaizen_urgentes";
 const COL_MAPAS = "kaizen_mapas";
@@ -895,6 +896,15 @@ function desenharModelos() {
   $("modTexto").value = MODELOS[modAtual][1]; $("modStatus").textContent = "";
 }
 $("modTabs").addEventListener("click", (e) => { const b = e.target.closest("[data-mod]"); if (!b) return; modAtual = +b.dataset.mod; desenharModelos(); });
+$("btnModAssinar").addEventListener("click", () => {
+  const box = $("modAssinar"); if (box.innerHTML) { box.innerHTML = ""; return; }
+  box.innerHTML = formAssinar($("modTexto").value); box.querySelector('[name="link"]').focus();
+});
+$("modAssinar").addEventListener("click", (e) => { if (e.target.closest("[data-fechar-assinar]")) $("modAssinar").innerHTML = ""; });
+$("modAssinar").addEventListener("submit", async (e) => {
+  const f = e.target.closest("form.assinar"); if (!f) return; e.preventDefault();
+  if (await submeterAssinar(f, $("modStatus"))) $("modAssinar").innerHTML = "";
+});
 $("btnModWord").addEventListener("click", async () => {
   const st = $("modStatus");
   try { await passarAWord($("modTexto").value); st.textContent = "Word descarregado: reveja os campos entre [ ]."; st.className = "status"; }
@@ -927,6 +937,30 @@ function desenharChk() {
 $("chkLista").addEventListener("change", (e) => { const c = e.target.closest("[data-chk]"); if (!c) return; chk[c.dataset.chk] = c.checked; try { localStorage.setItem("kz-chk-oficio", JSON.stringify(chk)); } catch {} desenharChk(); });
 $("btnChkLimpar").addEventListener("click", () => { chk = {}; try { localStorage.removeItem("kz-chk-oficio"); } catch {} desenharChk(); });
 desenharChk();
+
+/* ---------------- Ferramentas: valor por extenso e liberação de caução ---------------- */
+function calcExtenso() { const v = lerValor($("extValor").value); $("extRes").textContent = v === null ? "" : valorCompleto(v); }
+$("extValor").addEventListener("input", calcExtenso);
+$("btnExtCopiar").addEventListener("click", async () => { const t = $("extRes").textContent; if (!t) return; try { await navigator.clipboard.writeText(t); $("btnExtCopiar").textContent = "Copiado"; setTimeout(() => ($("btnExtCopiar").textContent = "Copiar"), 1500); } catch {} });
+const CAU_PCT = { 1: 30, 2: 30, 3: 15, 4: 15, 5: 10 };
+let cauFrase = "";
+function calcCaucao() {
+  const v = lerValor($("cauValor").value), ano = +$("cauAno").value;
+  if (document.activeElement !== $("cauPct") && !$("cauPct").dataset.mexido) $("cauPct").value = CAU_PCT[ano];
+  const pct = Math.min(100, Math.max(0, parseFloat(String($("cauPct").value).replace(",", ".")) || 0));
+  if (v === null || !v) { $("cauRes").innerHTML = ""; cauFrase = ""; return; }
+  const lib = Math.round(v * pct) / 100;
+  const acum = Object.entries(CAU_PCT).filter(([a]) => +a < ano).reduce((s, [, p]) => s + p, 0) + pct;
+  const liberadoTotal = Math.round(v * Math.min(100, acum)) / 100, resta = Math.round((v - liberadoTotal) * 100) / 100;
+  cauFrase = `será liberado ${String(pct).replace(".", ",")}% do valor total da caução, que corresponde à liberação de ${valorCompleto(lib)}`;
+  $("cauRes").innerHTML = `<p><strong>A liberar no ${ano}.º ano:</strong> ${esc(valorCompleto(lib))}</p>
+    <p class="muted small">Caução total: ${esc(fmtEuros(v))} € · liberado até este ano (inclusive): ${String(Math.min(100, acum)).replace(".", ",")}% = ${esc(fmtEuros(liberadoTotal))} € · fica retido: ${esc(fmtEuros(Math.max(0, resta)))} €</p>
+    <p class="cau-frase">«…${esc(cauFrase)}.»</p>`;
+}
+["cauValor", "cauAno"].forEach((id) => $(id).addEventListener("input", () => { if (id === "cauAno") delete $("cauPct").dataset.mexido; calcCaucao(); }));
+$("cauPct").addEventListener("input", () => { $("cauPct").dataset.mexido = "1"; calcCaucao(); });
+$("btnCauCopiar").addEventListener("click", async () => { if (!cauFrase) return; try { await navigator.clipboard.writeText(cauFrase + "."); $("cauStatus").textContent = "Frase copiada."; $("cauStatus").className = "status"; } catch {} });
+$("cauPct").value = CAU_PCT[1];
 
 /* ---------------- Legislação: calculadora de prazos (art. 87.º CPA) ---------------- */
 const isoDe = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
@@ -1041,6 +1075,9 @@ Regras:
 [[ADICIONAR_URGENTE {"edoc":"OD/2026/12345","assunto":"...","nota":"o que há a fazer","prio":2,"situacao":"Por oficiar","resp":"","prazo":"AAAA-MM-DD"}]]
   (prio: 1 muito urgente, 2 urgente, 3 normal; situacao: uma de ${SITUACOES.join(", ")}; resp: nome da equipa ou vazio; prazo vazio se não houver). A app pede depois o link do Edoc e a confirmação.
 - Quando houver um documento anexado, resume-o, diz claramente o que é pedido e, se fizer sentido, propõe um rascunho de resposta.
+- Valores em euros: escreve SEMPRE [[EXTENSO valor]] (ex.: [[EXTENSO 45656,16]]) e a app converte em «45.656,16 € (quarenta e cinco mil … cêntimos)». Não escrevas tu o extenso. Faz as contas com cuidado (ex.: 30% de 14.490,40 = 4.347,12).
+- Liberação de caução (art. 295.º CCP), faseada a contar da receção provisória: 30% no 1.º ano, 30% no 2.º, 15% no 3.º, 15% no 4.º e 10% no 5.º, salvo se o contrato ou o despacho indicar outra coisa.
+- Revisão de ofício (quando pedirem para rever ou anexarem o Word final): responde com uma lista curta «Verificação», em que cada ponto começa por «OK:» ou «Atenção:», cobrindo: destinatário e tratamento (EXMO./EXMA., V. Ex.ª/V. Exas.); referência (OD/EDOC) igual no cabeçalho e no texto; assunto; datas, prazos e artigos citados (CPA/CCP) corretos e coerentes; valores e extensos certos; campos [ ] ou «xxx» por preencher; português (norma europeia, acordo ortográfico); dados pessoais desnecessários; fórmula final. Depois indica só as correções necessárias, com o texto corrigido.
 
 INFORMAÇÃO DE REFERÊNCIA:
 ${contextoTrabalho()}
@@ -1060,6 +1097,8 @@ function fmtResposta(t) {
   return html + (lista ? "</ul>" : "");
 }
 const limparPensar = (t) => String(t || "").replace(/<think>[\s\S]*?(<\/think>|$)/g, "").trim();
+// O MESTRE escreve [[EXTENSO 45656,16]] e a app troca pelo valor formatado e por extenso (sem erros de contas).
+const expandirExtenso = (t) => String(t || "").replace(/\[\[EXTENSO\s+([\d.,\s]+?)\s*\]\]/g, (m, v) => { const n = lerValor(v); return n === null ? m : valorCompleto(n); });
 const RX_ACAO = /\[\[ADICIONAR_URGENTE\s+(\{[\s\S]*?\})\s*\]\]/;
 function lerAcao(t) { const m = String(t || "").match(RX_ACAO); if (!m) return null; try { return JSON.parse(m[1]); } catch { return null; } }
 const semAcao = (t) => limparPensar(t).replace(RX_ACAO, "").trim();
@@ -1068,7 +1107,7 @@ function msgIA(m, i) {
   const card = ac && ac.edoc ? `<form class="acao" data-acao="${i}">
       <div><strong>Adicionar aos Edocs urgentes</strong>: ${esc(normEdocTxt(ac.edoc))}${ac.assunto ? " — " + esc(ac.assunto) : ""}<br><span class="muted small">${esc(PRIO[ac.prio] || PRIO[2])} · ${esc(SITUACOES.includes(ac.situacao) ? ac.situacao : "Outro")}${ac.resp ? " · " + esc(ac.resp) : ""}${isoData(ac.prazo) ? " · prazo " + esc(fmt(ac.prazo)) : ""}</span></div>
       ${m.feito ? `<span class="ok-t">Adicionado.</span>` : `<input type="url" placeholder="Link do Edoc (obrigatório)" aria-label="Link do Edoc"><button class="btn small primary" type="submit">Adicionar</button>`}</form>` : "";
-  return `<div class="msg ia"><div class="bolha">${fmtResposta(semAcao(m.t)) || '<p class="muted">A pensar…</p>'}</div>${card}${m.t && !(chatOcupado && i === (chatConvs.find((x) => x.id === chatAtual)?.msgs.length || 0) - 1) ? `<div class="msg-acts"><button class="btn small ghost" type="button" data-copiar="${i}">Copiar</button><button class="btn small ghost" type="button" data-word="${i}">Passar a Word</button></div>` : ""}</div>`;
+  return `<div class="msg ia"><div class="bolha">${fmtResposta(semAcao(m.t)) || '<p class="muted">A pensar…</p>'}</div>${card}${m.t && !(chatOcupado && i === (chatConvs.find((x) => x.id === chatAtual)?.msgs.length || 0) - 1) ? `<div class="msg-acts"><button class="btn small ghost" type="button" data-copiar="${i}">Copiar</button><button class="btn small ghost" type="button" data-word="${i}">Passar a Word</button><button class="btn small ghost" type="button" data-assinar="${i}">Enviar para assinatura</button></div><div class="assinar-box" data-box="${i}"></div>` : ""}</div>`;
 }
 const normEdocTxt = (s) => String(s || "").trim().toUpperCase().replace(/\s+/g, "");
 function desenharChat() {
@@ -1088,6 +1127,7 @@ function desenharChat() {
     ["Rever um texto", "Revê este texto, corrige o português e torna-o mais claro e profissional:\n"],
     ["Que prazo se aplica?", "Que prazo se aplica nesta situação e como se conta? Situação: "],
     ["Passo seguinte (indemnização)", "Num pedido de indemnização, qual é o passo seguinte e que ofício devo usar? Situação: "],
+    ["Rever ofício", "Revê este ofício antes de seguir para assinatura (anexe o Word ou cole o texto):\n"],
     ["O que está por assinar?", "O que está por assinar e há quanto tempo?"],
     ["O que está em atraso?", "Que Edocs urgentes estão em atraso ou parados há mais tempo?"],
   ].map(([t, p]) => `<button type="button" class="fchip" data-sug="${esc(p)}">${esc(t)}</button>`).join("");
@@ -1139,6 +1179,11 @@ async function prepararAnexo(f) {
         }
         chatAnexo = { nome: f.name, tipo: "img", imgs, paginas: pdf.numPages };
       }
+    } else if (/\.docx$/i.test(f.name)) {
+      const z = await JSZip.loadAsync(await f.arrayBuffer());
+      const x = await z.file("word/document.xml").async("string");
+      const texto = x.replace(/<w:tab\/>/g, "\t").replace(/<\/w:p>/g, "\n").replace(/<[^>]+>/g, "").replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/\n{3,}/g, "\n\n").trim();
+      chatAnexo = { nome: f.name, tipo: "doc", texto: texto.slice(0, 15000), word: true };
     } else chatAnexo = { nome: f.name, tipo: "doc", texto: (await f.text()).slice(0, 15000) };
     st.textContent = "";
   } catch { chatAnexo = null; st.textContent = "Não consegui ler esse ficheiro."; st.className = "status err"; }
@@ -1179,7 +1224,7 @@ $("btnChatDitar").addEventListener("click", () => {
 
 async function enviarChat() {
   if (ditado) ditado.stop();
-  const txt = $("chatTxt").value.trim() || (chatAnexo ? "Resume este documento, diz o que é pedido e propõe um rascunho de resposta." : ""), st = $("chatStatus");
+  const txt = $("chatTxt").value.trim() || (chatAnexo ? (chatAnexo.word ? "Revê este ofício antes de seguir para assinatura." : "Resume este documento, diz o que é pedido e propõe um rascunho de resposta.") : ""), st = $("chatStatus");
   if (!txt || chatOcupado) return;
   if (semChave()) { st.textContent = "O MESTRE ainda não está configurado (falta a chave do Groq)."; st.className = "status err"; return; }
   let c = chatConvs.find((x) => x.id === chatAtual);
@@ -1213,7 +1258,7 @@ async function enviarChat() {
       }
       if (Date.now() - ultimo > 120) { ultimo = Date.now(); desenharChat(); }
     }
-    resp.t = limparPensar(resp.t) || "Não obtive resposta. Tente reformular a pergunta.";
+    resp.t = expandirExtenso(limparPensar(resp.t)) || "Não obtive resposta. Tente reformular a pergunta.";
     st.textContent = "";
   } catch (e) {
     resp.t = resp.t || "Não foi possível obter resposta (sem ligação ou limite do serviço atingido). Tente daqui a pouco.";
@@ -1254,7 +1299,39 @@ $("btnChatApagarTudo").addEventListener("click", (e) => {
   if (b.dataset.ok !== "1") { b.dataset.ok = "1"; b.textContent = "Confirmar apagar tudo"; setTimeout(() => { b.dataset.ok = ""; b.textContent = "Apagar histórico"; }, 4000); return; }
   chatConvs = []; chatAtual = null; fb.D.remove(chatRef()).catch(() => {}); b.dataset.ok = ""; b.textContent = "Apagar histórico"; desenharChat();
 });
+/* Enviar para assinatura: cria o Edoc urgente «Ofício por assinar» (o link do Edoc é obrigatório). */
+function formAssinar(texto) {
+  const o = partesOficio(texto);
+  const edoc = ((o.ref || "").match(/[A-Z_]+\/\d{4}\/\d+/i) || [""])[0].toUpperCase();
+  const assunto = /^\[/.test(o.assunto) ? "" : o.assunto;
+  return `<form class="acao assinar">
+    <strong>Enviar para assinatura</strong>
+    <span class="muted small">Cria o Edoc urgente na situação «Ofício por assinar» e avisa quem tem as notificações ligadas.</span>
+    <label class="f">N.º do Edoc<input type="text" name="edoc" value="${esc(edoc)}" placeholder="Ex.: OD/2026/36597" required></label>
+    <label class="f">De que se trata<input type="text" name="assunto" value="${esc(assunto ? "Ofício: " + assunto : "Ofício")}"></label>
+    <label class="f">Prioridade<select name="prio"><option value="1">Muito urgente</option><option value="2" selected>Urgente</option><option value="3">Normal</option></select></label>
+    <label class="f">Link do Edoc<input type="url" name="link" placeholder="https://edoc.cm-matosinhos.pt/..." required></label>
+    <div class="actions"><button class="btn small ghost" type="button" data-fechar-assinar>Cancelar</button><button class="btn small primary" type="submit">Criar «Ofício por assinar»</button></div>
+  </form>`;
+}
+async function submeterAssinar(f, st) {
+  const edoc = normEdocTxt(f.edoc.value), link = linkEdoc(f.link.value);
+  if (!edoc) { st.textContent = "Indique o n.º do Edoc."; st.className = "status err"; f.edoc.focus(); return false; }
+  if (!link) { st.textContent = "Cole o link da página do Edoc (https://edoc.cm-matosinhos.pt/...)."; st.className = "status err"; f.link.focus(); return false; }
+  const ja = est.urgentes.find((u) => !u.tratado && u.edoc === edoc);
+  try {
+    if (ja) await fb.D.update(fb.D.ref(fb.db, `${COL_URGENTES}/${ja.id}`), { situacao: "Ofício por assinar", situacaoEm: new Date().toISOString(), situacaoPor: euNome() || quem(), link: ja.link || link });
+    else await fb.D.set(fb.D.push(fb.D.ref(fb.db, COL_URGENTES)), {
+      edoc, assunto: f.assunto.value.trim().slice(0, 200), prio: +f.prio.value || 2, nota: "Assinar o ofício", resp: "", prazo: "",
+      situacao: "Ofício por assinar", situacaoEm: new Date().toISOString(), link, tratado: false, criadoPor: euNome() || quem(), criadoEm: new Date().toISOString(),
+    });
+    st.textContent = ja ? `${edoc} já estava nos urgentes: passou para «Ofício por assinar».` : `${edoc} criado como «Ofício por assinar».`; st.className = "status";
+    return true;
+  } catch { st.textContent = "Não consegui guardar. Verifique a internet."; st.className = "status err"; return false; }
+}
 $("chatMsgs").addEventListener("submit", async (e) => {
+  const fa = e.target.closest("form.assinar");
+  if (fa) { e.preventDefault(); if (await submeterAssinar(fa, $("chatStatus"))) fa.outerHTML = `<p class="ok-t small">Enviado para assinatura.</p>`; return; }
   const f = e.target.closest("form.acao"); if (!f) return; e.preventDefault();
   const c = chatConvs.find((x) => x.id === chatAtual); const m = c && c.msgs[+f.dataset.acao]; const ac = m && lerAcao(m.t); if (!ac) return;
   const link = linkEdoc(f.querySelector("input").value), st = $("chatStatus");
@@ -1313,6 +1390,13 @@ async function passarAWord(texto) {
   setTimeout(() => URL.revokeObjectURL(el.href), 5000);
 }
 $("chatMsgs").addEventListener("click", async (e) => {
+  if (e.target.closest("[data-fechar-assinar]")) { e.target.closest("form.assinar").remove(); return; }
+  const as = e.target.closest("[data-assinar]");
+  if (as) {
+    const c = chatConvs.find((x) => x.id === chatAtual); const m = c && c.msgs[+as.dataset.assinar]; if (!m) return;
+    const box = $("chatMsgs").querySelector(`[data-box="${as.dataset.assinar}"]`); if (box.innerHTML) { box.innerHTML = ""; return; }
+    box.innerHTML = formAssinar(semAcao(m.t)); box.querySelector('[name="link"]').focus(); return;
+  }
   const w = e.target.closest("[data-word]");
   if (w) {
     const c = chatConvs.find((x) => x.id === chatAtual); const m = c && c.msgs[+w.dataset.word]; if (!m) return;

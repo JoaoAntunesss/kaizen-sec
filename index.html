@@ -239,8 +239,30 @@
         <p class="muted small">Escolha o modelo, ajuste os campos entre [ ] e copie, ou abra já no modelo Word da Câmara (cabeçalho, referência e assinatura incluídos).</p>
         <div class="mod-tabs" id="modTabs" role="tablist"></div>
         <textarea id="modTexto" rows="11" aria-label="Texto do modelo"></textarea>
-        <div class="actions"><span class="status" id="modStatus"></span><button class="btn" id="btnModWord" type="button">Abrir em Word</button><button class="btn primary" id="btnModCopiar" type="button">Copiar texto</button></div>
+        <div id="modAssinar"></div>
+        <div class="actions"><span class="status" id="modStatus"></span><button class="btn" id="btnModWord" type="button">Abrir em Word</button><button class="btn" id="btnModAssinar" type="button">Enviar para assinatura</button><button class="btn primary" id="btnModCopiar" type="button">Copiar texto</button></div>
       </details>
+      <details class="leg-sec">
+        <summary>Valor por extenso</summary>
+        <div class="ext">
+          <label class="f">Valor em euros<input type="text" id="extValor" inputmode="decimal" placeholder="Ex.: 45656,16"></label>
+          <button class="btn" id="btnExtCopiar" type="button">Copiar</button>
+        </div>
+        <p class="ext-res" id="extRes" aria-live="polite"></p>
+      </details>
+
+      <details class="leg-sec">
+        <summary>Liberação de caução (art. 295.º CCP)</summary>
+        <div class="cau">
+          <label class="f">Valor total da caução<input type="text" id="cauValor" inputmode="decimal" placeholder="Ex.: 14490,40"></label>
+          <label class="f">Ano após a receção provisória<select id="cauAno"><option value="1">1.º ano</option><option value="2">2.º ano</option><option value="3">3.º ano</option><option value="4">4.º ano</option><option value="5">5.º ano</option></select></label>
+          <label class="f">Percentagem a liberar<input type="number" id="cauPct" min="0" max="100" step="0.5"></label>
+        </div>
+        <div class="cau-res" id="cauRes" aria-live="polite"></div>
+        <div class="actions"><span class="status" id="cauStatus"></span><button class="btn" id="btnCauCopiar" type="button">Copiar frase para o ofício</button></div>
+        <p class="muted small">Liberação faseada habitual nos ofícios da Secretaria: 30% (1.º ano), 30% (2.º), 15% (3.º), 15% (4.º) e 10% (5.º ano), contados da receção provisória. A percentagem pode ser alterada se o contrato ou o despacho disser outra coisa.</p>
+      </details>
+
       <details class="leg-sec">
         <summary>Antes de enviar um ofício</summary>
         <div class="chk" id="chkLista"></div>
@@ -447,9 +469,9 @@
       <button class="btn primary" id="btnChatEnviar" type="submit">Enviar</button>
     </div>
     <div class="chat-tools">
-      <button class="ct-b" id="btnChatAnexar" type="button">Anexar foto ou PDF</button>
+      <button class="ct-b" id="btnChatAnexar" type="button">Anexar foto, PDF ou Word</button>
       <button class="ct-b" id="btnChatDitar" type="button" aria-pressed="false">Ditar</button>
-      <input type="file" id="chatFicheiro" accept="image/*,application/pdf,.txt" hidden>
+      <input type="file" id="chatFicheiro" accept="image/*,application/pdf,.txt,.docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document" hidden>
     </div>
     <p class="status" id="chatStatus"></p>
   </form>

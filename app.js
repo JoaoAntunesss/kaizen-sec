@@ -668,6 +668,8 @@ $("btnVoltarRel").addEventListener("click", () => mostrar("vPainel"));
 
 /* ---------------- Trabalho diário: Edocs urgentes ---------------- */
 const PRIO = { 1: "Muito urgente", 2: "Urgente", 3: "Normal" };
+// Só aceitamos links do Edoc da Câmara (evita guardar endereços de outros sites).
+const linkEdoc = (s) => { try { const u = new URL(String(s || "").trim()); return u.protocol === "https:" && u.hostname === "edoc.cm-matosinhos.pt" ? u.href : ""; } catch { return ""; } };
 const prioDe = (u) => (u.prio >= 1 && u.prio <= 3 ? +u.prio : 2);
 const SITUACOES = ["Por oficiar", "Ofício por assinar", "Aguarda execução", "Aguarda entidade externa", "Em análise técnica", "Outro"];
 let urgFiltro = "";
@@ -704,11 +706,12 @@ function itemUrg(u, feito) {
   const acts = feito
     ? `<button class="btn small ghost" type="button" data-urg="desfazer" data-id="${esc(u.id)}">Desfazer</button>`
     : `<button class="btn small ok" type="button" data-urg="tratado" data-id="${esc(u.id)}">Marcar como tratado</button>
+       <button class="btn small ghost" type="button" data-urg="link" data-id="${esc(u.id)}">${linkEdoc(u.link) ? "Alterar link" : "Juntar link"}</button>
        <button class="btn small ghost danger" type="button" data-urg="apagar" data-id="${esc(u.id)}" aria-label="Apagar ${esc(u.edoc)}">Apagar</button>`;
   const p = prioDe(u);
   const prio = feito ? "" : `<select class="urg-prio p${p}" data-urg="prio" data-id="${esc(u.id)}" aria-label="Prioridade do ${esc(u.edoc)}">${[1, 2, 3].map((n) => `<option value="${n}"${n === p ? " selected" : ""}>${PRIO[n]}</option>`).join("")}</select>`;
   return `<div class="urg-item p${p}${atraso ? " late" : ""}${feito ? " done" : ""}">
-    <div class="urg-main"><div class="urg-top"><strong class="urg-edoc">${esc(u.edoc)}</strong>${prio}</div>${u.assunto ? `<span class="urg-assunto">${esc(u.assunto)}</span>` : ""}${u.nota ? `<span class="urg-nota">A fazer: ${esc(u.nota)}</span>` : ""}
+    <div class="urg-main"><div class="urg-top">${linkEdoc(u.link) ? `<a class="urg-edoc urg-a" href="${esc(linkEdoc(u.link))}" target="_blank" rel="noopener" title="Abrir no Edoc">${esc(u.edoc)}</a>` : `<strong class="urg-edoc">${esc(u.edoc)}</strong>`}${prio}</div>${u.assunto ? `<span class="urg-assunto">${esc(u.assunto)}</span>` : ""}${u.nota ? `<span class="urg-nota">A fazer: ${esc(u.nota)}</span>` : ""}
       <div class="urg-chips">${sit}${chips}</div><span class="urg-meta">${meta}</span></div>
     <div class="urg-acts">${acts}</div></div>`;
 }
@@ -738,6 +741,8 @@ $("urgForm").addEventListener("submit", async (e) => {
   const edoc = $("urgEdoc").value.trim().toUpperCase().replace(/\s+/g, "");
   const st = $("urgStatus");
   if (!edoc) { $("urgEdoc").focus(); return; }
+  const lnk = $("urgLink").value.trim();
+  if (lnk && !linkEdoc(lnk)) { st.textContent = "O link tem de ser de uma página do Edoc (https://edoc.cm-matosinhos.pt/...)."; st.className = "status err"; $("urgLink").focus(); return; }
   if (!$("urgPor").value) { st.textContent = "Escolha quem está a adicionar o Edoc."; st.className = "status err"; $("urgPor").focus(); return; }
   if (est.urgentes.some((u) => !u.tratado && u.edoc === edoc)) { st.textContent = `O ${edoc} já está na lista de urgentes.`; st.className = "status err"; return; }
   $("btnUrgAdd").disabled = true;
@@ -746,6 +751,7 @@ $("urgForm").addEventListener("submit", async (e) => {
       edoc, assunto: $("urgAssunto").value.trim(), prio: +$("urgPrio").value || 2,
       nota: $("urgNota").value.trim(), resp: $("urgResp").value, prazo: $("urgPrazo").value || "",
       situacao: $("urgSit").value || "Outro", situacaoEm: new Date().toISOString(),
+      link: linkEdoc($("urgLink").value),
       tratado: false, criadoPor: $("urgPor").value, criadoEm: new Date().toISOString(),
     });
     const porEsc = $("urgPor").value; try { localStorage.setItem("kz-urg-por", porEsc); } catch {}
@@ -758,6 +764,15 @@ $("urgVerDe").addEventListener("change", () => {
   if ($("urgVerDe").value) $("urgFeitosBox").open = true;
   desenharUrgentes();
 });
+$("urgLista").addEventListener("submit", async (e) => {
+  const f = e.target.closest(".urg-linkbox"); if (!f) return;
+  e.preventDefault();
+  const v = f.querySelector("input").value.trim(), st = $("urgStatus");
+  if (v && !linkEdoc(v)) { st.textContent = "O link tem de ser de uma página do Edoc (https://edoc.cm-matosinhos.pt/...)."; st.className = "status err"; return; }
+  try { await fb.D.update(fb.D.ref(fb.db, `${COL_URGENTES}/${f.dataset.id}`), { link: linkEdoc(v) }); st.textContent = v ? "Link guardado." : "Link retirado."; st.className = "status"; }
+  catch { st.textContent = "Não consegui guardar. Verifique a internet."; st.className = "status err"; }
+});
+$("urgLista").addEventListener("click", (e) => { if (e.target.closest("[data-cancel]")) e.target.closest(".urg-linkbox")?.remove(); });
 $("urgFiltros").addEventListener("click", (e) => { const b = e.target.closest("[data-filtro]"); if (!b) return; urgFiltro = b.dataset.filtro; desenharUrgentes(); });
 $("urgLista").addEventListener("change", async (e) => {
   const s = e.target.closest('[data-urg="sit"], [data-urg="prio"]'); if (!s) return;
@@ -769,6 +784,15 @@ $("vDiario").addEventListener("click", async (e) => {
   const b = e.target.closest("button[data-urg]"); if (!b) return;
   const id = b.dataset.id, acao = b.dataset.urg, ref = fb.D.ref(fb.db, `${COL_URGENTES}/${id}`);
   const st = $("urgStatus");
+  if (acao === "link") {
+    const item = b.closest(".urg-item"); if (!item || item.querySelector(".urg-linkbox")) return;
+    const u = est.urgentes.find((x) => x.id === id) || {};
+    item.querySelector(".urg-main").insertAdjacentHTML("beforeend", `<form class="urg-linkbox" data-id="${esc(id)}">
+      <input type="url" aria-label="Link do Edoc" placeholder="https://edoc.cm-matosinhos.pt/..." value="${esc(u.link || "")}">
+      <button class="btn small primary" type="submit">Guardar</button><button class="btn small ghost" type="button" data-cancel>Cancelar</button></form>`);
+    item.querySelector(".urg-linkbox input").focus();
+    return;
+  }
   if (acao === "apagar" && b.dataset.ok !== "1") { b.dataset.ok = "1"; b.textContent = "Confirmar apagar"; setTimeout(() => { b.dataset.ok = ""; b.textContent = "Apagar"; }, 4000); return; }
   b.disabled = true;
   try {

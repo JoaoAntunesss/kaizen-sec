@@ -21,6 +21,14 @@ export const FIREBASE_CONFIG = {
 // Para trocar de painel, basta mudar este link.
 export const POWERBI_URL = "https://app.powerbi.com/view?r=eyJrIjoiZGI3MGM4ZjItYzYwOC00YTEwLTg0ODctMDZjMmFmNDIwNzBiIiwidCI6Ijg1ZmYwZDc5LTI2YzQtNDQ5OS05MDg1LWQyZjEwOWFkZjE3YSIsImMiOjh9&pageName=cf552c686754b9ad0793";
 
+// Mapas Excel partilhados (aba «Mapas»). Os ficheiros são privados: só abrem com a conta da Câmara e permissão no ficheiro.
+export const MAPAS = [
+  { nome: "Mapa FORNECIMENTOS + AQ BENS E SERVIÇOS", link: "https://cmmat-my.sharepoint.com/:x:/g/personal/cristina_delca_cm-matosinhos_pt/IQCGTrCggPY6Sq8Rk8FddZvlAcGU0r6l0vbLVolK7V78hdQ?e=UqIudq" },
+  { nome: "DC - Mapa de Empreitadas", link: "https://cmmat.sharepoint.com/:x:/s/Empreitadas/IQBZiAwwGN5lSIW5D6MFjH9uAQiZ8d07LHFCapRI2DYOLKM?e=gWt00L" },
+  { nome: "Registo de Acidentes", link: "https://cmmat-my.sharepoint.com/:x:/g/personal/carla_ferreira_cm-matosinhos_pt/IQDHXM7XF1geRKsGKHletPfmAZCggGEdKM9qfj03tvBwPjk?e=Ami7V7" },
+  { nome: "Controlo LIVRO DE RECLAMAÇÕES", link: "https://cmmat-my.sharepoint.com/:x:/g/personal/cristina_delca_cm-matosinhos_pt/IQCS2f6TBYepT703diw8H1mLAaXY2bsj1H2RRebIyhDLoj8?e=obLOig" },
+];
+
 // Nós no Realtime Database (separados dos do Freezer).
 export const COL_REUNIOES = "kaizen_reunioes";
 export const COL_FOTOS = "kaizen_fotos";

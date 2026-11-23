@@ -1,4 +1,4 @@
-import { GROQ_API_KEY, FIREBASE_CONFIG, COL_REUNIOES, COL_FOTOS, EQUIPA as EQUIPA_INICIAL, POWERBI_URL } from "./config.js";
+import { GROQ_API_KEY, FIREBASE_CONFIG, COL_REUNIOES, COL_FOTOS, EQUIPA as EQUIPA_INICIAL, POWERBI_URL, MAPAS } from "./config.js";
 const COL_EQUIPA = "kaizen_equipa";
 const COL_URGENTES = "kaizen_urgentes";
 const COL_MAPAS = "kaizen_mapas";
@@ -999,11 +999,13 @@ function origemMapa(l) {
   return "SharePoint da Câmara";
 }
 function desenharMapas() {
-  const l = [...est.mapas].sort((a, b) => (a.ordem ?? 999) - (b.ordem ?? 999) || String(a.nome).localeCompare(String(b.nome), "pt"));
+  const fixos = (MAPAS || []).map((m, i) => ({ ...m, id: "", fixo: true, ordem: i }));
+  const extra = [...est.mapas].sort((a, b) => (a.ordem ?? 999) - (b.ordem ?? 999) || String(a.nome).localeCompare(String(b.nome), "pt"));
+  const l = [...fixos, ...extra];
   $("mapasLista").innerHTML = l.length ? l.map((m) => `<div class="mapa">
       <div class="mapa-main"><strong>${esc(m.nome)}</strong>${m.desc ? `<span>${esc(m.desc)}</span>` : ""}<span class="muted small">${esc(origemMapa(m.link))}</span></div>
       <div class="mapa-acts">${linkMapa(m.link) ? `<a class="btn small primary" href="${esc(linkMapa(m.link))}" target="_blank" rel="noopener">Abrir</a>` : ""}
-        <button class="btn small ghost danger" type="button" data-mapa-rm="${esc(m.id)}" aria-label="Retirar ${esc(m.nome)}">Retirar</button></div></div>`).join("")
+        ${m.fixo ? "" : `<button class="btn small ghost danger" type="button" data-mapa-rm="${esc(m.id)}" aria-label="Retirar ${esc(m.nome)}">Retirar</button>`}</div></div>`).join("")
     : `<p class="empty">Ainda não há mapas. Use «Adicionar mapa» para juntar os links dos Excel partilhados.</p>`;
   if (!l.length) $("mapasAddBox").open = true;
 }
@@ -1015,7 +1017,7 @@ $("mapaForm").addEventListener("submit", async (e) => {
   if (!nome) { $("mapaNome").focus(); return; }
   if (!link) { st.textContent = "O link tem de ser de um ficheiro no SharePoint/OneDrive da Câmara (cmmat.sharepoint.com ou cmmat-my.sharepoint.com)."; st.className = "status err"; $("mapaLink").focus(); return; }
   try {
-    await fb.D.set(fb.D.push(fb.D.ref(fb.db, COL_MAPAS)), { nome, desc: $("mapaDesc").value.trim(), link, ordem: est.mapas.length, criadoPor: euNome() || quem(), criadoEm: new Date().toISOString() });
+    await fb.D.set(fb.D.push(fb.D.ref(fb.db, COL_MAPAS)), { nome, desc: $("mapaDesc").value.trim(), link, ordem: (MAPAS || []).length + est.mapas.length, criadoPor: euNome() || quem(), criadoEm: new Date().toISOString() });
     $("mapaForm").reset(); st.textContent = `«${nome}» adicionado.`; st.className = "status"; $("mapaNome").focus();
   } catch { st.textContent = "Não consegui guardar. Verifique a internet."; st.className = "status err"; }
 });

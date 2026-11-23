@@ -665,6 +665,8 @@ $("btnExportar").addEventListener("click", () => { $("expStatus").textContent = 
 $("btnVoltarRel").addEventListener("click", () => mostrar("vPainel"));
 
 /* ---------------- Trabalho diário: Edocs urgentes ---------------- */
+const PRIO = { 1: "Muito urgente", 2: "Urgente", 3: "Normal" };
+const prioDe = (u) => (u.prio >= 1 && u.prio <= 3 ? +u.prio : 2);
 const SITUACOES = ["Por oficiar", "Ofício por assinar", "Aguarda execução", "Aguarda entidade externa", "Em análise técnica", "Outro"];
 let urgFiltro = "";
 const diasDesde = (iso) => { const d = new Date(iso); return isNaN(d) ? null : Math.max(0, Math.floor((Date.now() - d) / 864e5)); };
@@ -692,14 +694,16 @@ function itemUrg(u, feito) {
     ? `<button class="btn small ghost" type="button" data-urg="desfazer" data-id="${esc(u.id)}">Desfazer</button>`
     : `<button class="btn small ok" type="button" data-urg="tratado" data-id="${esc(u.id)}">✓ Tratado</button>
        <button class="btn small ghost danger" type="button" data-urg="apagar" data-id="${esc(u.id)}" aria-label="Apagar ${esc(u.edoc)}">Apagar</button>`;
-  return `<div class="urg-item${atraso ? " late" : ""}${feito ? " done" : ""}">
-    <div class="urg-main"><strong class="urg-edoc">${esc(u.edoc)}</strong>${u.nota ? `<span class="urg-nota">${esc(u.nota)}</span>` : ""}
+  const p = prioDe(u);
+  const prio = feito ? "" : `<select class="urg-prio p${p}" data-urg="prio" data-id="${esc(u.id)}" aria-label="Prioridade do ${esc(u.edoc)}">${[1, 2, 3].map((n) => `<option value="${n}"${n === p ? " selected" : ""}>${PRIO[n]}</option>`).join("")}</select>`;
+  return `<div class="urg-item p${p}${atraso ? " late" : ""}${feito ? " done" : ""}">
+    <div class="urg-main"><div class="urg-top"><strong class="urg-edoc">${esc(u.edoc)}</strong>${prio}</div>${u.assunto ? `<span class="urg-assunto">${esc(u.assunto)}</span>` : ""}${u.nota ? `<span class="urg-nota">→ ${esc(u.nota)}</span>` : ""}
       <div class="urg-chips">${sit}${chips}</div><span class="urg-meta">${meta}</span></div>
     <div class="urg-acts">${acts}</div></div>`;
 }
 function desenharUrgentes() {
   const abertos = est.urgentes.filter((u) => !u.tratado)
-    .sort((a, b) => (a.prazo || "9999").localeCompare(b.prazo || "9999") || String(a.criadoEm).localeCompare(String(b.criadoEm)));
+    .sort((a, b) => prioDe(a) - prioDe(b) || (a.prazo || "9999").localeCompare(b.prazo || "9999") || String(a.criadoEm).localeCompare(String(b.criadoEm)));
   const feitos = est.urgentes.filter((u) => u.tratado).sort((a, b) => String(b.tratadoEm).localeCompare(String(a.tratadoEm)));
   const cont = {}; abertos.forEach((u) => { const s = u.situacao || "Outro"; cont[s] = (cont[s] || 0) + 1; });
   if (urgFiltro && !cont[urgFiltro]) urgFiltro = "";
@@ -710,7 +714,7 @@ function desenharUrgentes() {
   $("urgFeitos").innerHTML = feitos.length ? feitos.slice(0, 100).map((u) => itemUrg(u, true)).join("") : `<p class="empty">Ainda nenhum tratado.</p>`;
   $("urgFeitosN").textContent = `(${feitos.length})`;
   $("bdgUrg").hidden = !abertos.length; $("bdgUrg").textContent = abertos.length;
-  $("bdgUrg").classList.toggle("late", abertos.some((u) => isoData(u.prazo) && u.prazo < hoje()));
+  $("bdgUrg").classList.toggle("late", abertos.some((u) => prioDe(u) === 1 || (isoData(u.prazo) && u.prazo < hoje())));
 }
 $("btnDiario").addEventListener("click", () => { opcoesResp(); $("urgStatus").textContent = ""; desenharUrgentes(); mostrar("vDiario"); });
 $("btnVoltarDia").addEventListener("click", () => mostrar("vPainel"));
@@ -723,18 +727,20 @@ $("urgForm").addEventListener("submit", async (e) => {
   $("btnUrgAdd").disabled = true;
   try {
     await fb.D.set(fb.D.push(fb.D.ref(fb.db, COL_URGENTES)), {
-      edoc, nota: $("urgNota").value.trim(), resp: $("urgResp").value, prazo: $("urgPrazo").value || "",
+      edoc, assunto: $("urgAssunto").value.trim(), prio: +$("urgPrio").value || 2,
+      nota: $("urgNota").value.trim(), resp: $("urgResp").value, prazo: $("urgPrazo").value || "",
       situacao: $("urgSit").value || "Outro", situacaoEm: new Date().toISOString(),
       tratado: false, criadoPor: quem(), criadoEm: new Date().toISOString(),
     });
-    $("urgForm").reset(); $("urgSit").value = SITUACOES[0]; st.textContent = `${edoc} adicionado.`; st.className = "status"; $("urgEdoc").focus();
+    $("urgForm").reset(); $("urgSit").value = SITUACOES[0]; $("urgPrio").value = "2"; st.textContent = `${edoc} adicionado.`; st.className = "status"; $("urgEdoc").focus();
   } catch { st.textContent = "Não consegui guardar. Verifique a internet."; st.className = "status err"; }
   $("btnUrgAdd").disabled = false;
 });
 $("urgFiltros").addEventListener("click", (e) => { const b = e.target.closest("[data-filtro]"); if (!b) return; urgFiltro = b.dataset.filtro; desenharUrgentes(); });
 $("urgLista").addEventListener("change", async (e) => {
-  const s = e.target.closest('[data-urg="sit"]'); if (!s) return;
-  try { await fb.D.update(fb.D.ref(fb.db, `${COL_URGENTES}/${s.dataset.id}`), { situacao: s.value, situacaoEm: new Date().toISOString(), situacaoPor: quem() }); }
+  const s = e.target.closest('[data-urg="sit"], [data-urg="prio"]'); if (!s) return;
+  const dados = s.dataset.urg === "prio" ? { prio: +s.value } : { situacao: s.value, situacaoEm: new Date().toISOString(), situacaoPor: quem() };
+  try { await fb.D.update(fb.D.ref(fb.db, `${COL_URGENTES}/${s.dataset.id}`), dados); }
   catch { $("urgStatus").textContent = "Não consegui guardar. Verifique a internet."; $("urgStatus").className = "status err"; }
 });
 $("vDiario").addEventListener("click", async (e) => {

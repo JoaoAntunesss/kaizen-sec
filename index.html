@@ -199,12 +199,19 @@
       <h3 class="sec-ttl">Edocs urgentes</h3>
       <form class="urg-form" id="urgForm" autocomplete="off">
         <label class="f">N.º do Edoc<input type="text" id="urgEdoc" placeholder="Ex.: OD/2026/36597" required></label>
+        <label class="f">De que se trata<input type="text" id="urgAssunto" list="urgAssuntos" placeholder="Ex.: reclamação de buracos na via"></label>
         <label class="f">O que há a fazer<input type="text" id="urgNota" placeholder="Ex.: oficiar ao requerente"></label>
+        <label class="f">Prioridade<select id="urgPrio"><option value="1">Muito urgente</option><option value="2" selected>Urgente</option><option value="3">Normal</option></select></label>
         <label class="f">Responsável<select id="urgResp"></select></label>
         <label class="f">Situação<select id="urgSit"></select></label>
         <label class="f">Prazo<input type="date" id="urgPrazo"></label>
         <button class="btn primary" id="btnUrgAdd" type="submit">+ Adicionar</button>
       </form>
+      <datalist id="urgAssuntos">
+        <option value="Reclamação"><option value="Insistência"><option value="Pedido de informação"><option value="Pedido de indemnização">
+        <option value="Livro de Reclamações"><option value="Participação de anomalia na via pública"><option value="Pedido de audiência">
+        <option value="Ofício de resposta ao munícipe"><option value="Pedido de outra entidade"><option value="Prazo legal a terminar">
+      </datalist>
       <p class="status" id="urgStatus"></p>
       <div class="urg-filtros" id="urgFiltros" role="group" aria-label="Filtrar por situação"></div>
       <div class="urg-list" id="urgLista"></div>

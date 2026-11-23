@@ -288,8 +288,9 @@ input[type=text],input[type=date],input[type=number],select,textarea{border:1px 
 .badge{display:inline-flex;align-items:center;justify-content:center;min-width:20px;height:20px;padding:0 6px;border-radius:999px;background:var(--accent);color:var(--on-accent);font-size:12px;font-weight:700}
 .badge[hidden]{display:none}
 .badge.late{background:var(--late);color:#fff}
-.urg-form{display:grid;grid-template-columns:minmax(140px,1fr) minmax(170px,1.8fr) minmax(140px,1fr) minmax(150px,1fr) minmax(130px,.8fr) auto;gap:10px;align-items:end}
+.urg-form{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;align-items:end}
 @media (max-width:900px){.urg-form{grid-template-columns:repeat(2,minmax(0,1fr))}.urg-form .btn{grid-column:1/-1}}
+.urg-form .btn{align-self:end}
 .urg-list{display:flex;flex-direction:column;gap:8px}
 .urg-item{display:flex;gap:12px;align-items:center;justify-content:space-between;border:1px solid var(--line);border-left:4px solid var(--accent);border-radius:10px;padding:10px 12px;background:var(--surface)}
 .urg-item.late{border-left-color:var(--late);background:var(--late-soft)}
@@ -337,3 +338,15 @@ input[type=text],input[type=date],input[type=number],select,textarea{border:1px 
 .chk-i input{width:20px;height:20px;margin-top:1px;flex:none;accent-color:var(--ok)}
 .chk-i input:checked+span{color:var(--muted);text-decoration:line-through}
 .ok-t{color:var(--ok);font-weight:700}
+
+/* Prioridade */
+.urg-top{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.urg-assunto{font-weight:600}
+.urg-nota{color:var(--muted)}
+.urg-item.p1{border-left-color:var(--late);border-left-width:6px}
+.urg-item.p2{border-left-color:#e08a00}
+.urg-item.p3{border-left-color:var(--line)}
+.urg-prio{width:auto;min-height:28px;padding:2px 8px;font-size:12px;font-weight:700;border-radius:999px;border:0}
+.urg-prio.p1{background:var(--late);color:#fff}
+.urg-prio.p2{background:#fde7c4;color:#7a4a00}
+.urg-prio.p3{background:var(--accent-soft);color:var(--ink)}

@@ -32,6 +32,7 @@
   <button class="nav-b" id="btnDiario" data-v="vDiario" type="button">Trabalho diário <span class="badge" id="bdgUrg" hidden></span></button>
   <button class="nav-b" id="btnOficios" data-v="vOficios" type="button">Ofícios e legislação</button>
   <button class="nav-b" id="btnKaizen" data-v="vPainel" type="button">Reuniões Kaizen</button>
+  <button class="nav-b" id="btnRegras" data-v="vRegras" type="button">Regras do MESTRE</button>
   <button class="nav-b" id="btnMapas" data-v="vMapas" type="button">Mapas</button>
   <button class="nav-b" id="btnPowerBI" data-v="vPowerBI" type="button">Reclamações</button>
 </nav>
@@ -373,6 +374,23 @@
       </details>
 
       <p class="muted small leg-links">Textos oficiais: <a href="https://diariodarepublica.pt/dr/detalhe/decreto-lei/4-2015-66041468" target="_blank" rel="noopener">CPA no Diário da República</a> · <a href="https://eur-lex.europa.eu/legal-content/PT/TXT/?uri=CELEX:32016R0679" target="_blank" rel="noopener">RGPD (EUR-Lex)</a> · <a href="https://www.cnpd.pt" target="_blank" rel="noopener">CNPD</a>. Este guia é um resumo de apoio e não substitui o texto da lei nem o parecer dos serviços jurídicos.</p>
+    </div>
+  </section>
+
+  <!-- Regras do MESTRE (memória partilhada) -->
+  <section id="vRegras" class="view" hidden>
+    <div class="panel">
+      <div class="panel-head"><h2>Regras do MESTRE</h2><span class="sub" id="regrasSub"></span></div>
+      <p class="muted">O que for escrito aqui fica memorizado e o MESTRE segue-o em todas as conversas, de toda a equipa. Use para preferências da chefia, contactos de entidades, fórmulas a usar ou a evitar e correções que se repetem. Também pode dizer no chat «MESTRE, lembra-te que…».</p>
+      <form class="regra-form" id="regraForm" autocomplete="off">
+        <label class="f">Tema<select id="regraTema">
+          <option>Escrita dos ofícios</option><option>Preferências da chefia</option><option>Entidades e contactos</option><option>Prazos e procedimentos</option><option>Outro</option>
+        </select></label>
+        <label class="f f-regra">Regra<textarea id="regraTexto" rows="2" maxlength="500" required placeholder="Ex.: Nos ofícios a munícipes, usar «solicita-se» em vez de «pede-se»."></textarea></label>
+        <button class="btn primary" id="btnRegraAdd" type="submit">Guardar regra</button>
+      </form>
+      <p class="status" id="regrasStatus"></p>
+      <div class="regras" id="regrasLista"></div>
     </div>
   </section>
 

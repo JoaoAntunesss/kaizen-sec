@@ -4,6 +4,7 @@ import { lerValor, valorCompleto, fmtEuros, eurosPorExtenso } from "./extenso.js
 const COL_EQUIPA = "kaizen_equipa";
 const COL_URGENTES = "kaizen_urgentes";
 const COL_MAPAS = "kaizen_mapas";
+const COL_REGRAS = "kaizen_regras";
 // Equipa: vem da base de dados (editável na app); enquanto não houver, usa a lista do config.js
 let EQUIPA = EQUIPA_INICIAL.map((p) => ({ ...p }));
 
@@ -29,7 +30,7 @@ const temFotoDe = (r, k) => !!((r.fotos && r.fotos[k]) || (k === "postits" && r.
 let fb = null;
 
 /* ---------------- Vistas ---------------- */
-const VISTAS = ["vLogin", "vConfig", "vPainel", "vReuniao", "vRegistar", "vImprimir", "vEquipa", "vRelatorio", "vPowerBI", "vDiario", "vMapas", "vOficios"];
+const VISTAS = ["vLogin", "vConfig", "vPainel", "vReuniao", "vRegistar", "vImprimir", "vEquipa", "vRelatorio", "vPowerBI", "vDiario", "vMapas", "vOficios", "vRegras"];
 function mostrar(v) {
   for (const id of VISTAS) $(id).hidden = id !== v;
   $("fab").hidden = v !== "vPainel";
@@ -108,6 +109,11 @@ function subscrever() {
     est.mapas = Object.entries(v).map(([id, m]) => ({ id, ...m }));
     desenharMapas();
   }, () => { $("mapasStatus").textContent = "Não consegui ler os mapas."; $("mapasStatus").className = "status err"; });
+  D.onValue(D.ref(db, COL_REGRAS), (snap) => {
+    const v = snap.val() || {};
+    est.regras = Object.entries(v).map(([id, r]) => ({ id, ...r })).filter((r) => r && r.texto);
+    desenharRegras();
+  }, () => { $("regrasStatus").textContent = "Não consegui ler as regras."; $("regrasStatus").className = "status err"; });
   D.onValue(D.ref(db, COL_URGENTES), (snap) => {
     const v = snap.val() || {};
     est.urgentes = Object.entries(v).map(([id, u]) => ({ id, ...u }));
@@ -945,6 +951,55 @@ $("chkLista").addEventListener("change", (e) => { const c = e.target.closest("[d
 $("btnChkLimpar").addEventListener("click", () => { chk = {}; try { localStorage.removeItem("kz-chk-oficio"); } catch {} desenharChk(); });
 desenharChk();
 
+/* ---------------- Regras do MESTRE (memória partilhada da equipa) ---------------- */
+est.regras = est.regras || [];
+const TEMAS_REGRA = ["Escrita dos ofícios", "Preferências da chefia", "Entidades e contactos", "Prazos e procedimentos", "Outro"];
+let regraEdit = null;
+function desenharRegras() {
+  const l = [...est.regras].sort((a, b) => TEMAS_REGRA.indexOf(a.tema) - TEMAS_REGRA.indexOf(b.tema) || String(a.criadoEm).localeCompare(String(b.criadoEm)));
+  $("regrasSub").textContent = l.length ? `${l.length} regra${l.length === 1 ? "" : "s"} memorizada${l.length === 1 ? "" : "s"}` : "";
+  let tema = "";
+  $("regrasLista").innerHTML = l.length ? l.map((r) => {
+    const cab = r.tema !== tema ? `<h3 class="sec-ttl regra-tema">${esc((tema = r.tema) || "Outro")}</h3>` : "";
+    const corpo = regraEdit === r.id
+      ? `<form class="regra-ed" data-regra-ed="${esc(r.id)}"><textarea rows="2" maxlength="500" required>${esc(r.texto)}</textarea><div class="actions"><button class="btn small ghost" type="button" data-regra-cancel>Cancelar</button><button class="btn small primary" type="submit">Guardar</button></div></form>`
+      : `<p class="regra-t">${esc(r.texto)}</p><span class="muted small">Por ${esc(r.criadoPor || "")} a ${esc(quando(r.editadoEm || r.criadoEm))}${r.editadoEm ? " (editada)" : ""}</span>`;
+    return `${cab}<div class="regra"><div class="regra-main">${corpo}</div>${regraEdit === r.id ? "" : `<div class="regra-acts"><button class="btn small ghost" type="button" data-regra-edit="${esc(r.id)}">Editar</button><button class="btn small ghost danger" type="button" data-regra-rm="${esc(r.id)}">Apagar</button></div>`}</div>`;
+  }).join("") : `<p class="empty">Ainda não há regras. A primeira que guardar passa logo a ser seguida pelo MESTRE.</p>`;
+}
+async function guardarRegra(texto, tema, st) {
+  texto = String(texto || "").trim().slice(0, 500);
+  if (!texto) return false;
+  if (est.regras.length >= 80) { st.textContent = "Já há 80 regras. Apague ou junte algumas antes de acrescentar."; st.className = "status err"; return false; }
+  try {
+    await fb.D.set(fb.D.push(fb.D.ref(fb.db, COL_REGRAS)), { texto, tema: TEMAS_REGRA.includes(tema) ? tema : "Outro", criadoPor: euNome() || quem(), criadoEm: new Date().toISOString() });
+    st.textContent = "Regra guardada. O MESTRE passa a segui-la."; st.className = "status"; return true;
+  } catch { st.textContent = "Não consegui guardar. Verifique a internet."; st.className = "status err"; return false; }
+}
+$("btnRegras").addEventListener("click", () => { $("regrasStatus").textContent = ""; desenharRegras(); mostrar("vRegras"); });
+$("regraForm").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  if (await guardarRegra($("regraTexto").value, $("regraTema").value, $("regrasStatus"))) { $("regraTexto").value = ""; }
+});
+$("regrasLista").addEventListener("click", async (e) => {
+  const ed = e.target.closest("[data-regra-edit]"), rm = e.target.closest("[data-regra-rm]");
+  if (e.target.closest("[data-regra-cancel]")) { regraEdit = null; desenharRegras(); return; }
+  if (ed) { regraEdit = ed.dataset.regraEdit; desenharRegras(); $("regrasLista").querySelector(".regra-ed textarea")?.focus(); return; }
+  if (rm) {
+    const r = est.regras.find((x) => x.id === rm.dataset.regraRm);
+    if (!r || !confirm(`Apagar esta regra?\n\n${r.texto}`)) return;
+    try { await fb.D.remove(fb.D.ref(fb.db, `${COL_REGRAS}/${r.id}`)); $("regrasStatus").textContent = "Regra apagada."; $("regrasStatus").className = "status"; }
+    catch { $("regrasStatus").textContent = "Não consegui apagar."; $("regrasStatus").className = "status err"; }
+  }
+});
+$("regrasLista").addEventListener("submit", async (e) => {
+  const f = e.target.closest("[data-regra-ed]"); if (!f) return; e.preventDefault();
+  const texto = f.querySelector("textarea").value.trim().slice(0, 500); if (!texto) return;
+  try { await fb.D.update(fb.D.ref(fb.db, `${COL_REGRAS}/${f.dataset.regraEd}`), { texto, editadoPor: euNome() || quem(), editadoEm: new Date().toISOString() }); regraEdit = null; desenharRegras(); }
+  catch { $("regrasStatus").textContent = "Não consegui guardar."; $("regrasStatus").className = "status err"; }
+});
+const textoRegras = () => est.regras.length ? est.regras.map((r) => `- [${r.tema || "Outro"}] ${r.texto}`).join("\n").slice(0, 6000) : "";
+
 /* ---------------- Ferramentas: valor por extenso e liberação de caução ---------------- */
 function calcExtenso() { const v = lerValor($("extValor").value); $("extRes").textContent = v === null ? "" : valorCompleto(v); }
 $("extValor").addEventListener("input", calcExtenso);
@@ -1095,13 +1150,19 @@ Regras:
 - Quando o utilizador pedir para acrescentar um Edoc aos urgentes, confirma os dados e termina a resposta com uma linha exatamente neste formato (sem mais nada nessa linha):
 [[ADICIONAR_URGENTE {"edoc":"OD/2026/12345","assunto":"...","nota":"o que há a fazer","prio":2,"situacao":"Por oficiar","resp":"","prazo":"AAAA-MM-DD"}]]
   (prio: 1 muito urgente, 2 urgente, 3 normal; situacao: uma de ${SITUACOES.join(", ")}; resp: nome da equipa ou vazio; prazo vazio se não houver). A app pede depois o link do Edoc e a confirmação.
+- Quando o utilizador pedir para te lembrares de algo para o futuro («lembra-te que…», «a partir de agora…», «memoriza…»), reescreve-o como uma regra curta e clara e termina a resposta com uma linha exatamente neste formato:
+[[LEMBRAR {"tema":"Escrita dos ofícios","texto":"..."}]]
+  (tema: uma de ${TEMAS_REGRA.join(", ")}). A app pede confirmação antes de guardar em «Regras do MESTRE».
 - Quando houver um documento anexado, resume-o, diz claramente o que é pedido e, se fizer sentido, propõe um rascunho de resposta.
 - Valores em euros: escreve SEMPRE [[EXTENSO valor]] (ex.: [[EXTENSO 45656,16]]) e a app converte em «45.656,16 € (quarenta e cinco mil … cêntimos)». Não escrevas tu o extenso. Faz as contas com cuidado (ex.: 30% de 14.490,40 = 4.347,12).
 - Liberação de caução (art. 295.º CCP), faseada a contar da receção provisória: 30% no 1.º ano, 30% no 2.º, 15% no 3.º, 15% no 4.º e 10% no 5.º, salvo se o contrato ou o despacho indicar outra coisa.
 - Para a frase da liberação escreve [[CAUCAO valor_total anos]] (ex.: [[CAUCAO 14490,40 1]] ou, para o 1.º e 2.º anos juntos, [[CAUCAO 14490,40 1-2]]; anos soltos: [[CAUCAO 14490,40 1,3]]) e a app escreve «será liberado …% do valor total da caução …, que corresponde à liberação de … € (…)». Usa-a sempre que houver liberação, também quando são vários anos de uma vez.
 - Revisão de ofício (quando pedirem para rever ou anexarem o Word final): responde com uma lista curta «Verificação», em que cada ponto começa por «OK:» ou «Atenção:», cobrindo: destinatário e tratamento (EXMO./EXMA., V. Ex.ª/V. Exas.); referência (OD/EDOC) igual no cabeçalho e no texto; assunto; datas, prazos e artigos citados (CPA/CCP) corretos e coerentes; valores e extensos certos; campos [ ] ou «xxx» por preencher; português (norma europeia, acordo ortográfico); dados pessoais desnecessários; fórmula final. Depois indica só as correções necessárias, com o texto corrigido.
 
-INFORMAÇÃO DE REFERÊNCIA:
+${textoRegras() ? `REGRAS DA SECRETARIA (definidas pela equipa; têm prioridade sobre as indicações gerais e sobre os modelos):
+${textoRegras()}
+
+` : ""}INFORMAÇÃO DE REFERÊNCIA:
 ${contextoTrabalho()}
 
 DADOS DA APP (hoje: ${fmt(hoje())}; utilizador: ${euNome() || quem() || "desconhecido"}):
@@ -1127,13 +1188,18 @@ const expandirCaucao = (t) => String(t || "").replace(/\[\[CAUCAO\s+([\d.,]+)\s+
 const expandirExtenso = (t) => String(t || "").replace(/\[\[EXTENSO\s+([\d.,\s]+?)\s*\]\]/g, (m, v) => { const n = lerValor(v); return n === null ? m : valorCompleto(n); });
 const RX_ACAO = /\[\[ADICIONAR_URGENTE\s+(\{[\s\S]*?\})\s*\]\]/;
 function lerAcao(t) { const m = String(t || "").match(RX_ACAO); if (!m) return null; try { return JSON.parse(m[1]); } catch { return null; } }
-const semAcao = (t) => limparPensar(t).replace(RX_ACAO, "").trim();
+const RX_LEMBRAR = /\[\[LEMBRAR\s+(\{[\s\S]*?\})\s*\]\]/;
+function lerLembrar(t) { const m = String(t || "").match(RX_LEMBRAR); if (!m) return null; try { const r = JSON.parse(m[1]); return r && r.texto ? r : null; } catch { return null; } }
+const semAcao = (t) => limparPensar(t).replace(RX_ACAO, "").replace(RX_LEMBRAR, "").trim();
 function msgIA(m, i) {
   const ac = !chatOcupado || m.t ? lerAcao(m.t) : null;
   const card = ac && ac.edoc ? `<form class="acao" data-acao="${i}">
       <div><strong>Adicionar aos Edocs urgentes</strong>: ${esc(normEdocTxt(ac.edoc))}${ac.assunto ? " — " + esc(ac.assunto) : ""}<br><span class="muted small">${esc(PRIO[ac.prio] || PRIO[2])} · ${esc(SITUACOES.includes(ac.situacao) ? ac.situacao : "Outro")}${ac.resp ? " · " + esc(ac.resp) : ""}${isoData(ac.prazo) ? " · prazo " + esc(fmt(ac.prazo)) : ""}</span></div>
       ${m.feito ? `<span class="ok-t">Adicionado.</span>` : `<input type="url" placeholder="Link do Edoc (obrigatório)" aria-label="Link do Edoc"><button class="btn small primary" type="submit">Adicionar</button>`}</form>` : "";
-  return `<div class="msg ia"><div class="bolha">${fmtResposta(semAcao(m.t)) || '<p class="muted">A pensar…</p>'}</div>${card}${m.t && !(chatOcupado && i === (chatConvs.find((x) => x.id === chatAtual)?.msgs.length || 0) - 1) ? `<div class="msg-acts"><button class="btn small ghost" type="button" data-copiar="${i}">Copiar</button><button class="btn small ghost" type="button" data-word="${i}">Passar a Word</button><button class="btn small ghost" type="button" data-assinar="${i}">Enviar para assinatura</button></div><div class="assinar-box" data-box="${i}"></div>` : ""}</div>`;
+  const lb = !chatOcupado || m.t ? lerLembrar(m.t) : null;
+  const cardL = lb ? `<form class="acao lembrar" data-lembrar="${i}"><div><strong>Guardar nas Regras do MESTRE</strong> (${esc(TEMAS_REGRA.includes(lb.tema) ? lb.tema : "Outro")})<br><span class="small">${esc(String(lb.texto).slice(0, 500))}</span></div>
+      ${m.lembrado ? `<span class="ok-t">Guardada.</span>` : `<button class="btn small primary" type="submit">Guardar regra</button>`}</form>` : "";
+  return `<div class="msg ia"><div class="bolha">${fmtResposta(semAcao(m.t)) || '<p class="muted">A pensar…</p>'}</div>${card}${cardL}${m.t && !(chatOcupado && i === (chatConvs.find((x) => x.id === chatAtual)?.msgs.length || 0) - 1) ? `<div class="msg-acts"><button class="btn small ghost" type="button" data-copiar="${i}">Copiar</button><button class="btn small ghost" type="button" data-word="${i}">Passar a Word</button><button class="btn small ghost" type="button" data-assinar="${i}">Enviar para assinatura</button></div><div class="assinar-box" data-box="${i}"></div>` : ""}</div>`;
 }
 const normEdocTxt = (s) => String(s || "").trim().toUpperCase().replace(/\s+/g, "");
 function desenharChat() {
@@ -1355,6 +1421,13 @@ async function submeterAssinar(f, st) {
   } catch { st.textContent = "Não consegui guardar. Verifique a internet."; st.className = "status err"; return false; }
 }
 $("chatMsgs").addEventListener("submit", async (e) => {
+  const fl = e.target.closest("form.lembrar");
+  if (fl) {
+    e.preventDefault();
+    const c = chatConvs.find((x) => x.id === chatAtual); const m = c && c.msgs[+fl.dataset.lembrar]; const lb = m && lerLembrar(m.t); if (!lb) return;
+    if (await guardarRegra(lb.texto, lb.tema, $("chatStatus"))) { m.lembrado = true; chatGravar(c); desenharChat(); }
+    return;
+  }
   const fa = e.target.closest("form.assinar");
   if (fa) { e.preventDefault(); if (await submeterAssinar(fa, $("chatStatus"))) fa.outerHTML = `<p class="ok-t small">Enviado para assinatura.</p>`; return; }
   const f = e.target.closest("form.acao"); if (!f) return; e.preventDefault();

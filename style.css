@@ -502,3 +502,16 @@ body:has(#fab:not([hidden])) .mestre-ola{bottom:calc(152px + env(safe-area-inset
 #notifBox{margin-top:14px}
 .cau-anos{border:0;margin:0;padding:0;min-width:0}.cau-anos legend{font-size:13px;font-weight:600;color:var(--muted);margin-bottom:6px;padding:0}
 #cauAnos{display:flex;flex-wrap:wrap;gap:4px 12px}
+
+/* Regras do MESTRE */
+.regra-form{display:grid;grid-template-columns:220px 1fr auto;gap:10px;align-items:end;margin:12px 0 4px}
+@media (max-width:720px){.regra-form{grid-template-columns:1fr}}
+.regra-form textarea,.regra-ed textarea{width:100%;resize:vertical;font:inherit}
+.regra-tema{margin:18px 0 6px}
+.regra{display:flex;gap:12px;align-items:flex-start;justify-content:space-between;border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin-bottom:8px;background:var(--surface)}
+.regra-main{flex:1;min-width:0}
+.regra-t{margin:0 0 4px;white-space:pre-wrap}
+.regra-acts{display:flex;gap:6px;flex:none}
+.regra-ed{display:grid;gap:8px}
+.regra-ed .actions{justify-content:flex-end}
+@media (max-width:560px){.regra{flex-direction:column}}

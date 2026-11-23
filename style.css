@@ -383,9 +383,7 @@ a.btn{text-decoration:none}
 .urg-item.done a.urg-edoc:hover{text-decoration-thickness:2px}
 
 /* Assistente */
-.chat-aviso{margin:0;padding:10px 12px;border-radius:10px;background:#fff6e5;border:1px solid #f1d39a;font-size:13px;color:#5b4200}
-.chat-wrap{display:grid;grid-template-columns:240px 1fr;gap:14px;min-height:60vh}
-.chat-hist{border:1px solid var(--line);border-radius:10px;padding:8px;display:flex;flex-direction:column;gap:6px;max-height:70vh;overflow:auto;background:var(--surface)}
+.chat-aviso{margin:0;font-size:11px;color:var(--muted);line-height:1.35}
 .chat-hist-h{display:flex;justify-content:space-between;align-items:center;gap:6px;font-weight:700;font-size:13px;padding:2px 4px 6px;border-bottom:1px solid var(--line)}
 .chat-hist-h .btn{min-height:28px;padding:2px 8px;font-size:12px}
 .hist-i{display:flex;align-items:stretch;border-radius:8px}
@@ -395,8 +393,7 @@ a.btn{text-decoration:none}
 .hist-b small{color:var(--muted);font-size:11px}
 .hist-x{border:0;background:none;color:var(--late);font-size:11px;padding:0 6px;cursor:pointer;opacity:.7}
 .hist-x:hover{opacity:1}
-.chat-main{display:flex;flex-direction:column;gap:10px;min-width:0}
-.chat-msgs{flex:1;min-height:320px;max-height:60vh;overflow:auto;border:1px solid var(--line);border-radius:10px;padding:14px;background:var(--bg);display:flex;flex-direction:column;gap:12px}
+.chat-msgs{flex:1;min-height:0;overflow:auto;padding:14px;background:var(--bg);display:flex;flex-direction:column;gap:10px}
 .msg{display:flex;flex-direction:column;gap:4px;max-width:85%}
 .msg.eu{align-self:flex-end;align-items:flex-end}
 .msg.ia{align-self:flex-start;align-items:flex-start}
@@ -409,5 +406,38 @@ a.btn{text-decoration:none}
 .chat-vazio{margin:auto;text-align:center;max-width:520px}
 .chat-sug{display:flex;flex-wrap:wrap;gap:6px}
 .chat-form textarea{width:100%;font:inherit;font-size:14px;resize:vertical}
-@media (max-width:800px){.chat-wrap{grid-template-columns:1fr}.chat-hist{max-height:160px}.msg{max-width:95%}}
 .panel-head h2 .sub{font-size:13px;font-weight:500;color:var(--muted);margin-left:6px}
+
+/* MESTRE: botão e janela flutuante */
+.mestre-btn{position:fixed;right:20px;bottom:calc(20px + env(safe-area-inset-bottom));z-index:40;display:flex;align-items:center;gap:10px;padding:8px 18px 8px 8px;border:0;border-radius:999px;background:var(--accent);color:var(--on-accent);font-weight:700;letter-spacing:.04em;box-shadow:0 8px 24px rgba(16,32,64,.28);cursor:pointer;transition:transform .15s ease,box-shadow .15s ease}
+.mestre-btn:hover{transform:translateY(-1px);box-shadow:0 10px 28px rgba(16,32,64,.34)}
+.mestre-btn[hidden]{display:none}
+.mestre-btn.aberto{opacity:.0;pointer-events:none}
+body:has(#fab:not([hidden])) .mestre-btn{bottom:calc(88px + env(safe-area-inset-bottom))}
+.mestre-av{display:inline-flex;align-items:center;justify-content:center;width:36px;height:36px;border-radius:50%;background:#fff;color:var(--accent);font-weight:800;font-size:16px;flex:none}
+.mestre{position:fixed;right:20px;bottom:calc(20px + env(safe-area-inset-bottom));z-index:41;width:400px;height:min(640px,calc(100vh - 100px));display:flex;flex-direction:column;background:var(--surface);border:1px solid var(--line);border-radius:16px;box-shadow:0 18px 48px rgba(16,32,64,.30);overflow:hidden;animation:mestreIn .18s ease-out}
+.mestre[hidden]{display:none}
+@keyframes mestreIn{from{opacity:0;transform:translateY(12px) scale(.98)}to{opacity:1;transform:none}}
+@media (prefers-reduced-motion:reduce){.mestre{animation:none}.mestre-btn{transition:none}}
+.mestre-h{display:flex;align-items:center;gap:8px;padding:10px 10px 10px 12px;background:var(--accent);color:var(--on-accent)}
+.mestre-h .mestre-av{width:32px;height:32px;font-size:14px}
+.mestre-t{display:flex;flex-direction:column;line-height:1.15;margin-right:auto}
+.mestre-t small{font-size:11px;opacity:.85;font-weight:500}
+.mh-b{border:1px solid rgba(255,255,255,.35);background:transparent;color:inherit;border-radius:8px;padding:5px 9px;font-size:12px;font-weight:600;cursor:pointer}
+.mh-b:hover,.mh-b[aria-expanded=true]{background:rgba(255,255,255,.16)}
+.mestre-hist{border-bottom:1px solid var(--line);padding:8px;max-height:45%;overflow:auto;background:var(--surface)}
+.mestre .chat-sug{padding:0 12px}
+.mestre .chat-sug:empty{display:none}
+.mestre .chat-form{border-top:1px solid var(--line);padding:8px 10px 10px;display:flex;flex-direction:column;gap:6px}
+.chat-in{display:flex;gap:8px;align-items:flex-end}
+.chat-in textarea{flex:1;min-height:44px;max-height:140px;font:inherit;font-size:14px;resize:none}
+.mestre .chat-form .status{margin:0;font-size:12px}
+.mestre .chat-form .status:empty{display:none}
+.mestre .msg{max-width:92%}
+.mestre .chat-vazio{padding:10px}
+@media (max-width:560px){
+  .mestre{right:0;bottom:0;width:100vw;height:100dvh;border-radius:0;border:0}
+  .mestre-btn{right:14px;padding:6px 14px 6px 6px}
+}
+@media print{.mestre,.mestre-btn{display:none!important}}
+.mestre-t small,.mestre-t strong{white-space:nowrap}

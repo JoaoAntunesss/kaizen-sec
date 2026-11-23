@@ -343,30 +343,6 @@
     </div>
   </section>
 
-  <!-- MESTRE: assistente (IA) -->
-  <section id="vAssistente" class="view" hidden>
-    <div class="panel chat-panel">
-      <div class="panel-head"><h2>MESTRE <span class="sub">assistente da Secretaria</span></h2>
-        <div class="pbi-acts"><button class="btn small" id="btnChatNova" type="button">Nova conversa</button><button class="btn small ghost" id="btnVoltarChat" type="button">Voltar</button></div>
-      </div>
-      <p class="chat-aviso"><strong>Não escreva dados pessoais</strong> (nomes, moradas, NIF, contactos, matrículas): use [Nome], [Morada], etc. As respostas podem ter erros; confirme prazos e artigos na Legislação de apoio ou com o jurídico. O histórico fica associado à sua conta Google: aparece no computador e no telemóvel, e a app só o mostra a si.</p>
-      <div class="chat-wrap">
-        <aside class="chat-hist" aria-label="Conversas anteriores">
-          <div class="chat-hist-h"><span>Conversas</span><button class="btn small ghost danger" id="btnChatApagarTudo" type="button">Apagar histórico</button></div>
-          <div id="chatHist"></div>
-        </aside>
-        <div class="chat-main">
-          <div class="chat-msgs" id="chatMsgs" aria-live="polite"></div>
-          <div class="chat-sug" id="chatSug"></div>
-          <form class="chat-form" id="chatForm">
-            <textarea id="chatTxt" rows="3" placeholder="Escreva a sua pergunta ou cole as notas (sem dados pessoais). Enter envia; Shift+Enter muda de linha."></textarea>
-            <div class="actions"><span class="status" id="chatStatus"></span><button class="btn primary" id="btnChatEnviar" type="submit">Enviar</button></div>
-          </form>
-        </div>
-      </div>
-    </div>
-  </section>
-
   <!-- Mapas (Excel partilhados) -->
   <section id="vMapas" class="view" hidden>
     <div class="panel">
@@ -444,6 +420,34 @@
 </button>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<!-- MESTRE: assistente da Secretaria (janela flutuante) -->
+<button class="mestre-btn" id="btnMestreAbrir" type="button" hidden aria-haspopup="dialog" aria-controls="mestre">
+  <span class="mestre-av" aria-hidden="true">M</span><span class="mestre-lbl">MESTRE</span>
+</button>
+<section class="mestre" id="mestre" role="dialog" aria-label="MESTRE, assistente da Secretaria" hidden>
+  <header class="mestre-h">
+    <span class="mestre-av" aria-hidden="true">M</span>
+    <div class="mestre-t"><strong>MESTRE</strong><small>Assistente</small></div>
+    <button class="mh-b" id="btnMestreConversas" type="button" aria-expanded="false">Conversas</button>
+    <button class="mh-b" id="btnChatNova" type="button">Nova</button>
+    <button class="mh-b" id="btnMestreFechar" type="button" aria-label="Fechar o MESTRE">Fechar</button>
+  </header>
+  <div class="mestre-hist" id="mestreHist" hidden>
+    <div class="chat-hist-h"><span>Conversas</span><button class="btn small ghost danger" id="btnChatApagarTudo" type="button">Apagar histórico</button></div>
+    <div id="chatHist"></div>
+  </div>
+  <div class="chat-msgs" id="chatMsgs" aria-live="polite"></div>
+  <div class="chat-sug" id="chatSug"></div>
+  <form class="chat-form" id="chatForm">
+    <p class="chat-aviso">Não escreva dados pessoais (nomes, moradas, NIF, contactos, matrículas). Confirme prazos e artigos antes de usar.</p>
+    <div class="chat-in">
+      <textarea id="chatTxt" rows="2" placeholder="Escreva a sua pergunta…" aria-label="Mensagem para o MESTRE"></textarea>
+      <button class="btn primary" id="btnChatEnviar" type="submit">Enviar</button>
+    </div>
+    <p class="status" id="chatStatus"></p>
+  </form>
+</section>
+
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js" defer></script>
 <script type="module" src="app.js"></script>
 </body>

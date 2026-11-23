@@ -27,7 +27,7 @@ const temFotoDe = (r, k) => !!((r.fotos && r.fotos[k]) || (k === "postits" && r.
 let fb = null;
 
 /* ---------------- Vistas ---------------- */
-const VISTAS = ["vLogin", "vConfig", "vPainel", "vReuniao", "vRegistar", "vImprimir", "vEquipa", "vRelatorio", "vPowerBI", "vDiario", "vMapas", "vAssistente"];
+const VISTAS = ["vLogin", "vConfig", "vPainel", "vReuniao", "vRegistar", "vImprimir", "vEquipa", "vRelatorio", "vPowerBI", "vDiario", "vMapas"];
 function mostrar(v) {
   for (const id of VISTAS) $(id).hidden = id !== v;
   $("fab").hidden = v !== "vPainel";
@@ -62,7 +62,8 @@ async function iniciarFirebase() {
   fb.A.getRedirectResult(fb.auth).catch((e) => { $("loginStatus").textContent = msgErroLogin(e); $("loginStatus").className = "status err"; });
   fb.A.onAuthStateChanged(fb.auth, (u) => {
     est.user = u;
-    if (!u) { chatLimparUI(); mostrar("vLogin"); return; }
+    $("btnMestreAbrir").hidden = !u;
+    if (!u) { chatLimparUI(); fecharMestre(); mostrar("vLogin"); return; }
     if ($("vLogin").hidden === false || $("vConfig").hidden === false || VISTAS.every((v) => $(v).hidden)) mostrar("vPainel");
     subscrever();
   });
@@ -1004,7 +1005,7 @@ function chatLer() {
       .sort((a, b) => String(b.em).localeCompare(String(a.em)));
     if (chatOcupado) return; // não interromper a resposta que está a chegar
     if (chatAtual && !chatConvs.some((x) => x.id === chatAtual) && !chatAtual.startsWith("n")) chatAtual = chatConvs[0]?.id || null;
-    if (!$("vAssistente").hidden) desenharChat();
+    if (!$("mestre").hidden) desenharChat();
   }, () => { $("chatStatus").textContent = "Não consegui ler o histórico."; $("chatStatus").className = "status err"; });
 }
 async function chatGravar(c) {
@@ -1064,7 +1065,7 @@ function desenharChat() {
   $("chatMsgs").innerHTML = msgs.length ? msgs.map((m, i) => m.r === "user"
     ? `<div class="msg eu"><div class="bolha">${esc(m.t).replace(/\n/g, "<br>")}</div></div>`
     : `<div class="msg ia"><div class="bolha">${fmtResposta(limparPensar(m.t)) || '<p class="muted">A pensar…</p>'}</div>${m.t ? `<button class="btn small ghost" type="button" data-copiar="${i}">Copiar</button>` : ""}</div>`).join("")
-    : `<div class="chat-vazio"><p><strong>Olá, sou o MESTRE. Como posso ajudar?</strong></p><p class="muted">Exemplos: redigir um ofício a partir de notas, rever o texto de uma resposta, explicar um prazo do CPA ou o passo seguinte de um pedido de indemnização.</p></div>`;
+    : `<div class="chat-vazio"><p><strong>Olá, sou o MESTRE. Como posso ajudar?</strong></p><p class="muted">Posso redigir ofícios, rever textos, explicar prazos do CPA ou o passo seguinte de um pedido de indemnização.</p></div>`;
   $("chatMsgs").scrollTop = $("chatMsgs").scrollHeight;
   $("chatHist").innerHTML = chatConvs.length ? chatConvs.map((x) => `<div class="hist-i${x.id === chatAtual ? " on" : ""}">
       <button type="button" class="hist-b" data-conv="${esc(x.id)}"><span>${esc(x.titulo || "Conversa")}</span><small>${esc(quando(x.em))}</small></button>
@@ -1082,7 +1083,7 @@ function abrirAssistente() {
   if (!chatAtual || !chatConvs.some((x) => x.id === chatAtual)) chatAtual = chatConvs[0]?.id || null;
   $("chatStatus").textContent = semChave() ? "O MESTRE ainda não está configurado (falta a chave do Groq)." : "";
   $("chatStatus").className = semChave() ? "status err" : "status";
-  desenharChat(); mostrar("vAssistente"); $("chatTxt").focus();
+  desenharChat(); $("mestre").hidden = false; $("btnMestreAbrir").setAttribute("aria-expanded", "true"); $("btnMestreAbrir").classList.add("aberto"); setTimeout(() => $("chatTxt").focus(), 50);
 }
 async function enviarChat() {
   const txt = $("chatTxt").value.trim(), st = $("chatStatus");
@@ -1128,9 +1129,16 @@ async function enviarChat() {
   c.msgs = c.msgs.slice(-CHAT_MAX_MSG);
   chatOcupado = false; $("btnChatEnviar").disabled = false; await chatGravar(c); desenharChat(); $("chatTxt").focus();
 }
-$("btnAssistente").addEventListener("click", abrirAssistente);
-$("btnVoltarChat").addEventListener("click", () => mostrar("vPainel"));
-$("btnChatNova").addEventListener("click", () => { chatAtual = null; $("chatStatus").textContent = ""; desenharChat(); $("chatTxt").focus(); });
+function fecharMestre() { $("mestre").hidden = true; $("btnMestreAbrir").setAttribute("aria-expanded", "false"); $("btnMestreAbrir").classList.remove("aberto"); }
+$("btnAssistente").addEventListener("click", () => ($("mestre").hidden ? abrirAssistente() : fecharMestre()));
+$("btnMestreAbrir").addEventListener("click", () => ($("mestre").hidden ? abrirAssistente() : fecharMestre()));
+$("btnMestreFechar").addEventListener("click", fecharMestre);
+document.addEventListener("keydown", (e) => { if (e.key === "Escape" && !$("mestre").hidden) fecharMestre(); });
+$("btnMestreConversas").addEventListener("click", () => {
+  const box = $("mestreHist"), abrir = box.hidden;
+  box.hidden = !abrir; $("btnMestreConversas").setAttribute("aria-expanded", String(abrir));
+});
+$("btnChatNova").addEventListener("click", () => { chatAtual = null; $("mestreHist").hidden = true; $("chatStatus").textContent = ""; desenharChat(); $("chatTxt").focus(); });
 $("chatForm").addEventListener("submit", (e) => { e.preventDefault(); enviarChat(); });
 $("chatTxt").addEventListener("keydown", (e) => { if (e.key === "Enter" && !e.shiftKey && !e.isComposing) { e.preventDefault(); enviarChat(); } });
 $("chatStatus").addEventListener("click", (e) => { if (e.target.id === "btnChatMesmoAssim") { chatConfirmado = true; enviarChat(); } });
@@ -1138,7 +1146,7 @@ $("chatSug").addEventListener("click", (e) => { const b = e.target.closest("[dat
 $("chatHist").addEventListener("click", (e) => {
   const rm = e.target.closest("[data-conv-rm]");
   if (rm) { const id = rm.dataset.convRm; chatConvs = chatConvs.filter((x) => x.id !== id); if (chatAtual === id) chatAtual = chatConvs[0]?.id || null; fb.D.remove(chatRef(id)).catch(() => {}); desenharChat(); return; }
-  const b = e.target.closest("[data-conv]"); if (!b) return; chatAtual = b.dataset.conv; desenharChat();
+  const b = e.target.closest("[data-conv]"); if (!b) return; chatAtual = b.dataset.conv; $("mestreHist").hidden = true; $("btnMestreConversas").setAttribute("aria-expanded", "false"); desenharChat();
 });
 $("btnChatApagarTudo").addEventListener("click", (e) => {
   const b = e.currentTarget;

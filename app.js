@@ -1,6 +1,7 @@
 import { GROQ_API_KEY, FIREBASE_CONFIG, COL_REUNIOES, COL_FOTOS, EQUIPA as EQUIPA_INICIAL, POWERBI_URL } from "./config.js";
 const COL_EQUIPA = "kaizen_equipa";
 const COL_URGENTES = "kaizen_urgentes";
+const COL_MAPAS = "kaizen_mapas";
 // Equipa: vem da base de dados (editável na app); enquanto não houver, usa a lista do config.js
 let EQUIPA = EQUIPA_INICIAL.map((p) => ({ ...p }));
 
@@ -20,13 +21,13 @@ const semanaISO = (s) => { const d = new Date(s + "T12:00:00"); if (isNaN(d)) re
 const colIdx = (c) => Math.max(0, COLS.indexOf(c));
 const emAtraso = (t, ref) => t.coluna !== "Concluído" && isoData(t.prazo) && t.prazo < ref;
 
-const est = { user: null, urgentes: [], reunioes: [], abertaId: null, tab: "presencas", editId: null, fotos: {}, linhas: [], pres: {}, stream: null };
+const est = { user: null, urgentes: [], mapas: [], reunioes: [], abertaId: null, tab: "presencas", editId: null, fotos: {}, linhas: [], pres: {}, stream: null };
 const TIPOS_FOTO = { postits: "quadro de post-its", presencas: "folha de presenças", acoes: "folha de ações", notas: "folha de apontamentos" };
 const temFotoDe = (r, k) => !!((r.fotos && r.fotos[k]) || (k === "postits" && r.temFoto));
 let fb = null;
 
 /* ---------------- Vistas ---------------- */
-const VISTAS = ["vLogin", "vConfig", "vPainel", "vReuniao", "vRegistar", "vImprimir", "vEquipa", "vRelatorio", "vPowerBI", "vDiario"];
+const VISTAS = ["vLogin", "vConfig", "vPainel", "vReuniao", "vRegistar", "vImprimir", "vEquipa", "vRelatorio", "vPowerBI", "vDiario", "vMapas"];
 function mostrar(v) {
   for (const id of VISTAS) $(id).hidden = id !== v;
   $("fab").hidden = v !== "vPainel";
@@ -96,6 +97,11 @@ function subscrever() {
     desenharPainel();
     if (!$("vEquipa").hidden) desenharEquipa();
   }, () => {});
+  D.onValue(D.ref(db, COL_MAPAS), (snap) => {
+    const v = snap.val() || {};
+    est.mapas = Object.entries(v).map(([id, m]) => ({ id, ...m }));
+    desenharMapas();
+  }, () => { $("mapasStatus").textContent = "Não consegui ler os mapas."; $("mapasStatus").className = "status err"; });
   D.onValue(D.ref(db, COL_URGENTES), (snap) => {
     const v = snap.val() || {};
     est.urgentes = Object.entries(v).map(([id, u]) => ({ id, ...u }));
@@ -979,6 +985,46 @@ function calcularPrazo() {
 }
 ["przIni", "przN", "przTipo"].forEach((id) => $(id).addEventListener("input", calcularPrazo));
 $("przIni").value = hoje(); calcularPrazo();
+
+/* ---------------- Mapas (Excel partilhados no SharePoint/OneDrive da Câmara) ---------------- */
+// Os links ficam na base de dados (só visível com sessão iniciada), nunca no código, que é público.
+const linkMapa = (s) => { try { const u = new URL(String(s || "").trim()); return u.protocol === "https:" && /^(cmmat|cmmat-my)\.sharepoint\.com$/.test(u.hostname) ? u.href : ""; } catch { return ""; } };
+function origemMapa(l) {
+  try {
+    const u = new URL(l), p = u.pathname;
+    const pes = p.match(/\/personal\/([a-z0-9_]+?)_cm-matosinhos_pt/i);
+    if (pes) return "OneDrive de " + pes[1].split("_").map((x) => x.charAt(0).toUpperCase() + x.slice(1)).join(" ");
+    const site = p.match(/\/s\/([^/]+)/); if (site) return "SharePoint · " + decodeURIComponent(site[1]);
+  } catch {}
+  return "SharePoint da Câmara";
+}
+function desenharMapas() {
+  const l = [...est.mapas].sort((a, b) => (a.ordem ?? 999) - (b.ordem ?? 999) || String(a.nome).localeCompare(String(b.nome), "pt"));
+  $("mapasLista").innerHTML = l.length ? l.map((m) => `<div class="mapa">
+      <div class="mapa-main"><strong>${esc(m.nome)}</strong>${m.desc ? `<span>${esc(m.desc)}</span>` : ""}<span class="muted small">${esc(origemMapa(m.link))}</span></div>
+      <div class="mapa-acts">${linkMapa(m.link) ? `<a class="btn small primary" href="${esc(linkMapa(m.link))}" target="_blank" rel="noopener">Abrir</a>` : ""}
+        <button class="btn small ghost danger" type="button" data-mapa-rm="${esc(m.id)}" aria-label="Retirar ${esc(m.nome)}">Retirar</button></div></div>`).join("")
+    : `<p class="empty">Ainda não há mapas. Use «Adicionar mapa» para juntar os links dos Excel partilhados.</p>`;
+  if (!l.length) $("mapasAddBox").open = true;
+}
+$("btnMapas").addEventListener("click", () => { $("mapasStatus").textContent = ""; desenharMapas(); mostrar("vMapas"); });
+$("btnVoltarMapas").addEventListener("click", () => mostrar("vPainel"));
+$("mapaForm").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const st = $("mapasStatus"), nome = $("mapaNome").value.trim(), link = linkMapa($("mapaLink").value);
+  if (!nome) { $("mapaNome").focus(); return; }
+  if (!link) { st.textContent = "O link tem de ser de um ficheiro no SharePoint/OneDrive da Câmara (cmmat.sharepoint.com ou cmmat-my.sharepoint.com)."; st.className = "status err"; $("mapaLink").focus(); return; }
+  try {
+    await fb.D.set(fb.D.push(fb.D.ref(fb.db, COL_MAPAS)), { nome, desc: $("mapaDesc").value.trim(), link, ordem: est.mapas.length, criadoPor: euNome() || quem(), criadoEm: new Date().toISOString() });
+    $("mapaForm").reset(); st.textContent = `«${nome}» adicionado.`; st.className = "status"; $("mapaNome").focus();
+  } catch { st.textContent = "Não consegui guardar. Verifique a internet."; st.className = "status err"; }
+});
+$("mapasLista").addEventListener("click", async (e) => {
+  const b = e.target.closest("[data-mapa-rm]"); if (!b) return;
+  if (b.dataset.ok !== "1") { b.dataset.ok = "1"; b.textContent = "Confirmar retirar"; setTimeout(() => { b.dataset.ok = ""; b.textContent = "Retirar"; }, 4000); return; }
+  try { await fb.D.remove(fb.D.ref(fb.db, `${COL_MAPAS}/${b.dataset.mapaRm}`)); }
+  catch { $("mapasStatus").textContent = "Não consegui retirar. Verifique a internet."; $("mapasStatus").className = "status err"; }
+});
 
 /* ---------------- Reclamações (Power BI) ---------------- */
 // O painel só é carregado quando se abre esta aba, para não pesar no arranque da app.

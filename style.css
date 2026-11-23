@@ -367,3 +367,15 @@ input[type=text],input[type=url],input[type=date],input[type=number],select,text
 .urg-a:hover{text-decoration-thickness:2px}
 .urg-linkbox{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
 .urg-linkbox input{flex:1 1 320px;min-height:34px}
+
+/* Mapas */
+.mapas{display:grid;grid-template-columns:repeat(auto-fill,minmax(360px,1fr));gap:10px}
+.mapa{display:flex;gap:12px;align-items:center;justify-content:space-between;border:1px solid var(--line);border-left:4px solid #1d6f42;border-radius:10px;padding:12px 14px;background:var(--surface)}
+.mapa-main{display:flex;flex-direction:column;gap:2px;min-width:0}
+.mapa-main strong{overflow-wrap:anywhere}
+.mapa-acts{display:flex;gap:6px;flex-wrap:nowrap;justify-content:flex-end;flex:none}
+.mapa-form{display:grid;grid-template-columns:1fr 1fr;gap:10px;align-items:end}
+.mapa-form .f-wide{grid-column:1/-1}
+.mapa-form .btn{justify-self:end;grid-column:1/-1}
+@media (max-width:560px){.mapa-form{grid-template-columns:1fr}}
+a.btn{text-decoration:none}

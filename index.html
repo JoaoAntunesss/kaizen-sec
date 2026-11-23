@@ -59,6 +59,7 @@
       <button class="btn small" id="btnExportar" type="button">Exportar (Excel / PDF)</button>
       <button class="btn small" id="btnEquipa" type="button">Equipa</button>
       <button class="btn small" id="btnDiario" type="button">Trabalho diário <span class="badge" id="bdgUrg" hidden></span></button>
+      <button class="btn small" id="btnMapas" type="button">Mapas</button>
       <button class="btn small" id="btnPowerBI" type="button">Reclamações (Power BI)</button>
     </div>
 
@@ -338,6 +339,25 @@
       </details>
 
       <p class="muted small leg-links">Textos oficiais: <a href="https://diariodarepublica.pt/dr/detalhe/decreto-lei/4-2015-66041468" target="_blank" rel="noopener">CPA no Diário da República</a> · <a href="https://eur-lex.europa.eu/legal-content/PT/TXT/?uri=CELEX:32016R0679" target="_blank" rel="noopener">RGPD (EUR-Lex)</a> · <a href="https://www.cnpd.pt" target="_blank" rel="noopener">CNPD</a>. Este guia é um resumo de apoio e não substitui o texto da lei nem o parecer dos serviços jurídicos.</p>
+    </div>
+  </section>
+
+  <!-- Mapas (Excel partilhados) -->
+  <section id="vMapas" class="view" hidden>
+    <div class="panel">
+      <div class="panel-head"><h2>Mapas</h2><button class="btn small ghost" id="btnVoltarMapas" type="button">Voltar</button></div>
+      <p class="muted">Mapas Excel partilhados da Secretaria. Abrem no Excel Online com a conta da Câmara; o acesso depende das permissões de cada ficheiro no SharePoint/OneDrive.</p>
+      <div class="mapas" id="mapasLista"></div>
+      <details class="leg-sec" id="mapasAddBox">
+        <summary>Adicionar mapa</summary>
+        <form class="mapa-form" id="mapaForm" autocomplete="off">
+          <label class="f">Nome<input type="text" id="mapaNome" placeholder="Ex.: DC - Mapa de Empreitadas" required></label>
+          <label class="f">Para que serve (opcional)<input type="text" id="mapaDesc" placeholder="Ex.: controlo das empreitadas do Departamento"></label>
+          <label class="f f-wide">Link de partilha do Excel<input type="url" id="mapaLink" placeholder="https://cmmat-my.sharepoint.com/... ou https://cmmat.sharepoint.com/..." required></label>
+          <button class="btn primary" type="submit">Adicionar</button>
+        </form>
+      </details>
+      <p class="status" id="mapasStatus"></p>
     </div>
   </section>
 

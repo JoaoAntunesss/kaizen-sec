@@ -58,6 +58,7 @@
       <div class="anos" id="anos" role="group" aria-label="Ano em consulta"></div>
       <button class="btn small" id="btnExportar" type="button">Exportar (Excel / PDF)</button>
       <button class="btn small" id="btnEquipa" type="button">Equipa</button>
+      <button class="btn small" id="btnDiario" type="button">Trabalho diário <span class="badge" id="bdgUrg" hidden></span></button>
       <button class="btn small" id="btnPowerBI" type="button">Reclamações (Power BI)</button>
     </div>
 
@@ -188,6 +189,27 @@
         <button class="btn small" id="btnEqAdd" type="button">+ Acrescentar</button>
       </div>
       <div class="actions"><span class="status" id="eqStatus"></span><button class="btn primary" id="btnEqGuardar" type="button">Guardar equipa</button></div>
+    </div>
+  </section>
+
+  <!-- Trabalho diário -->
+  <section id="vDiario" class="view" hidden>
+    <div class="panel">
+      <div class="panel-head"><h2>Trabalho diário</h2><button class="btn small ghost" id="btnVoltarDia" type="button">Voltar</button></div>
+      <h3 class="sec-ttl">Edocs urgentes</h3>
+      <form class="urg-form" id="urgForm" autocomplete="off">
+        <label class="f">N.º do Edoc<input type="text" id="urgEdoc" placeholder="Ex.: OD/2026/36597" required></label>
+        <label class="f">O que há a fazer<input type="text" id="urgNota" placeholder="Ex.: oficiar ao requerente"></label>
+        <label class="f">Responsável<select id="urgResp"></select></label>
+        <label class="f">Prazo<input type="date" id="urgPrazo"></label>
+        <button class="btn primary" id="btnUrgAdd" type="submit">+ Adicionar</button>
+      </form>
+      <p class="status" id="urgStatus"></p>
+      <div class="urg-list" id="urgLista"></div>
+      <details class="urg-done" id="urgFeitosBox">
+        <summary>Tratados <span id="urgFeitosN"></span></summary>
+        <div class="urg-list" id="urgFeitos"></div>
+      </details>
     </div>
   </section>
 

@@ -1,5 +1,6 @@
 import { GROQ_API_KEY, FIREBASE_CONFIG, COL_REUNIOES, COL_FOTOS, EQUIPA as EQUIPA_INICIAL, POWERBI_URL } from "./config.js";
 const COL_EQUIPA = "kaizen_equipa";
+const COL_URGENTES = "kaizen_urgentes";
 // Equipa: vem da base de dados (editável na app); enquanto não houver, usa a lista do config.js
 let EQUIPA = EQUIPA_INICIAL.map((p) => ({ ...p }));
 
@@ -19,13 +20,13 @@ const semanaISO = (s) => { const d = new Date(s + "T12:00:00"); if (isNaN(d)) re
 const colIdx = (c) => Math.max(0, COLS.indexOf(c));
 const emAtraso = (t, ref) => t.coluna !== "Concluído" && isoData(t.prazo) && t.prazo < ref;
 
-const est = { user: null, reunioes: [], abertaId: null, tab: "presencas", editId: null, fotos: {}, linhas: [], pres: {}, stream: null };
+const est = { user: null, urgentes: [], reunioes: [], abertaId: null, tab: "presencas", editId: null, fotos: {}, linhas: [], pres: {}, stream: null };
 const TIPOS_FOTO = { postits: "quadro de post-its", presencas: "folha de presenças", acoes: "folha de ações", notas: "folha de apontamentos" };
 const temFotoDe = (r, k) => !!((r.fotos && r.fotos[k]) || (k === "postits" && r.temFoto));
 let fb = null;
 
 /* ---------------- Vistas ---------------- */
-const VISTAS = ["vLogin", "vConfig", "vPainel", "vReuniao", "vRegistar", "vImprimir", "vEquipa", "vRelatorio", "vPowerBI"];
+const VISTAS = ["vLogin", "vConfig", "vPainel", "vReuniao", "vRegistar", "vImprimir", "vEquipa", "vRelatorio", "vPowerBI", "vDiario"];
 function mostrar(v) {
   for (const id of VISTAS) $(id).hidden = id !== v;
   $("fab").hidden = v !== "vPainel";
@@ -95,6 +96,11 @@ function subscrever() {
     desenharPainel();
     if (!$("vEquipa").hidden) desenharEquipa();
   }, () => {});
+  D.onValue(D.ref(db, COL_URGENTES), (snap) => {
+    const v = snap.val() || {};
+    est.urgentes = Object.entries(v).map(([id, u]) => ({ id, ...u }));
+    desenharUrgentes();
+  }, () => { $("urgStatus").textContent = "Não consegui ler os Edocs urgentes."; $("urgStatus").className = "status err"; });
   pararSub = D.onValue(D.ref(db, COL_REUNIOES), (snap) => {
     const v = snap.val() || {};
     est.reunioes = Object.keys(v).map((id) => ({ id, ...v[id], tarefas: Object.entries(v[id].tarefas || {}).map(([k, t]) => ({ ...t, _k: k })), presencas: v[id].presencas || {} }))
@@ -657,6 +663,72 @@ function reunioesDoPeriodo() {
 const nomePeriodo = () => $("fPeriodo").selectedOptions[0].textContent;
 $("btnExportar").addEventListener("click", () => { $("expStatus").textContent = ""; $("fPeriodo").querySelector('[value="ano"]').textContent = `Ano ${est.ano || anoAtual()}`; mostrar("vRelatorio"); desenharRelatorio(); });
 $("btnVoltarRel").addEventListener("click", () => mostrar("vPainel"));
+
+/* ---------------- Trabalho diário: Edocs urgentes ---------------- */
+const quem = () => (est.user && (est.user.displayName || est.user.email)) || "";
+const quando = (iso) => { const d = new Date(iso); return isNaN(d) ? "" : d.toLocaleString("pt-PT", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }); };
+function opcoesResp() {
+  const sel = $("urgResp"), atual = sel.value;
+  sel.innerHTML = `<option value="">— Sem responsável —</option>` + EQUIPA.map((p) => `<option>${esc(p.nome)}</option>`).join("");
+  sel.value = atual;
+}
+function itemUrg(u, feito) {
+  const atraso = !feito && isoData(u.prazo) && u.prazo < hoje();
+  const prazoHoje = !feito && u.prazo === hoje();
+  const chips = [
+    u.resp ? `<span class="chip">${esc(u.resp)}</span>` : "",
+    isoData(u.prazo) ? `<span class="chip ${atraso ? "late" : prazoHoje ? "warn" : ""}">${atraso ? "Em atraso · " : prazoHoje ? "Hoje · " : "Prazo "}${esc(fmt(u.prazo))}</span>` : "",
+  ].join("");
+  const meta = feito ? `Tratado por ${esc(u.tratadoPor || "")} a ${esc(quando(u.tratadoEm))}` : `Adicionado por ${esc(u.criadoPor || "")} a ${esc(quando(u.criadoEm))}`;
+  const acts = feito
+    ? `<button class="btn small ghost" type="button" data-urg="desfazer" data-id="${esc(u.id)}">Desfazer</button>`
+    : `<button class="btn small ok" type="button" data-urg="tratado" data-id="${esc(u.id)}">✓ Tratado</button>
+       <button class="btn small ghost danger" type="button" data-urg="apagar" data-id="${esc(u.id)}" aria-label="Apagar ${esc(u.edoc)}">Apagar</button>`;
+  return `<div class="urg-item${atraso ? " late" : ""}${feito ? " done" : ""}">
+    <div class="urg-main"><strong class="urg-edoc">${esc(u.edoc)}</strong>${u.nota ? `<span class="urg-nota">${esc(u.nota)}</span>` : ""}
+      <div class="urg-chips">${chips}</div><span class="urg-meta">${meta}</span></div>
+    <div class="urg-acts">${acts}</div></div>`;
+}
+function desenharUrgentes() {
+  const abertos = est.urgentes.filter((u) => !u.tratado)
+    .sort((a, b) => (a.prazo || "9999").localeCompare(b.prazo || "9999") || String(a.criadoEm).localeCompare(String(b.criadoEm)));
+  const feitos = est.urgentes.filter((u) => u.tratado).sort((a, b) => String(b.tratadoEm).localeCompare(String(a.tratadoEm)));
+  $("urgLista").innerHTML = abertos.length ? abertos.map((u) => itemUrg(u, false)).join("") : `<p class="empty">Sem Edocs urgentes por tratar.</p>`;
+  $("urgFeitos").innerHTML = feitos.length ? feitos.slice(0, 100).map((u) => itemUrg(u, true)).join("") : `<p class="empty">Ainda nenhum tratado.</p>`;
+  $("urgFeitosN").textContent = `(${feitos.length})`;
+  $("bdgUrg").hidden = !abertos.length; $("bdgUrg").textContent = abertos.length;
+  $("bdgUrg").classList.toggle("late", abertos.some((u) => isoData(u.prazo) && u.prazo < hoje()));
+}
+$("btnDiario").addEventListener("click", () => { opcoesResp(); $("urgStatus").textContent = ""; desenharUrgentes(); mostrar("vDiario"); });
+$("btnVoltarDia").addEventListener("click", () => mostrar("vPainel"));
+$("urgForm").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const edoc = $("urgEdoc").value.trim().toUpperCase().replace(/\s+/g, "");
+  const st = $("urgStatus");
+  if (!edoc) { $("urgEdoc").focus(); return; }
+  if (est.urgentes.some((u) => !u.tratado && u.edoc === edoc)) { st.textContent = `O ${edoc} já está na lista de urgentes.`; st.className = "status err"; return; }
+  $("btnUrgAdd").disabled = true;
+  try {
+    await fb.D.set(fb.D.push(fb.D.ref(fb.db, COL_URGENTES)), {
+      edoc, nota: $("urgNota").value.trim(), resp: $("urgResp").value, prazo: $("urgPrazo").value || "",
+      tratado: false, criadoPor: quem(), criadoEm: new Date().toISOString(),
+    });
+    $("urgForm").reset(); st.textContent = `${edoc} adicionado.`; st.className = "status"; $("urgEdoc").focus();
+  } catch { st.textContent = "Não consegui guardar. Verifique a internet."; st.className = "status err"; }
+  $("btnUrgAdd").disabled = false;
+});
+$("vDiario").addEventListener("click", async (e) => {
+  const b = e.target.closest("[data-urg]"); if (!b) return;
+  const id = b.dataset.id, acao = b.dataset.urg, ref = fb.D.ref(fb.db, `${COL_URGENTES}/${id}`);
+  const st = $("urgStatus");
+  if (acao === "apagar" && b.dataset.ok !== "1") { b.dataset.ok = "1"; b.textContent = "Confirmar apagar"; setTimeout(() => { b.dataset.ok = ""; b.textContent = "Apagar"; }, 4000); return; }
+  b.disabled = true;
+  try {
+    if (acao === "tratado") await fb.D.update(ref, { tratado: true, tratadoPor: quem(), tratadoEm: new Date().toISOString() });
+    else if (acao === "desfazer") await fb.D.update(ref, { tratado: false, tratadoPor: null, tratadoEm: null });
+    else if (acao === "apagar") await fb.D.remove(ref);
+  } catch { st.textContent = "Não consegui guardar. Verifique a internet."; st.className = "status err"; b.disabled = false; }
+});
 
 /* ---------------- Reclamações (Power BI) ---------------- */
 // O painel só é carregado quando se abre esta aba, para não pesar no arranque da app.

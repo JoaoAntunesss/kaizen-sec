@@ -500,3 +500,5 @@ body:has(#fab:not([hidden])) .mestre-ola{bottom:calc(152px + env(safe-area-inset
 .urg-head .sec-ttl{margin:0}
 .urg-novo{border:1px solid var(--line,#dde3ea);border-radius:10px;padding:12px;margin:10px 0;background:var(--accent-soft)}
 #notifBox{margin-top:14px}
+.cau-anos{border:0;margin:0;padding:0;min-width:0}.cau-anos legend{font-size:13px;font-weight:600;color:var(--muted);margin-bottom:6px;padding:0}
+#cauAnos{display:flex;flex-wrap:wrap;gap:4px 12px}

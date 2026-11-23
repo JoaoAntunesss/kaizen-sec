@@ -266,8 +266,8 @@
         <summary>Liberação de caução (art. 295.º CCP)</summary>
         <div class="cau">
           <label class="f">Valor total da caução<input type="text" id="cauValor" inputmode="decimal" placeholder="Ex.: 14490,40"></label>
-          <label class="f">Ano após a receção provisória<select id="cauAno"><option value="1">1.º ano</option><option value="2">2.º ano</option><option value="3">3.º ano</option><option value="4">4.º ano</option><option value="5">5.º ano</option></select></label>
-          <label class="f">Percentagem a liberar<input type="number" id="cauPct" min="0" max="100" step="0.5"></label>
+          <fieldset class="f cau-anos"><legend>Anos a liberar (pode escolher vários)</legend><div id="cauAnos"><label class="chk-i"><input type="checkbox" value="1" checked><span>1.º</span></label><label class="chk-i"><input type="checkbox" value="2"><span>2.º</span></label><label class="chk-i"><input type="checkbox" value="3"><span>3.º</span></label><label class="chk-i"><input type="checkbox" value="4"><span>4.º</span></label><label class="chk-i"><input type="checkbox" value="5"><span>5.º</span></label></div></fieldset>
+          <label class="f">Percentagem total a liberar<input type="number" id="cauPct" min="0" max="100" step="0.5"></label>
         </div>
         <div class="cau-res" id="cauRes" aria-live="polite"></div>
         <div class="actions"><span class="status" id="cauStatus"></span><button class="btn" id="btnCauCopiar" type="button">Copiar frase para o ofício</button></div>

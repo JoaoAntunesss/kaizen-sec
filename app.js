@@ -950,21 +950,35 @@ function calcExtenso() { const v = lerValor($("extValor").value); $("extRes").te
 $("extValor").addEventListener("input", calcExtenso);
 $("btnExtCopiar").addEventListener("click", async () => { const t = $("extRes").textContent; if (!t) return; try { await navigator.clipboard.writeText(t); $("btnExtCopiar").textContent = "Copiado"; setTimeout(() => ($("btnExtCopiar").textContent = "Copiar"), 1500); } catch {} });
 const CAU_PCT = { 1: 30, 2: 30, 3: 15, 4: 15, 5: 10 };
+const pctTxt = (n) => String(Math.round(n * 100) / 100).replace(".", ",");
+const anosTxt = (anos) => { const t = anos.map((n) => `${n}.º`); return (t.length > 1 ? t.slice(0, -1).join(", ") + " e " + t.at(-1) + " anos" : t[0] + " ano"); };
+// Liberação de um ou mais anos (ex.: 1.º e 2.º juntos = 60%). Devolve null se faltar algo.
+function calcLiberacao(total, anos, pctManual) {
+  anos = [...new Set(anos)].filter((n) => CAU_PCT[n]).sort((x, y) => x - y);
+  if (!total || !anos.length) return null;
+  const pct = pctManual ?? anos.reduce((s, n) => s + CAU_PCT[n], 0);
+  const lib = Math.round(total * pct) / 100;
+  const ate = Math.max(...anos), acum = Math.min(100, Object.entries(CAU_PCT).filter(([n]) => +n < ate && !anos.includes(+n)).reduce((s, [, p]) => s + p, 0) + pct);
+  const libTotal = Math.round(total * acum) / 100;
+  const det = anos.length > 1 && pctManual == null ? ` (${anos.map((n) => `${CAU_PCT[n]}% do ${n}.º ano`).join(" e ")})` : "";
+  return { anos, pct, lib, acum, libTotal, resta: Math.max(0, Math.round((total - libTotal) * 100) / 100),
+    frase: `será liberado ${pctTxt(pct)}% do valor total da caução${det}, relativo ${anos.length > 1 ? "aos" : "ao"} ${anosTxt(anos)} após a receção provisória, que corresponde à liberação de ${valorCompleto(lib)}` };
+}
 let cauFrase = "";
+const cauAnosSel = () => [...$("cauAnos").querySelectorAll("input:checked")].map((i) => +i.value);
 function calcCaucao() {
-  const v = lerValor($("cauValor").value), ano = +$("cauAno").value;
-  if (document.activeElement !== $("cauPct") && !$("cauPct").dataset.mexido) $("cauPct").value = CAU_PCT[ano];
-  const pct = Math.min(100, Math.max(0, parseFloat(String($("cauPct").value).replace(",", ".")) || 0));
-  if (v === null || !v) { $("cauRes").innerHTML = ""; cauFrase = ""; return; }
-  const lib = Math.round(v * pct) / 100;
-  const acum = Object.entries(CAU_PCT).filter(([a]) => +a < ano).reduce((s, [, p]) => s + p, 0) + pct;
-  const liberadoTotal = Math.round(v * Math.min(100, acum)) / 100, resta = Math.round((v - liberadoTotal) * 100) / 100;
-  cauFrase = `será liberado ${String(pct).replace(".", ",")}% do valor total da caução, que corresponde à liberação de ${valorCompleto(lib)}`;
-  $("cauRes").innerHTML = `<p><strong>A liberar no ${ano}.º ano:</strong> ${esc(valorCompleto(lib))}</p>
-    <p class="muted small">Caução total: ${esc(fmtEuros(v))} € · liberado até este ano (inclusive): ${String(Math.min(100, acum)).replace(".", ",")}% = ${esc(fmtEuros(liberadoTotal))} € · fica retido: ${esc(fmtEuros(Math.max(0, resta)))} €</p>
+  const v = lerValor($("cauValor").value), anos = cauAnosSel();
+  if (!$("cauPct").dataset.mexido) $("cauPct").value = anos.reduce((s, n) => s + CAU_PCT[n], 0) || "";
+  const pm = $("cauPct").dataset.mexido ? Math.min(100, Math.max(0, parseFloat(String($("cauPct").value).replace(",", ".")) || 0)) : null;
+  const r = v ? calcLiberacao(v, anos, pm) : null;
+  if (!r) { $("cauRes").innerHTML = ""; cauFrase = ""; return; }
+  cauFrase = r.frase;
+  $("cauRes").innerHTML = `<p><strong>A liberar (${esc(anosTxt(r.anos))}):</strong> ${esc(valorCompleto(r.lib))}</p>
+    <p class="muted small">Caução total: ${esc(fmtEuros(v))} € · liberado no total depois desta liberação: ${pctTxt(r.acum)}% = ${esc(fmtEuros(r.libTotal))} € · fica retido: ${esc(fmtEuros(r.resta))} €</p>
     <p class="cau-frase">«…${esc(cauFrase)}.»</p>`;
 }
-["cauValor", "cauAno"].forEach((id) => $(id).addEventListener("input", () => { if (id === "cauAno") delete $("cauPct").dataset.mexido; calcCaucao(); }));
+$("cauValor").addEventListener("input", calcCaucao);
+$("cauAnos").addEventListener("change", () => { delete $("cauPct").dataset.mexido; calcCaucao(); });
 $("cauPct").addEventListener("input", () => { $("cauPct").dataset.mexido = "1"; calcCaucao(); });
 $("btnCauCopiar").addEventListener("click", async () => { if (!cauFrase) return; try { await navigator.clipboard.writeText(cauFrase + "."); $("cauStatus").textContent = "Frase copiada."; $("cauStatus").className = "status"; } catch {} });
 $("cauPct").value = CAU_PCT[1];
@@ -1084,6 +1098,7 @@ Regras:
 - Quando houver um documento anexado, resume-o, diz claramente o que é pedido e, se fizer sentido, propõe um rascunho de resposta.
 - Valores em euros: escreve SEMPRE [[EXTENSO valor]] (ex.: [[EXTENSO 45656,16]]) e a app converte em «45.656,16 € (quarenta e cinco mil … cêntimos)». Não escrevas tu o extenso. Faz as contas com cuidado (ex.: 30% de 14.490,40 = 4.347,12).
 - Liberação de caução (art. 295.º CCP), faseada a contar da receção provisória: 30% no 1.º ano, 30% no 2.º, 15% no 3.º, 15% no 4.º e 10% no 5.º, salvo se o contrato ou o despacho indicar outra coisa.
+- Para a frase da liberação escreve [[CAUCAO valor_total anos]] (ex.: [[CAUCAO 14490,40 1]] ou, para o 1.º e 2.º anos juntos, [[CAUCAO 14490,40 1-2]]; anos soltos: [[CAUCAO 14490,40 1,3]]) e a app escreve «será liberado …% do valor total da caução …, que corresponde à liberação de … € (…)». Usa-a sempre que houver liberação, também quando são vários anos de uma vez.
 - Revisão de ofício (quando pedirem para rever ou anexarem o Word final): responde com uma lista curta «Verificação», em que cada ponto começa por «OK:» ou «Atenção:», cobrindo: destinatário e tratamento (EXMO./EXMA., V. Ex.ª/V. Exas.); referência (OD/EDOC) igual no cabeçalho e no texto; assunto; datas, prazos e artigos citados (CPA/CCP) corretos e coerentes; valores e extensos certos; campos [ ] ou «xxx» por preencher; português (norma europeia, acordo ortográfico); dados pessoais desnecessários; fórmula final. Depois indica só as correções necessárias, com o texto corrigido.
 
 INFORMAÇÃO DE REFERÊNCIA:
@@ -1105,6 +1120,10 @@ function fmtResposta(t) {
 }
 const limparPensar = (t) => String(t || "").replace(/<think>[\s\S]*?(<\/think>|$)/g, "").trim();
 // O MESTRE escreve [[EXTENSO 45656,16]] e a app troca pelo valor formatado e por extenso (sem erros de contas).
+const expandirCaucao = (t) => String(t || "").replace(/\[\[CAUCAO\s+([\d.,]+)\s+([\d\s,e+-]+?)\s*\]\]/gi, (m, v, an) => {
+  let anos = []; for (const p of an.split(/[\s,e+]+/).filter(Boolean)) { const [x, y] = p.split("-").map(Number); if (y) for (let n = x; n <= y; n++) anos.push(n); else anos.push(x); }
+  const r = calcLiberacao(lerValor(v), anos); return r ? r.frase : m;
+});
 const expandirExtenso = (t) => String(t || "").replace(/\[\[EXTENSO\s+([\d.,\s]+?)\s*\]\]/g, (m, v) => { const n = lerValor(v); return n === null ? m : valorCompleto(n); });
 const RX_ACAO = /\[\[ADICIONAR_URGENTE\s+(\{[\s\S]*?\})\s*\]\]/;
 function lerAcao(t) { const m = String(t || "").match(RX_ACAO); if (!m) return null; try { return JSON.parse(m[1]); } catch { return null; } }
@@ -1265,7 +1284,7 @@ async function enviarChat() {
       }
       if (Date.now() - ultimo > 120) { ultimo = Date.now(); desenharChat(); }
     }
-    resp.t = expandirExtenso(limparPensar(resp.t)) || "Não obtive resposta. Tente reformular a pergunta.";
+    resp.t = expandirExtenso(expandirCaucao(limparPensar(resp.t))) || "Não obtive resposta. Tente reformular a pergunta.";
     st.textContent = "";
   } catch (e) {
     resp.t = resp.t || "Não foi possível obter resposta (sem ligação ou limite do serviço atingido). Tente daqui a pouco.";

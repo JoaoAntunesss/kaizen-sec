@@ -62,7 +62,7 @@ async function iniciarFirebase() {
   fb.A.getRedirectResult(fb.auth).catch((e) => { $("loginStatus").textContent = msgErroLogin(e); $("loginStatus").className = "status err"; });
   fb.A.onAuthStateChanged(fb.auth, (u) => {
     est.user = u;
-    $("btnMestreAbrir").hidden = !u;
+    $("btnMestreAbrir").hidden = !u; if (u) olaMestre();
     if (!u) { chatLimparUI(); fecharMestre(); mostrar("vLogin"); return; }
     if ($("vLogin").hidden === false || $("vConfig").hidden === false || VISTAS.every((v) => $(v).hidden)) mostrar("vPainel");
     subscrever();
@@ -1063,7 +1063,7 @@ function desenharChat() {
   $("chatMsgs").innerHTML = msgs.length ? msgs.map((m, i) => m.r === "user"
     ? `<div class="msg eu"><div class="bolha">${esc(m.t).replace(/\n/g, "<br>")}</div></div>`
     : `<div class="msg ia"><div class="bolha">${fmtResposta(limparPensar(m.t)) || '<p class="muted">A pensar…</p>'}</div>${m.t ? `<button class="btn small ghost" type="button" data-copiar="${i}">Copiar</button>` : ""}</div>`).join("")
-    : `<div class="chat-vazio"><p><strong>Olá, sou o MESTRE. Como posso ajudar?</strong></p><p class="muted">Posso redigir ofícios, rever textos, explicar prazos do CPA ou o passo seguinte de um pedido de indemnização.</p></div>`;
+    : `<div class="chat-vazio"><div class="mestre-fig" aria-hidden="true"><img src="icons/mestre-corpo-sem-mao.webp" alt="" width="121" height="200"><img class="mao" src="icons/mestre-mao.webp" alt="" width="121" height="200"></div><p><strong>Olá, sou o MESTRE. Como posso ajudar?</strong></p><p class="muted">Posso redigir ofícios, rever textos, explicar prazos do CPA ou o passo seguinte de um pedido de indemnização.</p></div>`;
   $("chatMsgs").scrollTop = $("chatMsgs").scrollHeight;
   $("chatHist").innerHTML = chatConvs.length ? chatConvs.map((x) => `<div class="hist-i${x.id === chatAtual ? " on" : ""}">
       <button type="button" class="hist-b" data-conv="${esc(x.id)}"><span>${esc(x.titulo || "Conversa")}</span><small>${esc(quando(x.em))}</small></button>
@@ -1081,7 +1081,7 @@ function abrirAssistente() {
   if (!chatAtual || !chatConvs.some((x) => x.id === chatAtual)) chatAtual = chatConvs[0]?.id || null;
   $("chatStatus").textContent = semChave() ? "O MESTRE ainda não está configurado (falta a chave do Groq)." : "";
   $("chatStatus").className = semChave() ? "status err" : "status";
-  desenharChat(); $("mestre").hidden = false; $("btnMestreAbrir").setAttribute("aria-expanded", "true"); $("btnMestreAbrir").classList.add("aberto"); setTimeout(() => $("chatTxt").focus(), 50);
+  desenharChat(); $("mestreOla").hidden = true; $("mestre").hidden = false; $("btnMestreAbrir").setAttribute("aria-expanded", "true"); $("btnMestreAbrir").classList.add("aberto"); setTimeout(() => $("chatTxt").focus(), 50);
 }
 async function enviarChat() {
   const txt = $("chatTxt").value.trim(), st = $("chatStatus");
@@ -1091,7 +1091,7 @@ async function enviarChat() {
   if (!c) { c = { id: "n" + Date.now().toString(36), titulo: txt.slice(0, 60), em: new Date().toISOString(), msgs: [] }; chatConvs.unshift(c); chatAtual = c.id; }
   c.msgs.push({ r: "user", t: txt }); c.msgs.push({ r: "assistant", t: "" });
   c.em = new Date().toISOString(); chatConvs = [c, ...chatConvs.filter((x) => x.id !== c.id)];
-  $("chatTxt").value = ""; chatOcupado = true; $("btnChatEnviar").disabled = true; st.textContent = "A responder…"; st.className = "status";
+  $("chatTxt").value = ""; chatOcupado = true; $("mestreHead").classList.add("pensando"); $("btnChatEnviar").disabled = true; st.textContent = "A responder…"; st.className = "status";
   desenharChat();
   const resp = c.msgs[c.msgs.length - 1];
   try {
@@ -1120,9 +1120,18 @@ async function enviarChat() {
     st.textContent = String(e.message).includes("429") ? "Limite de pedidos do Groq atingido; aguarde um minuto." : "Erro ao contactar o MESTRE."; st.className = "status err";
   }
   c.msgs = c.msgs.slice(-CHAT_MAX_MSG);
-  chatOcupado = false; $("btnChatEnviar").disabled = false; await chatGravar(c); desenharChat(); $("chatTxt").focus();
+  chatOcupado = false; $("mestreHead").classList.remove("pensando"); $("btnChatEnviar").disabled = false; await chatGravar(c); desenharChat(); $("chatTxt").focus();
 }
-function fecharMestre() { $("mestre").hidden = true; $("btnMestreAbrir").setAttribute("aria-expanded", "false"); $("btnMestreAbrir").classList.remove("aberto"); }
+function olaMestre() {
+  try { if (sessionStorage.getItem("kz-mestre-ola")) return; sessionStorage.setItem("kz-mestre-ola", "1"); } catch {}
+  setTimeout(() => {
+    if ($("btnMestreAbrir").hidden || !$("mestre").hidden) return;
+    $("mestreOla").hidden = false;
+    setTimeout(() => { $("mestreOla").hidden = true; }, 7000);
+  }, 2500);
+}
+$("mestreOla").addEventListener("click", () => { $("mestreOla").hidden = true; abrirAssistente(); });
+function fecharMestre() { $("mestreOla").hidden = true; $("mestre").hidden = true; $("btnMestreAbrir").setAttribute("aria-expanded", "false"); $("btnMestreAbrir").classList.remove("aberto"); }
 $("btnAssistente").addEventListener("click", () => ($("mestre").hidden ? abrirAssistente() : fecharMestre()));
 $("btnMestreAbrir").addEventListener("click", () => ($("mestre").hidden ? abrirAssistente() : fecharMestre()));
 $("btnMestreFechar").addEventListener("click", fecharMestre);

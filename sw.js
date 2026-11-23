@@ -3,7 +3,7 @@
 const VERSAO = "kaizen-v1";
 const CASCA = [
   "./", "./index.html", "./style.css", "./app.js", "./config.js", "./manifest.webmanifest",
-  "./icons/icon-192.png", "./icons/icon-512.png", "./icons/logo-matosinhos.png", "./icons/logo-kaizen.png", "./icons/mestre.svg"
+  "./icons/icon-192.png", "./icons/icon-512.png", "./icons/logo-matosinhos.png", "./icons/logo-kaizen.png", "./icons/mestre-busto.webp", "./icons/mestre-corpo-sem-mao.webp", "./icons/mestre-mao.webp"
 ];
 
 self.addEventListener("install", (e) => {

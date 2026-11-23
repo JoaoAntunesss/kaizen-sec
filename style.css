@@ -414,13 +414,13 @@ a.btn{text-decoration:none}
 .mestre-btn[hidden]{display:none}
 .mestre-btn.aberto{opacity:.0;pointer-events:none}
 body:has(#fab:not([hidden])) .mestre-btn{bottom:calc(88px + env(safe-area-inset-bottom))}
-.mestre-av{display:block;width:38px;height:38px;border-radius:50%;flex:none;box-shadow:0 0 0 2px rgba(255,255,255,.9)}
+.mestre-av{display:block;width:44px;height:44px;border-radius:50%;flex:none;box-shadow:0 0 0 2px rgba(255,255,255,.95);background:#e8eff6;object-fit:cover}
 .mestre{position:fixed;right:20px;bottom:calc(20px + env(safe-area-inset-bottom));z-index:41;width:400px;height:min(640px,calc(100vh - 100px));display:flex;flex-direction:column;background:var(--surface);border:1px solid var(--line);border-radius:16px;box-shadow:0 18px 48px rgba(16,32,64,.30);overflow:hidden;animation:mestreIn .18s ease-out}
 .mestre[hidden]{display:none}
 @keyframes mestreIn{from{opacity:0;transform:translateY(12px) scale(.98)}to{opacity:1;transform:none}}
 @media (prefers-reduced-motion:reduce){.mestre{animation:none}.mestre-btn{transition:none}}
 .mestre-h{display:flex;align-items:center;gap:8px;padding:10px 10px 10px 12px;background:var(--accent);color:var(--on-accent)}
-.mestre-h .mestre-av{width:34px;height:34px}
+.mestre-h .mestre-av{width:36px;height:36px}
 .mestre-t{display:flex;flex-direction:column;line-height:1.15;margin-right:auto}
 .mestre-t small{font-size:11px;opacity:.85;font-weight:500}
 .mh-b{border:1px solid rgba(255,255,255,.35);background:transparent;color:inherit;border-radius:8px;padding:5px 9px;font-size:12px;font-weight:600;cursor:pointer}
@@ -441,3 +441,21 @@ body:has(#fab:not([hidden])) .mestre-btn{bottom:calc(88px + env(safe-area-inset-
 }
 @media print{.mestre,.mestre-btn{display:none!important}}
 .mestre-t small,.mestre-t strong{white-space:nowrap}
+
+/* MESTRE animado */
+.mestre-btn .mestre-av{animation:mestreBob 3.2s ease-in-out infinite}
+.mestre-btn:hover .mestre-av{animation:mestreAceno .9s ease-in-out 1}
+@keyframes mestreBob{0%,100%{transform:translateY(0)}50%{transform:translateY(-3px)}}
+@keyframes mestreAceno{0%,100%{transform:rotate(0)}25%{transform:rotate(-10deg)}50%{transform:rotate(8deg)}75%{transform:rotate(-5deg)}}
+.mestre-ola{position:fixed;right:20px;bottom:calc(84px + env(safe-area-inset-bottom));z-index:40;max-width:240px;padding:10px 14px;border:1px solid var(--line);border-radius:14px 14px 4px 14px;background:var(--surface);color:var(--ink);font-size:14px;font-weight:600;text-align:left;box-shadow:0 10px 28px rgba(16,32,64,.22);cursor:pointer;animation:mestreIn .25s ease-out}
+.mestre-ola[hidden]{display:none}
+body:has(#fab:not([hidden])) .mestre-ola{bottom:calc(152px + env(safe-area-inset-bottom))}
+.mestre-fig{position:relative;width:121px;height:200px;margin:4px auto 10px;animation:mestreFlutua 4s ease-in-out infinite}
+.mestre-fig img{position:absolute;inset:0;width:100%;height:100%}
+.mestre-fig .mao{transform-origin:10.5% 43%;animation:mestreMao 2.8s ease-in-out infinite}
+@keyframes mestreFlutua{0%,100%{transform:translateY(0)}50%{transform:translateY(-6px)}}
+@keyframes mestreMao{0%,55%,100%{transform:rotate(0)}10%{transform:rotate(-14deg)}20%{transform:rotate(10deg)}30%{transform:rotate(-12deg)}40%{transform:rotate(8deg)}}
+.mestre-h .mestre-av{transition:box-shadow .2s}
+.mestre-h.pensando .mestre-av{animation:mestrePensa 1.2s ease-in-out infinite}
+@keyframes mestrePensa{0%,100%{box-shadow:0 0 0 2px rgba(255,255,255,.95)}50%{box-shadow:0 0 0 5px rgba(242,184,75,.85)}}
+@media (prefers-reduced-motion:reduce){.mestre-btn .mestre-av,.mestre-btn:hover .mestre-av,.mestre-fig,.mestre-fig .mao,.mestre-h.pensando .mestre-av,.mestre-ola{animation:none}}

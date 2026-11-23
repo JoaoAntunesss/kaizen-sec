@@ -992,7 +992,7 @@ $("przIni").value = hoje(); calcularPrazo();
 const MODELOS_TEXTO = ["openai/gpt-oss-120b", "llama-3.3-70b-versatile", "moonshotai/kimi-k2-instruct", "openai/gpt-oss-20b", "llama-3.1-8b-instant"];
 const CHAT_MAX_CONV = 40, CHAT_MAX_MSG = 60;
 const COL_CHAT = "kaizen_chat";
-let chatConvs = [], chatAtual = null, chatOcupado = false, chatConfirmado = false, chatSub = null, chatSubUid = "";
+let chatConvs = [], chatAtual = null, chatOcupado = false, chatSub = null, chatSubUid = "";
 const chatRef = (id) => fb.D.ref(fb.db, `${COL_CHAT}/${est.user.uid}${id ? "/" + id : ""}`);
 function chatLer() {
   // Subscreve só o histórico da conta com sessão iniciada (sincroniza entre computador e telemóvel).
@@ -1039,14 +1039,12 @@ Regras:
 - Sê claro e direto; usa listas curtas quando ajudar.
 - Em ofícios usa fórmulas da administração pública portuguesa (Exmo.(a) Senhor(a), V. Ex.ª, Com os melhores cumprimentos) e deixa campos a preencher entre [ ].
 - Nunca inventes artigos, prazos ou números de processo. Se não tiveres certeza, di-lo e recomenda confirmar no texto da lei ou com os serviços jurídicos.
-- Não peças nem repitas dados pessoais. Se o utilizador escrever dados pessoais, lembra-o de os substituir por [Nome], [Morada], etc.
+- Usa os dados que o utilizador fornecer apenas para a tarefa pedida; não peças dados pessoais que não sejam necessários.
 - A informação de referência abaixo é a que a Secretaria usa; dá-lhe prioridade (verificada a 23/11/2026).
 
 INFORMAÇÃO DE REFERÊNCIA:
 ${contextoTrabalho()}`;
 }
-const DADOS_PESSOAIS = [/\b\d{9}\b/, /\b[\w.+-]+@[\w-]+\.[\w.]+\b/, /\b[A-Z]{2}-\d{2}-[A-Z]{2}\b|\b\d{2}-[A-Z]{2}-\d{2}\b|\b\d{2}-\d{2}-[A-Z]{2}\b|\b[A-Z]{2}-\d{2}-\d{2}\b/i, /\b\d{4}-\d{3}\b/];
-const pareceDados = (t) => DADOS_PESSOAIS.some((r) => r.test(t));
 function fmtResposta(t) {
   const linhas = esc(t).replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>").split("\n");
   let html = "", lista = false;
@@ -1072,7 +1070,7 @@ function desenharChat() {
       <button type="button" class="hist-x" data-conv-rm="${esc(x.id)}" aria-label="Apagar conversa">Apagar</button></div>`).join("")
     : `<p class="empty small">Sem conversas guardadas.</p>`;
   $("chatSug").innerHTML = msgs.length ? "" : [
-    ["Redigir ofício", "Redige um ofício de resposta ao munícipe a partir destas notas (sem dados pessoais):\n"],
+    ["Redigir ofício", "Redige um ofício de resposta ao munícipe a partir destas notas:\n"],
     ["Rever um texto", "Revê este texto, corrige o português e torna-o mais claro e profissional:\n"],
     ["Que prazo se aplica?", "Que prazo se aplica nesta situação e como se conta? Situação: "],
     ["Passo seguinte (indemnização)", "Num pedido de indemnização, qual é o passo seguinte e que ofício devo usar? Situação: "],
@@ -1089,11 +1087,6 @@ async function enviarChat() {
   const txt = $("chatTxt").value.trim(), st = $("chatStatus");
   if (!txt || chatOcupado) return;
   if (semChave()) { st.textContent = "O MESTRE ainda não está configurado (falta a chave do Groq)."; st.className = "status err"; return; }
-  if (pareceDados(txt) && !chatConfirmado) {
-    st.innerHTML = 'O texto parece ter dados pessoais (NIF, e-mail, matrícula ou código postal). Substitua-os por [ ] ou <button type="button" class="btn small ghost" id="btnChatMesmoAssim">enviar mesmo assim</button>';
-    st.className = "status err"; return;
-  }
-  chatConfirmado = false;
   let c = chatConvs.find((x) => x.id === chatAtual);
   if (!c) { c = { id: "n" + Date.now().toString(36), titulo: txt.slice(0, 60), em: new Date().toISOString(), msgs: [] }; chatConvs.unshift(c); chatAtual = c.id; }
   c.msgs.push({ r: "user", t: txt }); c.msgs.push({ r: "assistant", t: "" });
@@ -1141,7 +1134,6 @@ $("btnMestreConversas").addEventListener("click", () => {
 $("btnChatNova").addEventListener("click", () => { chatAtual = null; $("mestreHist").hidden = true; $("chatStatus").textContent = ""; desenharChat(); $("chatTxt").focus(); });
 $("chatForm").addEventListener("submit", (e) => { e.preventDefault(); enviarChat(); });
 $("chatTxt").addEventListener("keydown", (e) => { if (e.key === "Enter" && !e.shiftKey && !e.isComposing) { e.preventDefault(); enviarChat(); } });
-$("chatStatus").addEventListener("click", (e) => { if (e.target.id === "btnChatMesmoAssim") { chatConfirmado = true; enviarChat(); } });
 $("chatSug").addEventListener("click", (e) => { const b = e.target.closest("[data-sug]"); if (!b) return; $("chatTxt").value = b.dataset.sug; $("chatTxt").focus(); });
 $("chatHist").addEventListener("click", (e) => {
   const rm = e.target.closest("[data-conv-rm]");

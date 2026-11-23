@@ -730,6 +730,34 @@ $("vDiario").addEventListener("click", async (e) => {
   } catch { st.textContent = "Não consegui guardar. Verifique a internet."; st.className = "status err"; b.disabled = false; }
 });
 
+/* ---------------- Legislação: calculadora de prazos (art. 87.º CPA) ---------------- */
+const isoDe = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+function feriados(ano) {
+  // Domingo de Páscoa (algoritmo de Meeus/Jones/Butcher)
+  const a = ano % 19, b = Math.floor(ano / 100), c = ano % 100, d = Math.floor(b / 4), e = b % 4, f = Math.floor((b + 8) / 25), g = Math.floor((b - f + 1) / 3);
+  const h = (19 * a + b - d - g + 15) % 30, i = Math.floor(c / 4), k = c % 4, l = (32 + 2 * e + 2 * i - h - k) % 7, m = Math.floor((a + 11 * h + 22 * l) / 451);
+  const mes = Math.floor((h + l - 7 * m + 114) / 31), dia = ((h + l - 7 * m + 114) % 31) + 1;
+  const pascoa = new Date(ano, mes - 1, dia, 12);
+  const desl = (n) => { const x = new Date(pascoa); x.setDate(x.getDate() + n); return isoDe(x); };
+  return new Set([`${ano}-01-01`, desl(-2), desl(0), `${ano}-04-25`, `${ano}-05-01`, desl(60), `${ano}-06-10`, `${ano}-08-15`,
+    `${ano}-10-05`, `${ano}-11-01`, `${ano}-12-01`, `${ano}-12-08`, `${ano}-12-25`]);
+}
+const FER = {};
+const eUtil = (d) => { const y = d.getFullYear(); FER[y] = FER[y] || feriados(y); return d.getDay() !== 0 && d.getDay() !== 6 && !FER[y].has(isoDe(d)); };
+function calcularPrazo() {
+  const ini = $("przIni").value, n = Math.min(365, Math.max(1, parseInt($("przN").value, 10) || 0)), tipo = $("przTipo").value;
+  if (!isoData(ini) || !n) { $("przRes").textContent = ""; return; }
+  const d = new Date(ini + "T12:00:00");
+  if (tipo === "uteis") { let c = 0; while (c < n) { d.setDate(d.getDate() + 1); if (eUtil(d)) c++; } }
+  else { d.setDate(d.getDate() + n); while (!eUtil(d)) d.setDate(d.getDate() + 1); }
+  const fim = isoDe(d), dif = Math.round((new Date(fim + "T12:00:00") - new Date(hoje() + "T12:00:00")) / 864e5);
+  const dias = d.toLocaleDateString("pt-PT", { weekday: "long" });
+  $("przRes").innerHTML = `Termina a <strong>${esc(fmt(fim))}</strong> (${esc(dias)})` +
+    (dif < 0 ? ` · <span class="late-t">já passou há ${-dif} dia${dif === -1 ? "" : "s"}</span>` : dif === 0 ? " · <strong>termina hoje</strong>" : ` · faltam ${dif} dia${dif === 1 ? "" : "s"}`);
+}
+["przIni", "przN", "przTipo"].forEach((id) => $(id).addEventListener("input", calcularPrazo));
+$("przIni").value = hoje(); calcularPrazo();
+
 /* ---------------- Reclamações (Power BI) ---------------- */
 // O painel só é carregado quando se abre esta aba, para não pesar no arranque da app.
 if (!POWERBI_URL) $("btnPowerBI").hidden = true;

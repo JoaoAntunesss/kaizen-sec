@@ -211,6 +211,67 @@
         <div class="urg-list" id="urgFeitos"></div>
       </details>
     </div>
+    <div class="panel leg">
+      <div class="panel-head"><h2>Legislação de apoio</h2><span class="sub">Guia rápido para o trabalho administrativo · verificado a 23/11/2026</span></div>
+
+      <details class="leg-sec" open>
+        <summary>Calcular um prazo</summary>
+        <div class="prz">
+          <label class="f">Data do facto (receção, notificação…)<input type="date" id="przIni"></label>
+          <label class="f">Prazo<input type="number" id="przN" min="1" max="365" value="10"></label>
+          <label class="f">Contagem<select id="przTipo"><option value="uteis">Dias úteis (CPA)</option><option value="seguidos">Dias seguidos</option></select></label>
+          <p class="prz-res" id="przRes" aria-live="polite"></p>
+        </div>
+        <p class="muted small">Regras do art. 87.º do CPA: não conta o dia do facto; o prazo suspende-se aos sábados, domingos e feriados; se terminar num dia em que o serviço está fechado, passa para o dia útil seguinte. Contam os feriados nacionais; o feriado municipal e as tolerâncias de ponto não estão incluídos.</p>
+      </details>
+
+      <details class="leg-sec">
+        <summary>CPA — prazos e regras do dia a dia</summary>
+        <p class="muted small">Código do Procedimento Administrativo (DL n.º 4/2015), com as alterações da Lei n.º 72/2020 e do DL n.º 11/2023.</p>
+        <table class="leg-t">
+          <thead><tr><th>Situação</th><th>Prazo / regra</th><th>Artigo</th></tr></thead>
+          <tbody>
+            <tr><td>Dever de decidir</td><td>Os órgãos têm o dever de se pronunciar sobre os assuntos que os particulares lhes apresentem</td><td>13.º</td></tr>
+            <tr><td>Prazo geral (quando a lei não fixa outro)</td><td><strong>10 dias úteis</strong></td><td>86.º</td></tr>
+            <tr><td>Contagem dos prazos</td><td>Não conta o dia do facto; suspende aos sábados, domingos e feriados</td><td>87.º</td></tr>
+            <tr><td>Pedido de informação sobre o andamento do processo</td><td>Responder em <strong>10 dias</strong></td><td>82.º</td></tr>
+            <tr><td>Audiência prévia dos interessados</td><td>Prazo para se pronunciarem: <strong>não inferior a 10 dias úteis</strong></td><td>121.º–122.º</td></tr>
+            <tr><td>Decisão de procedimento a pedido do particular</td><td><strong>90 dias úteis</strong>, salvo prazo especial</td><td>128.º</td></tr>
+            <tr><td>Notificação por carta registada</td><td>Presume-se feita no <strong>3.º dia útil</strong> após o registo</td><td>113.º, n.º 1</td></tr>
+            <tr><td>Notificação por e-mail</td><td>Feita quando o destinatário abre o e-mail; se não abrir, no <strong>5.º dia útil</strong> após o envio</td><td>113.º, n.os 5–6</td></tr>
+            <tr><td>O que a notificação tem de dizer</td><td>Texto da decisão, autor e data, e o órgão e prazo para reclamar ou recorrer</td><td>114.º</td></tr>
+            <tr><td>Reclamação de um ato</td><td>Apresentar em <strong>15 dias</strong>; decidir em <strong>30 dias</strong></td><td>191.º–192.º</td></tr>
+            <tr><td>Recurso hierárquico</td><td>Apresentar em <strong>30 dias</strong>; decidir em <strong>30 dias</strong></td><td>193.º e 198.º</td></tr>
+          </tbody>
+        </table>
+      </details>
+
+      <details class="leg-sec">
+        <summary>RGPD — proteção de dados no trabalho administrativo</summary>
+        <p class="muted small">Regulamento (UE) 2016/679 e Lei n.º 58/2019 (execução em Portugal). As alterações ao RGPD propostas pela UE no «Digital Omnibus» ainda estão em negociação e não estão em vigor.</p>
+        <ul class="leg-l">
+          <li><strong>Antes de enviar um ofício ou e-mail:</strong> confirmar o nome, a morada ou o e-mail do destinatário com o processo, sem copiar de outro Edoc.</li>
+          <li><strong>Só os dados necessários</strong> (minimização, art. 5.º): não pôr dados de outras pessoas, NIF ou contactos que não façam falta no ofício, nos anexos ou nas notas do Edoc.</li>
+          <li><strong>E-mails para várias pessoas:</strong> usar Bcc (Cc oculto) quando os destinatários não se conhecem.</li>
+          <li><strong>Anexos:</strong> ver se as fotos ou documentos anexados mostram dados de terceiros (matrículas, rostos, moradas).</li>
+          <li><strong>Base legal:</strong> a Câmara trata os dados para exercer funções de interesse público (art. 6.º, n.º 1, al. e)), não precisa de consentimento para isso.</li>
+          <li><strong>Pedido do titular</strong> (acesso, retificação, apagamento): responder em <strong>1 mês</strong>, prorrogável por mais 2 meses se for complexo (art. 12.º, n.º 3). Encaminhar para o Encarregado de Proteção de Dados (EPD) da Câmara.</li>
+          <li><strong>Erro com dados</strong> (e-mail ou carta para a pessoa errada, documento perdido): avisar <strong>logo</strong> a chefia e o EPD. A Câmara tem <strong>72 horas</strong> para notificar a CNPD (art. 33.º).</li>
+          <li><strong>Notas do Edoc:</strong> escrever só o necessário para o processo; não registar opiniões pessoais sobre o munícipe.</li>
+        </ul>
+      </details>
+
+      <details class="leg-sec">
+        <summary>Reclamações e acesso a documentos</summary>
+        <ul class="leg-l">
+          <li><strong>Livro de Reclamações na Administração Pública:</strong> regime próprio dos arts. 38.º e 39.º do DL n.º 135/99 (não o DL n.º 156/2005); o modelo para as autarquias é o da Portaria n.º 659/2006. A meta Kaizen da Secretaria para responder é de <strong>15 dias</strong>.</li>
+          <li><strong>Pedido de cópia ou consulta de documentos</strong> (LADA, Lei n.º 26/2016): responder em <strong>10 dias úteis</strong>; documentos com dados de terceiros podem precisar de expurgo.</li>
+          <li><strong>Insistências:</strong> associar ao processo original no Edoc e responder com o ponto de situação, mesmo que ainda não haja solução.</li>
+        </ul>
+      </details>
+
+      <p class="muted small leg-links">Textos oficiais: <a href="https://diariodarepublica.pt/dr/detalhe/decreto-lei/4-2015-66041468" target="_blank" rel="noopener">CPA no Diário da República</a> · <a href="https://eur-lex.europa.eu/legal-content/PT/TXT/?uri=CELEX:32016R0679" target="_blank" rel="noopener">RGPD (EUR-Lex)</a> · <a href="https://www.cnpd.pt" target="_blank" rel="noopener">CNPD</a>. Este guia é um resumo de apoio e não substitui o texto da lei nem o parecer dos serviços jurídicos.</p>
+    </div>
   </section>
 
   <!-- Reclamações (Power BI) -->

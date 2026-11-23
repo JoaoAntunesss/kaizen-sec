@@ -472,3 +472,6 @@ body:has(#fab:not([hidden])) .mestre-ola{bottom:calc(152px + env(safe-area-inset
 .acao{display:flex;flex-direction:column;gap:6px;border:1px solid var(--accent);border-radius:10px;padding:10px;background:var(--accent-soft);font-size:13px;max-width:100%}
 .acao input{min-height:34px}
 .acao .btn{align-self:flex-start}
+.mod-tabs{flex-direction:column;gap:8px}
+.mod-g{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.mod-gt{font-size:12px;font-weight:700;color:var(--muted);min-width:110px}

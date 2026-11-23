@@ -1,4 +1,5 @@
 import { GROQ_API_KEY, FIREBASE_CONFIG, COL_REUNIOES, COL_FOTOS, EQUIPA as EQUIPA_INICIAL, POWERBI_URL, MAPAS } from "./config.js";
+import { MODELOS_OFICIO, modelosRelevantes } from "./modelos-oficio.js";
 const COL_EQUIPA = "kaizen_equipa";
 const COL_URGENTES = "kaizen_urgentes";
 const COL_MAPAS = "kaizen_mapas";
@@ -886,51 +887,19 @@ navigator.serviceWorker?.addEventListener("message", (e) => { if (e.data && e.da
 desenharNotif();
 
 /* ---------------- Ferramentas: modelos de resposta e verificação de ofícios ---------------- */
-const MODELOS = [
-  ["Ponto de situação", `Exmo.(a) Senhor(a) [Nome do requerente],
-
-Na sequência da exposição apresentada por V. Ex.ª em [data], registada com a referência [n.º do Edoc], relativa a [assunto] em [local], informamos que a situação se encontra em tratamento pelos serviços municipais competentes.
-
-Neste momento, [descrever o passo em curso: ex.: aguarda a execução dos trabalhos / está em análise técnica], prevendo-se [próximo passo ou data prevista, se conhecida].
-
-Logo que a intervenção esteja concluída, daremos conhecimento a V. Ex.ª.
-
-Com os melhores cumprimentos,`],
-  ["Serviço executado", `Exmo.(a) Senhor(a) [Nome do requerente],
-
-Na sequência da exposição apresentada por V. Ex.ª em [data], registada com a referência [n.º do Edoc], informamos que a intervenção de [descrição dos trabalhos] em [local] foi concluída em [data de conclusão].
-
-Agradecemos a colaboração de V. Ex.ª na identificação da situação.
-
-Com os melhores cumprimentos,`],
-  ["Depende de entidade externa", `Exmo.(a) Senhor(a) [Nome do requerente],
-
-Na sequência da exposição apresentada por V. Ex.ª em [data], registada com a referência [n.º do Edoc], relativa a [assunto] em [local], informamos que a resolução da situação é da responsabilidade de [entidade: ex.: E-Redes / Indaqua / concessionário], a quem o Município solicitou a intervenção em [data do pedido].
-
-O Município continuará a acompanhar o assunto junto dessa entidade.
-
-Com os melhores cumprimentos,`],
-  ["Insistência (já em tratamento)", `Exmo.(a) Senhor(a) [Nome do requerente],
-
-Em resposta à comunicação de V. Ex.ª de [data], registada com a referência [n.º do Edoc], informamos que o assunto está a ser tratado no âmbito do processo [n.º do processo original], apresentado em [data do pedido original].
-
-Ponto de situação: [descrever o estado atual e o próximo passo].
-
-Com os melhores cumprimentos,`],
-  ["Fora da competência municipal", `Exmo.(a) Senhor(a) [Nome do requerente],
-
-Na sequência da exposição apresentada por V. Ex.ª em [data], registada com a referência [n.º do Edoc], informamos que a situação descrita em [local] respeita a [propriedade privada / entidade responsável], pelo que a sua resolução não compete ao Município de Matosinhos.
-
-Sugerimos que o assunto seja apresentado a [entidade e contacto, se conhecido].
-
-Com os melhores cumprimentos,`],
-];
+const MODELOS = MODELOS_OFICIO.map((m) => [m.t, m.x, m.g]);
 let modAtual = 0;
 function desenharModelos() {
-  $("modTabs").innerHTML = MODELOS.map(([t], i) => `<button type="button" class="fchip${i === modAtual ? " on" : ""}" data-mod="${i}" aria-pressed="${i === modAtual}">${esc(t)}</button>`).join("");
+  const grupos = [...new Set(MODELOS.map((m) => m[2]))];
+  $("modTabs").innerHTML = grupos.map((g) => `<div class="mod-g"><span class="mod-gt">${esc(g)}</span>${MODELOS.map(([t, , gg], i) => gg !== g ? "" : `<button type="button" class="fchip${i === modAtual ? " on" : ""}" data-mod="${i}" aria-pressed="${i === modAtual}">${esc(t)}</button>`).join("")}</div>`).join("");
   $("modTexto").value = MODELOS[modAtual][1]; $("modStatus").textContent = "";
 }
 $("modTabs").addEventListener("click", (e) => { const b = e.target.closest("[data-mod]"); if (!b) return; modAtual = +b.dataset.mod; desenharModelos(); });
+$("btnModWord").addEventListener("click", async () => {
+  const st = $("modStatus");
+  try { await passarAWord($("modTexto").value); st.textContent = "Word descarregado: reveja os campos entre [ ]."; st.className = "status"; }
+  catch { st.textContent = "Não consegui gerar o Word."; st.className = "status err"; }
+});
 $("btnModCopiar").addEventListener("click", async () => {
   const st = $("modStatus");
   try { await navigator.clipboard.writeText($("modTexto").value); st.textContent = "Texto copiado."; st.className = "status"; }
@@ -1028,8 +997,8 @@ async function modeloTexto() {
 function contextoTrabalho() {
   // Usa o texto da Legislação de apoio e dos modelos que estão na própria app (fonte única).
   const leg = [...document.querySelectorAll("#vDiario .leg-sec")].filter((d) => !d.querySelector("#przIni")).map((d) => d.innerText.replace(/\s+\n/g, "\n").trim()).join("\n\n");
-  const mods = MODELOS.map(([t, x]) => `Modelo «${t}»:\n${x}`).join("\n\n");
-  return `${leg}\n\nMODELOS DE RESPOSTA AO MUNÍCIPE USADOS PELA SECRETARIA:\n${mods}`.slice(0, 9000);
+  const mods = MODELOS_OFICIO.map((m) => `- ${m.g}: ${m.t}`).join("\n");
+  return `${leg.slice(0, 7000)}\n\nMODELOS DE OFÍCIO DA SECRETARIA (o utilizador pode pedir qualquer um):\n${mods}`;
 }
 function dadosApp() {
   const L = [];
@@ -1049,13 +1018,21 @@ function dadosApp() {
   L.push(`Mapas Excel partilhados (só os nomes; o MESTRE não abre os ficheiros): ${[...(MAPAS || []), ...est.mapas].map((m) => m.nome).join("; ")}.`);
   return L.join("\n").slice(0, 5000);
 }
-function promptSistema() {
+function promptSistema(pedido = "") {
   return `Chamas-te MESTRE e és o assistente da Secretaria da Subunidade Orgânica da Conservação (Departamento de Conservação) da Câmara Municipal de Matosinhos.
 Ajudas a equipa no trabalho administrativo: redigir e rever ofícios e respostas a munícipes, resumir textos, explicar prazos e passos do procedimento (CPA), proteção de dados (RGPD), pedidos de indemnização e documentos de empreitadas (CCP).
 Regras:
 - Escreve sempre em português de Portugal (norma europeia), em tom profissional e sóbrio. Nunca uses emojis.
 - Sê claro e direto; usa listas curtas quando ajudar.
-- Em ofícios usa fórmulas da administração pública portuguesa (Exmo.(a) Senhor(a), V. Ex.ª, Com os melhores cumprimentos) e deixa campos a preencher entre [ ].
+- Ofícios: segue o estilo da Secretaria. Quando redigires um ofício, começa SEMPRE com estas três linhas (uma por linha) e depois o corpo:
+  Destinatário: EXMO. SENHOR | [Nome ou cargo] | [Entidade, se houver] | [E-mail ou morada]
+  Referência: [OD/AAAA/NNNNN]
+  Assunto: [assunto curto]
+  (use EXMA. SENHORA quando for uma senhora; para entidades, o cargo, ex.: «Presidente do Conselho de Administração», e o nome da entidade)
+- Corpo do ofício, sem saudação inicial (o destinatário já vai no cabeçalho): começa com «Reportando-me ao assunto identificado em epígrafe, registado nesta Câmara Municipal sob o n.º de submissão [AAAA-CMM-NNNNN], cumpre informar V. Ex.ª, em cumprimento do despacho da Senhora Chefe da Divisão de Conservação do Espaço Público e Sistema Pluvial, que …» (ou «Em resposta ao assunto identificado em epígrafe…» / «Na sequência da reclamação apresentada…»). Parágrafos curtos e objetivos, linguagem técnica clara.
+- A munícipes, termina com «Sem outro assunto de momento, permanece esta Câmara Municipal à disposição de V. Ex.ª para quaisquer esclarecimentos adicionais que se revelem necessários.» e «Com os melhores cumprimentos,».
+- A entidades externas (Indaqua, MatosinhosHabit, empresas) trata por «V. Exas.», pede «com a maior brevidade possível» o que for preciso, e termina com «Solicita-se que na resposta à presente comunicação seja identificada a nossa refª [referência].» e «Com os melhores cumprimentos,». Notificações com prazo: indica o prazo por extenso, ex.: «no prazo de 10 (dez) dias úteis, contados da data da presente notificação».
+- Não escrevas a assinatura (A Coordenadora Técnica, Departamento de Conservação, subdelegação): o modelo Word já a tem. Deixa entre [ ] o que não souberes.
 - Nunca inventes artigos, prazos ou números de processo. Se não tiveres certeza, di-lo e recomenda confirmar no texto da lei ou com os serviços jurídicos.
 - Usa os dados que o utilizador fornecer apenas para a tarefa pedida; não peças dados pessoais que não sejam necessários.
 - A informação de referência abaixo é a que a Secretaria usa; dá-lhe prioridade (verificada a 23/11/2026).
@@ -1069,7 +1046,7 @@ INFORMAÇÃO DE REFERÊNCIA:
 ${contextoTrabalho()}
 
 DADOS DA APP (hoje: ${fmt(hoje())}; utilizador: ${euNome() || quem() || "desconhecido"}):
-${dadosApp()}`;
+${dadosApp()}${(() => { const r = modelosRelevantes(pedido); return r.length ? `\n\nMODELO(S) DA SECRETARIA MAIS ADEQUADO(S) A ESTE PEDIDO (segue a estrutura e as fórmulas; adapta ao caso e mantém [ ] no que não souberes):\n${r.map((m) => `«${m.t}»:\n${m.x}`).join("\n\n")}` : ""; })()}`;
 }
 function fmtResposta(t) {
   const linhas = esc(t).replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>").split("\n");
@@ -1221,7 +1198,7 @@ async function enviarChat() {
     if (comImg) { const u = hist[hist.length - 1]; u.content = [{ type: "text", text: u.content }, ...anexo.imgs.map((url) => ({ type: "image_url", image_url: { url } }))]; }
     const r = await fetch("https://api.groq.com/openai/v1/chat/completions", {
       method: "POST", headers: { "Content-Type": "application/json", Authorization: "Bearer " + GROQ_API_KEY },
-      body: JSON.stringify({ model: comImg ? await escolherModelo() : await modeloTexto(), temperature: 0.3, stream: true, messages: [{ role: "system", content: promptSistema() }, ...hist] }),
+      body: JSON.stringify({ model: comImg ? await escolherModelo() : await modeloTexto(), temperature: 0.3, stream: true, messages: [{ role: "system", content: promptSistema(c.msgs.slice(-4).map((m) => m.t + " " + (m.doc || "").slice(0, 3000)).join(" ")) }, ...hist] }),
     });
     if (!r.ok || !r.body) throw new Error("groq " + r.status);
     const leitor = r.body.getReader(), dec = new TextDecoder(); let buf = "", ultimo = 0;
@@ -1294,44 +1271,46 @@ $("chatMsgs").addEventListener("submit", async (e) => {
     m.feito = true; await chatGravar(c); desenharChat(); st.textContent = `${edoc} adicionado aos Edocs urgentes.`; st.className = "status";
   } catch { st.textContent = "Não consegui guardar. Verifique a internet."; st.className = "status err"; }
 });
-let docxPronto = null;
-function carregarDocx() {
-  if (window.docx) return Promise.resolve(window.docx);
-  return docxPronto ||= new Promise((ok, ko) => { const s = document.createElement("script"); s.src = "vendor/docx.iife.js"; s.onload = () => ok(window.docx); s.onerror = ko; document.head.appendChild(s); });
+/* Passar a Word: usa o modelo de ofício da Secretaria (vendor/modelo-oficio.docx), com os campos {{...}} preenchidos. */
+const xmlEsc = (s) => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+const iniciais = (n) => String(n || "").split(/\s+/).filter((p) => p && !/^(d[aeo]s?|e)$/i.test(p)).map((p) => p[0].toUpperCase()).filter((c, k, l) => k === 0 || k === l.length - 1).join("") || "[iniciais]";
+function partesOficio(texto) {
+  const r = { trat: "EXMO.(A) SENHOR(A)", dest: ["[Nome do destinatário]", "[E-mail ou morada]"], ref: "[Referência]", assunto: "[Assunto]", corpo: [] };
+  const fecho = /^(com os melhores cumprimentos|a coordenadora|o coordenador|departamento de conservação|cd\/|\(\*\)|pede-se o favor)/i;
+  for (const l0 of String(texto).replace(/\*\*/g, "").split("\n")) {
+    const l = l0.trim(); if (!l) continue;
+    let m;
+    if ((m = l.match(/^destinat[aá]rio\s*:\s*(.+)$/i))) { const p = m[1].split("|").map((x) => x.trim()).filter(Boolean); if (p.length) { if (/^exm[oa]/i.test(p[0])) r.trat = p.shift().toUpperCase(); if (p.length) r.dest = p; } continue; }
+    if ((m = l.match(/^(?:nossa\s+)?refer[eê]ncia\s*:\s*(.+)$/i))) { r.ref = m[1]; continue; }
+    if ((m = l.match(/^assunto\s*:\s*(.+)$/i))) { r.assunto = m[1]; continue; }
+    if (fecho.test(l)) continue;
+    if (!r.corpo.length && /^exm[oa]\.?/i.test(l)) continue; // saudação: no modelo o destinatário vai no cabeçalho
+    r.corpo.push(l.replace(/^\s*(?:[-*•])\s+/, "- ").replace(/^#{1,4}\s*/, ""));
+  }
+  return r;
+}
+function trocarParagrafo(xml, marca, linhas) {
+  const i = xml.indexOf(marca); if (i < 0) return xml;
+  const a = xml.lastIndexOf("<w:p ", i), b = xml.indexOf("</w:p>", i) + 6;
+  const p = xml.slice(a, b);
+  return xml.slice(0, a) + linhas.map((t) => p.replace(marca, xmlEsc(t))).join("") + xml.slice(b);
 }
 async function passarAWord(texto) {
-  const D = await carregarDocx();
-  const logo = new Uint8Array(await (await fetch("icons/logo-matosinhos.png")).arrayBuffer());
-  const F = "Arial", run = (t, o = {}) => new D.TextRun({ text: t, font: F, size: 22, ...o });
-  const linhaRich = (l) => l.split(/(\*\*[^*]+\*\*)/).filter(Boolean).map((x) => x.startsWith("**") ? run(x.slice(2, -2), { bold: true }) : run(x));
-  const corpo = [];
-  for (const l of String(texto).split("\n")) {
-    const li = l.match(/^\s*(?:[-*•]|\d+[.)])\s+(.*)$/);
-    if (li) corpo.push(new D.Paragraph({ children: linhaRich(li[1]), bullet: { level: 0 }, spacing: { after: 60 } }));
-    else if (l.trim()) corpo.push(new D.Paragraph({ children: linhaRich(l.replace(/^#{1,4}\s*/, "")), alignment: D.AlignmentType.JUSTIFIED, spacing: { after: 160, line: 300 } }));
-  }
-  const doc = new D.Document({
-    creator: euNome() || "Secretaria", title: "Ofício",
-    styles: { default: { document: { run: { font: F, size: 22 } } } },
-    sections: [{
-      properties: { page: { size: { width: 11906, height: 16838 }, margin: { top: 1900, bottom: 1300, left: 1500, right: 1300, header: 600, footer: 500 } } },
-      headers: { default: new D.Header({ children: [
-        new D.Paragraph({ children: [new D.ImageRun({ type: "png", data: logo, transformation: { width: 170, height: 30 } })] }),
-        new D.Paragraph({ spacing: { before: 80 }, border: { bottom: { style: D.BorderStyle.SINGLE, size: 6, color: "1F4E79", space: 4 } },
-          children: [run("Departamento de Conservação · Subunidade Orgânica da Conservação — Secretaria", { size: 16, color: "595959" })] }),
-      ] }) },
-      footers: { default: new D.Footer({ children: [new D.Paragraph({ alignment: D.AlignmentType.CENTER, children: [run("Câmara Municipal de Matosinhos", { size: 16, color: "7F7F7F" })] })] }) },
-      children: [
-        new D.Paragraph({ alignment: D.AlignmentType.RIGHT, spacing: { after: 240 }, children: [run(`Matosinhos, ${new Date().toLocaleDateString("pt-PT", { day: "numeric", month: "long", year: "numeric" })}`)] }),
-        new D.Paragraph({ spacing: { after: 240 }, children: [run("Assunto: ", { bold: true }), run("[Assunto]")] }),
-        ...corpo,
-        new D.Paragraph({ spacing: { before: 600 }, children: [run("[Nome e cargo de quem assina]", { color: "7F7F7F" })] }),
-      ],
-    }],
-  });
-  const blob = await D.Packer.toBlob(doc);
-  const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = `Oficio_${new Date().toISOString().slice(0, 10)}.docx`; a.click();
-  setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+  if (!window.JSZip) throw new Error("sem JSZip");
+  const zip = await JSZip.loadAsync(await (await fetch("vendor/modelo-oficio.docx")).arrayBuffer());
+  let x = await zip.file("word/document.xml").async("string");
+  const o = partesOficio(texto);
+  const dest = o.dest.length > 1 ? o.dest : [o.dest[0], ""];
+  x = trocarParagrafo(x, "{{DEST1}}", dest.slice(0, -1));
+  x = x.replace("{{DEST2}}", xmlEsc(dest[dest.length - 1]));
+  x = x.replace("{{TRAT}}", xmlEsc(o.trat)).replace("{{REF}}", xmlEsc(o.ref)).replace("{{DATA}}", xmlEsc(new Date().toLocaleDateString("pt-PT")))
+    .replace("{{ASSUNTO}}", xmlEsc(o.assunto)).replace("{{INI}}", xmlEsc(iniciais(euNome())));
+  x = trocarParagrafo(x, "{{CORPO}}", o.corpo.length ? o.corpo : ["[Texto do ofício]"]);
+  zip.file("word/document.xml", x);
+  const blob = await zip.generateAsync({ type: "blob", mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document" });
+  const nome = `Oficio_${(o.ref.match(/[A-Z_]+\/\d{4}\/\d+/) || [new Date().toISOString().slice(0, 10)])[0].replace(/\//g, "-")}.docx`;
+  const el = document.createElement("a"); el.href = URL.createObjectURL(blob); el.download = nome; el.click();
+  setTimeout(() => URL.revokeObjectURL(el.href), 5000);
 }
 $("chatMsgs").addEventListener("click", async (e) => {
   const w = e.target.closest("[data-word]");

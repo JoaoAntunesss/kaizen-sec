@@ -772,7 +772,7 @@ $("vDiario").addEventListener("click", async (e) => {
   if (acao === "apagar" && b.dataset.ok !== "1") { b.dataset.ok = "1"; b.textContent = "Confirmar apagar"; setTimeout(() => { b.dataset.ok = ""; b.textContent = "Apagar"; }, 4000); return; }
   b.disabled = true;
   try {
-    if (acao === "tratado") await fb.D.update(ref, { tratado: true, tratadoPor: quem(), tratadoEm: new Date().toISOString() });
+    if (acao === "tratado") await fb.D.update(ref, { tratado: true, tratadoPor: euNome() || quem(), tratadoEm: new Date().toISOString() });
     else if (acao === "desfazer") await fb.D.update(ref, { tratado: false, tratadoPor: null, tratadoEm: null });
     else if (acao === "apagar") await fb.D.remove(ref);
   } catch { st.textContent = "Não consegui guardar. Verifique a internet."; st.className = "status err"; b.disabled = false; }
@@ -781,7 +781,7 @@ $("vDiario").addEventListener("click", async (e) => {
 /* ---------------- Notificações (neste computador) ---------------- */
 const NOTIF_KEY = "kz-notif";
 let abrirPendente = new URLSearchParams(location.search).get("abrir") === "diario";
-let notifPref = { assinar: false, muito: false };
+let notifPref = { assinar: false, muito: false, meu: false };
 try { notifPref = { ...notifPref, ...JSON.parse(localStorage.getItem(NOTIF_KEY) || "{}") }; } catch {}
 let avisosVistos = null; // estado anterior de cada Edoc: "situação|tratado|prio"
 const euNome = () => { try { return localStorage.getItem("kz-urg-por") || ""; } catch { return ""; } };
@@ -799,8 +799,13 @@ function verificarAvisos(lista) {
   if (avisosVistos === null) { avisosVistos = agora; return; } // primeira leitura: não avisar do que já existia
   const eu = euNome();
   lista.forEach((u) => {
-    if (u.tratado) return;
     const antes = avisosVistos[u.id];
+    if (u.tratado) {
+      const tratadoAntes = antes && antes.split("|")[1] === "1";
+      if (notifPref.meu && antes && !tratadoAntes && eu && u.criadoPor === eu && u.tratadoPor !== eu)
+        avisar("✓ O seu Edoc foi tratado", `${u.edoc}${u.assunto ? " — " + u.assunto : ""}${u.tratadoPor ? " · por " + u.tratadoPor : ""}`, "");
+      return;
+    }
     const [sitAntes] = (antes || "").split("|");
     const autor = antes ? (u.situacaoPor || "") : (u.criadoPor || "");
     if (eu && autor === eu) return;
@@ -818,24 +823,25 @@ function abrirDiario(filtro) {
 }
 function desenharNotif() {
   const sup = "Notification" in window;
-  $("notifAssinar").checked = !!notifPref.assinar; $("notifMuito").checked = !!notifPref.muito;
+  $("notifAssinar").checked = !!notifPref.assinar; $("notifMuito").checked = !!notifPref.muito; $("notifMeu").checked = !!notifPref.meu;
   const perm = sup ? Notification.permission : "denied";
-  const ligado = (notifPref.assinar || notifPref.muito) && perm === "granted";
+  const ligado = (notifPref.assinar || notifPref.muito || notifPref.meu) && perm === "granted";
   $("notifEst").textContent = !sup ? "(este browser não suporta)" : perm === "denied" ? "(bloqueadas no browser)" : ligado ? "(ligadas)" : "(desligadas)";
   $("notifEst").className = "notif-est" + (ligado ? " on" : "");
 }
 async function mudarNotif() {
-  notifPref = { assinar: $("notifAssinar").checked, muito: $("notifMuito").checked };
-  if ((notifPref.assinar || notifPref.muito) && "Notification" in window && Notification.permission === "default") {
+  notifPref = { assinar: $("notifAssinar").checked, muito: $("notifMuito").checked, meu: $("notifMeu").checked };
+  const algum = notifPref.assinar || notifPref.muito || notifPref.meu;
+  if (algum && "Notification" in window && Notification.permission === "default") {
     try { await Notification.requestPermission(); } catch {}
   }
-  if ("Notification" in window && Notification.permission === "denied" && (notifPref.assinar || notifPref.muito)) {
+  if ("Notification" in window && Notification.permission === "denied" && algum) {
     $("urgStatus").textContent = "As notificações estão bloqueadas: permita-as nas definições do site (cadeado ao lado do endereço)."; $("urgStatus").className = "status err";
   }
   try { localStorage.setItem(NOTIF_KEY, JSON.stringify(notifPref)); } catch {}
   desenharNotif();
 }
-["notifAssinar", "notifMuito"].forEach((id) => $(id).addEventListener("change", mudarNotif));
+["notifAssinar", "notifMuito", "notifMeu"].forEach((id) => $(id).addEventListener("change", mudarNotif));
 $("btnNotifTeste").addEventListener("click", async () => {
   if ("Notification" in window && Notification.permission === "default") { try { await Notification.requestPermission(); } catch {} }
   desenharNotif();

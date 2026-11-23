@@ -515,3 +515,14 @@ body:has(#fab:not([hidden])) .mestre-ola{bottom:calc(152px + env(safe-area-inset
 .regra-ed{display:grid;gap:8px}
 .regra-ed .actions{justify-content:flex-end}
 @media (max-width:560px){.regra{flex-direction:column}}
+
+/* MESTRE em ecrã grande: ocupa quase todo o ecrã, letra e botões maiores */
+.mestre.grande{left:50%;right:auto;top:calc(16px + env(safe-area-inset-top));bottom:calc(16px + env(safe-area-inset-bottom));transform:translateX(-50%);width:min(1000px,calc(100vw - 32px));height:auto;font-size:18px;animation:none}
+.mestre.grande .mestre-h{padding:12px 16px}
+.mestre.grande .mh-b{font-size:15px;padding:8px 14px}
+.mestre.grande #chatMsgs{padding:20px 28px}
+.mestre.grande .bolha{font-size:18px;line-height:1.6;max-width:85%}
+.mestre.grande #chatTxt{font-size:18px;min-height:72px}
+.mestre.grande .btn.small{font-size:15px;padding:8px 14px}
+.mestre.grande .ct-b,.mestre.grande #chatSug button{font-size:15px}
+@media (max-width:640px){.mestre.grande{left:0;transform:none;width:100vw;top:0;bottom:0;border-radius:0;border:0}}

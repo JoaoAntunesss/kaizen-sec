@@ -1700,3 +1700,14 @@ $("btnGuardar").addEventListener("click", async () => {
 });
 
 iniciarFirebase().catch(() => { mostrar("vConfig"); });
+
+/* MESTRE em ecrã grande (fica lembrado neste computador) */
+function mestreGrande(on) {
+  $("mestre").classList.toggle("grande", on);
+  $("btnMestreGrande").setAttribute("aria-pressed", String(on));
+  $("btnMestreGrande").textContent = on ? "Ecrã pequeno" : "Ecrã grande";
+  try { localStorage.setItem("kz-mestre-grande", on ? "1" : ""); } catch {}
+  const m = $("chatMsgs"); m.scrollTop = m.scrollHeight;
+}
+$("btnMestreGrande").addEventListener("click", () => mestreGrande(!$("mestre").classList.contains("grande")));
+try { if (localStorage.getItem("kz-mestre-grande")) mestreGrande(true); } catch {}

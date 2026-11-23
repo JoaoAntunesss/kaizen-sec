@@ -27,7 +27,7 @@ const temFotoDe = (r, k) => !!((r.fotos && r.fotos[k]) || (k === "postits" && r.
 let fb = null;
 
 /* ---------------- Vistas ---------------- */
-const VISTAS = ["vLogin", "vConfig", "vPainel", "vReuniao", "vRegistar", "vImprimir", "vEquipa", "vRelatorio", "vPowerBI", "vDiario", "vMapas"];
+const VISTAS = ["vLogin", "vConfig", "vPainel", "vReuniao", "vRegistar", "vImprimir", "vEquipa", "vRelatorio", "vPowerBI", "vDiario", "vMapas", "vAssistente"];
 function mostrar(v) {
   for (const id of VISTAS) $(id).hidden = id !== v;
   $("fab").hidden = v !== "vPainel";
@@ -62,7 +62,7 @@ async function iniciarFirebase() {
   fb.A.getRedirectResult(fb.auth).catch((e) => { $("loginStatus").textContent = msgErroLogin(e); $("loginStatus").className = "status err"; });
   fb.A.onAuthStateChanged(fb.auth, (u) => {
     est.user = u;
-    if (!u) { mostrar("vLogin"); return; }
+    if (!u) { chatLimparUI(); mostrar("vLogin"); return; }
     if ($("vLogin").hidden === false || $("vConfig").hidden === false || VISTAS.every((v) => $(v).hidden)) mostrar("vPainel");
     subscrever();
   });
@@ -985,6 +985,171 @@ function calcularPrazo() {
 }
 ["przIni", "przN", "przTipo"].forEach((id) => $(id).addEventListener("input", calcularPrazo));
 $("przIni").value = hoje(); calcularPrazo();
+
+/* ---------------- MESTRE: assistente (IA via Groq) ---------------- */
+// Histórico guardado na base de dados por conta Google (kaizen_chat/<uid>): a app só lê e mostra o da própria conta.
+const MODELOS_TEXTO = ["openai/gpt-oss-120b", "llama-3.3-70b-versatile", "moonshotai/kimi-k2-instruct", "openai/gpt-oss-20b", "llama-3.1-8b-instant"];
+const CHAT_MAX_CONV = 40, CHAT_MAX_MSG = 60;
+const COL_CHAT = "kaizen_chat";
+let chatConvs = [], chatAtual = null, chatOcupado = false, chatConfirmado = false, chatSub = null, chatSubUid = "";
+const chatRef = (id) => fb.D.ref(fb.db, `${COL_CHAT}/${est.user.uid}${id ? "/" + id : ""}`);
+function chatLer() {
+  // Subscreve só o histórico da conta com sessão iniciada (sincroniza entre computador e telemóvel).
+  if (!est.user || chatSubUid === est.user.uid) return;
+  if (chatSub) chatSub();
+  chatSubUid = est.user.uid;
+  chatSub = fb.D.onValue(chatRef(), (snap) => {
+    const v = snap.val() || {};
+    chatConvs = Object.entries(v).map(([id, c]) => ({ id, ...c, msgs: Array.isArray(c.msgs) ? c.msgs : Object.values(c.msgs || {}) }))
+      .sort((a, b) => String(b.em).localeCompare(String(a.em)));
+    if (chatOcupado) return; // não interromper a resposta que está a chegar
+    if (chatAtual && !chatConvs.some((x) => x.id === chatAtual) && !chatAtual.startsWith("n")) chatAtual = chatConvs[0]?.id || null;
+    if (!$("vAssistente").hidden) desenharChat();
+  }, () => { $("chatStatus").textContent = "Não consegui ler o histórico."; $("chatStatus").className = "status err"; });
+}
+async function chatGravar(c) {
+  if (!est.user || !c) return;
+  try {
+    await fb.D.set(chatRef(c.id), { titulo: c.titulo || "", em: c.em, msgs: c.msgs.slice(-CHAT_MAX_MSG) });
+    const velhas = chatConvs.slice(CHAT_MAX_CONV);
+    for (const v of velhas) await fb.D.remove(chatRef(v.id));
+  } catch { $("chatStatus").textContent = "Não consegui guardar a conversa. Verifique a internet."; $("chatStatus").className = "status err"; }
+}
+function chatLimparUI() {
+  if (chatSub) chatSub(); chatSub = null; chatSubUid = "";
+  chatConvs = []; chatAtual = null;
+  if ($("chatMsgs")) { $("chatMsgs").innerHTML = ""; $("chatHist").innerHTML = ""; $("chatTxt").value = ""; }
+}
+async function modeloTexto() {
+  if (!modelosDisp) { try { await escolherModelo(); } catch {} }
+  return MODELOS_TEXTO.find((m) => modelosDisp && modelosDisp.has(m)) || MODELOS_TEXTO[0];
+}
+function contextoTrabalho() {
+  // Usa o texto da Legislação de apoio e dos modelos que estão na própria app (fonte única).
+  const leg = [...document.querySelectorAll("#vDiario .leg-sec")].filter((d) => !d.querySelector("#przIni")).map((d) => d.innerText.replace(/\s+\n/g, "\n").trim()).join("\n\n");
+  const mods = MODELOS.map(([t, x]) => `Modelo «${t}»:\n${x}`).join("\n\n");
+  return `${leg}\n\nMODELOS DE RESPOSTA AO MUNÍCIPE USADOS PELA SECRETARIA:\n${mods}`;
+}
+function promptSistema() {
+  return `Chamas-te MESTRE e és o assistente da Secretaria da Subunidade Orgânica da Conservação (Departamento de Conservação) da Câmara Municipal de Matosinhos.
+Ajudas a equipa no trabalho administrativo: redigir e rever ofícios e respostas a munícipes, resumir textos, explicar prazos e passos do procedimento (CPA), proteção de dados (RGPD), pedidos de indemnização e documentos de empreitadas (CCP).
+Regras:
+- Escreve sempre em português de Portugal (norma europeia), em tom profissional e sóbrio. Nunca uses emojis.
+- Sê claro e direto; usa listas curtas quando ajudar.
+- Em ofícios usa fórmulas da administração pública portuguesa (Exmo.(a) Senhor(a), V. Ex.ª, Com os melhores cumprimentos) e deixa campos a preencher entre [ ].
+- Nunca inventes artigos, prazos ou números de processo. Se não tiveres certeza, di-lo e recomenda confirmar no texto da lei ou com os serviços jurídicos.
+- Não peças nem repitas dados pessoais. Se o utilizador escrever dados pessoais, lembra-o de os substituir por [Nome], [Morada], etc.
+- A informação de referência abaixo é a que a Secretaria usa; dá-lhe prioridade (verificada a 23/11/2026).
+
+INFORMAÇÃO DE REFERÊNCIA:
+${contextoTrabalho()}`;
+}
+const DADOS_PESSOAIS = [/\b\d{9}\b/, /\b[\w.+-]+@[\w-]+\.[\w.]+\b/, /\b[A-Z]{2}-\d{2}-[A-Z]{2}\b|\b\d{2}-[A-Z]{2}-\d{2}\b|\b\d{2}-\d{2}-[A-Z]{2}\b|\b[A-Z]{2}-\d{2}-\d{2}\b/i, /\b\d{4}-\d{3}\b/];
+const pareceDados = (t) => DADOS_PESSOAIS.some((r) => r.test(t));
+function fmtResposta(t) {
+  const linhas = esc(t).replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>").split("\n");
+  let html = "", lista = false;
+  for (const l of linhas) {
+    const m = l.match(/^\s*(?:[-*•]|\d+[.)])\s+(.*)$/);
+    if (m) { if (!lista) { html += "<ul>"; lista = true; } html += `<li>${m[1]}</li>`; continue; }
+    if (lista) { html += "</ul>"; lista = false; }
+    html += l.trim() ? `<p>${l.replace(/^#{1,4}\s*/, "")}</p>` : "";
+  }
+  return html + (lista ? "</ul>" : "");
+}
+const limparPensar = (t) => String(t || "").replace(/<think>[\s\S]*?(<\/think>|$)/g, "").trim();
+function desenharChat() {
+  const c = chatConvs.find((x) => x.id === chatAtual);
+  const msgs = c ? c.msgs : [];
+  $("chatMsgs").innerHTML = msgs.length ? msgs.map((m, i) => m.r === "user"
+    ? `<div class="msg eu"><div class="bolha">${esc(m.t).replace(/\n/g, "<br>")}</div></div>`
+    : `<div class="msg ia"><div class="bolha">${fmtResposta(limparPensar(m.t)) || '<p class="muted">A pensar…</p>'}</div>${m.t ? `<button class="btn small ghost" type="button" data-copiar="${i}">Copiar</button>` : ""}</div>`).join("")
+    : `<div class="chat-vazio"><p><strong>Olá, sou o MESTRE. Como posso ajudar?</strong></p><p class="muted">Exemplos: redigir um ofício a partir de notas, rever o texto de uma resposta, explicar um prazo do CPA ou o passo seguinte de um pedido de indemnização.</p></div>`;
+  $("chatMsgs").scrollTop = $("chatMsgs").scrollHeight;
+  $("chatHist").innerHTML = chatConvs.length ? chatConvs.map((x) => `<div class="hist-i${x.id === chatAtual ? " on" : ""}">
+      <button type="button" class="hist-b" data-conv="${esc(x.id)}"><span>${esc(x.titulo || "Conversa")}</span><small>${esc(quando(x.em))}</small></button>
+      <button type="button" class="hist-x" data-conv-rm="${esc(x.id)}" aria-label="Apagar conversa">Apagar</button></div>`).join("")
+    : `<p class="empty small">Sem conversas guardadas.</p>`;
+  $("chatSug").innerHTML = msgs.length ? "" : [
+    ["Redigir ofício", "Redige um ofício de resposta ao munícipe a partir destas notas (sem dados pessoais):\n"],
+    ["Rever um texto", "Revê este texto, corrige o português e torna-o mais claro e profissional:\n"],
+    ["Que prazo se aplica?", "Que prazo se aplica nesta situação e como se conta? Situação: "],
+    ["Passo seguinte (indemnização)", "Num pedido de indemnização, qual é o passo seguinte e que ofício devo usar? Situação: "],
+  ].map(([t, p]) => `<button type="button" class="fchip" data-sug="${esc(p)}">${esc(t)}</button>`).join("");
+}
+function abrirAssistente() {
+  chatLer();
+  if (!chatAtual || !chatConvs.some((x) => x.id === chatAtual)) chatAtual = chatConvs[0]?.id || null;
+  $("chatStatus").textContent = semChave() ? "O MESTRE ainda não está configurado (falta a chave do Groq)." : "";
+  $("chatStatus").className = semChave() ? "status err" : "status";
+  desenharChat(); mostrar("vAssistente"); $("chatTxt").focus();
+}
+async function enviarChat() {
+  const txt = $("chatTxt").value.trim(), st = $("chatStatus");
+  if (!txt || chatOcupado) return;
+  if (semChave()) { st.textContent = "O MESTRE ainda não está configurado (falta a chave do Groq)."; st.className = "status err"; return; }
+  if (pareceDados(txt) && !chatConfirmado) {
+    st.innerHTML = 'O texto parece ter dados pessoais (NIF, e-mail, matrícula ou código postal). Substitua-os por [ ] ou <button type="button" class="btn small ghost" id="btnChatMesmoAssim">enviar mesmo assim</button>';
+    st.className = "status err"; return;
+  }
+  chatConfirmado = false;
+  let c = chatConvs.find((x) => x.id === chatAtual);
+  if (!c) { c = { id: "n" + Date.now().toString(36), titulo: txt.slice(0, 60), em: new Date().toISOString(), msgs: [] }; chatConvs.unshift(c); chatAtual = c.id; }
+  c.msgs.push({ r: "user", t: txt }); c.msgs.push({ r: "assistant", t: "" });
+  c.em = new Date().toISOString(); chatConvs = [c, ...chatConvs.filter((x) => x.id !== c.id)];
+  $("chatTxt").value = ""; chatOcupado = true; $("btnChatEnviar").disabled = true; st.textContent = "A responder…"; st.className = "status";
+  desenharChat();
+  const resp = c.msgs[c.msgs.length - 1];
+  try {
+    const hist = c.msgs.slice(0, -1).slice(-20).map((m) => ({ role: m.r, content: limparPensar(m.t) }));
+    const r = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+      method: "POST", headers: { "Content-Type": "application/json", Authorization: "Bearer " + GROQ_API_KEY },
+      body: JSON.stringify({ model: await modeloTexto(), temperature: 0.3, stream: true, messages: [{ role: "system", content: promptSistema() }, ...hist] }),
+    });
+    if (!r.ok || !r.body) throw new Error("groq " + r.status);
+    const leitor = r.body.getReader(), dec = new TextDecoder(); let buf = "", ultimo = 0;
+    for (;;) {
+      const { done, value } = await leitor.read(); if (done) break;
+      buf += dec.decode(value, { stream: true });
+      const partes = buf.split("\n"); buf = partes.pop();
+      for (const p of partes) {
+        const s = p.trim(); if (!s.startsWith("data:")) continue;
+        const d = s.slice(5).trim(); if (d === "[DONE]") continue;
+        try { const j = JSON.parse(d); resp.t += j.choices?.[0]?.delta?.content || ""; } catch {}
+      }
+      if (Date.now() - ultimo > 120) { ultimo = Date.now(); desenharChat(); }
+    }
+    resp.t = limparPensar(resp.t) || "Não obtive resposta. Tente reformular a pergunta.";
+    st.textContent = "";
+  } catch (e) {
+    resp.t = resp.t || "Não foi possível obter resposta (sem ligação ou limite do serviço atingido). Tente daqui a pouco.";
+    st.textContent = String(e.message).includes("429") ? "Limite de pedidos do Groq atingido; aguarde um minuto." : "Erro ao contactar o MESTRE."; st.className = "status err";
+  }
+  c.msgs = c.msgs.slice(-CHAT_MAX_MSG);
+  chatOcupado = false; $("btnChatEnviar").disabled = false; await chatGravar(c); desenharChat(); $("chatTxt").focus();
+}
+$("btnAssistente").addEventListener("click", abrirAssistente);
+$("btnVoltarChat").addEventListener("click", () => mostrar("vPainel"));
+$("btnChatNova").addEventListener("click", () => { chatAtual = null; $("chatStatus").textContent = ""; desenharChat(); $("chatTxt").focus(); });
+$("chatForm").addEventListener("submit", (e) => { e.preventDefault(); enviarChat(); });
+$("chatTxt").addEventListener("keydown", (e) => { if (e.key === "Enter" && !e.shiftKey && !e.isComposing) { e.preventDefault(); enviarChat(); } });
+$("chatStatus").addEventListener("click", (e) => { if (e.target.id === "btnChatMesmoAssim") { chatConfirmado = true; enviarChat(); } });
+$("chatSug").addEventListener("click", (e) => { const b = e.target.closest("[data-sug]"); if (!b) return; $("chatTxt").value = b.dataset.sug; $("chatTxt").focus(); });
+$("chatHist").addEventListener("click", (e) => {
+  const rm = e.target.closest("[data-conv-rm]");
+  if (rm) { const id = rm.dataset.convRm; chatConvs = chatConvs.filter((x) => x.id !== id); if (chatAtual === id) chatAtual = chatConvs[0]?.id || null; fb.D.remove(chatRef(id)).catch(() => {}); desenharChat(); return; }
+  const b = e.target.closest("[data-conv]"); if (!b) return; chatAtual = b.dataset.conv; desenharChat();
+});
+$("btnChatApagarTudo").addEventListener("click", (e) => {
+  const b = e.currentTarget;
+  if (b.dataset.ok !== "1") { b.dataset.ok = "1"; b.textContent = "Confirmar apagar tudo"; setTimeout(() => { b.dataset.ok = ""; b.textContent = "Apagar histórico"; }, 4000); return; }
+  chatConvs = []; chatAtual = null; fb.D.remove(chatRef()).catch(() => {}); b.dataset.ok = ""; b.textContent = "Apagar histórico"; desenharChat();
+});
+$("chatMsgs").addEventListener("click", async (e) => {
+  const b = e.target.closest("[data-copiar]"); if (!b) return;
+  const c = chatConvs.find((x) => x.id === chatAtual); const m = c && c.msgs[+b.dataset.copiar]; if (!m) return;
+  try { await navigator.clipboard.writeText(limparPensar(m.t)); b.textContent = "Copiado"; setTimeout(() => (b.textContent = "Copiar"), 1500); } catch {}
+});
 
 /* ---------------- Mapas (Excel partilhados no SharePoint/OneDrive da Câmara) ---------------- */
 // Os links ficam na base de dados (só visível com sessão iniciada), nunca no código, que é público.

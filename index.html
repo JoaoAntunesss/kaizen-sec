@@ -60,6 +60,7 @@
       <button class="btn small" id="btnEquipa" type="button">Equipa</button>
       <button class="btn small" id="btnDiario" type="button">Trabalho diário <span class="badge" id="bdgUrg" hidden></span></button>
       <button class="btn small" id="btnMapas" type="button">Mapas</button>
+      <button class="btn small" id="btnAssistente" type="button">MESTRE</button>
       <button class="btn small" id="btnPowerBI" type="button">Reclamações (Power BI)</button>
     </div>
 
@@ -339,6 +340,30 @@
       </details>
 
       <p class="muted small leg-links">Textos oficiais: <a href="https://diariodarepublica.pt/dr/detalhe/decreto-lei/4-2015-66041468" target="_blank" rel="noopener">CPA no Diário da República</a> · <a href="https://eur-lex.europa.eu/legal-content/PT/TXT/?uri=CELEX:32016R0679" target="_blank" rel="noopener">RGPD (EUR-Lex)</a> · <a href="https://www.cnpd.pt" target="_blank" rel="noopener">CNPD</a>. Este guia é um resumo de apoio e não substitui o texto da lei nem o parecer dos serviços jurídicos.</p>
+    </div>
+  </section>
+
+  <!-- MESTRE: assistente (IA) -->
+  <section id="vAssistente" class="view" hidden>
+    <div class="panel chat-panel">
+      <div class="panel-head"><h2>MESTRE <span class="sub">assistente da Secretaria</span></h2>
+        <div class="pbi-acts"><button class="btn small" id="btnChatNova" type="button">Nova conversa</button><button class="btn small ghost" id="btnVoltarChat" type="button">Voltar</button></div>
+      </div>
+      <p class="chat-aviso"><strong>Não escreva dados pessoais</strong> (nomes, moradas, NIF, contactos, matrículas): use [Nome], [Morada], etc. As respostas podem ter erros; confirme prazos e artigos na Legislação de apoio ou com o jurídico. O histórico fica associado à sua conta Google: aparece no computador e no telemóvel, e a app só o mostra a si.</p>
+      <div class="chat-wrap">
+        <aside class="chat-hist" aria-label="Conversas anteriores">
+          <div class="chat-hist-h"><span>Conversas</span><button class="btn small ghost danger" id="btnChatApagarTudo" type="button">Apagar histórico</button></div>
+          <div id="chatHist"></div>
+        </aside>
+        <div class="chat-main">
+          <div class="chat-msgs" id="chatMsgs" aria-live="polite"></div>
+          <div class="chat-sug" id="chatSug"></div>
+          <form class="chat-form" id="chatForm">
+            <textarea id="chatTxt" rows="3" placeholder="Escreva a sua pergunta ou cole as notas (sem dados pessoais). Enter envia; Shift+Enter muda de linha."></textarea>
+            <div class="actions"><span class="status" id="chatStatus"></span><button class="btn primary" id="btnChatEnviar" type="submit">Enviar</button></div>
+          </form>
+        </div>
+      </div>
     </div>
   </section>
 

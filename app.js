@@ -747,8 +747,7 @@ function desenharUrgentes() {
   $("bdgUrg").hidden = !todosAbertos.length; $("bdgUrg").textContent = todosAbertos.length;
   $("bdgUrg").classList.toggle("late", todosAbertos.some((u) => prioDe(u) === 1 || (isoData(u.prazo) && u.prazo < hoje())));
 }
-function abrirDiario() { opcoesResp(); $("urgStatus").textContent = ""; desenharUrgentes(); mostrar("vDiario"); }
-$("btnDiario").addEventListener("click", abrirDiario);
+$("btnDiario").addEventListener("click", () => abrirDiario());
 $("btnOficios").addEventListener("click", () => mostrar("vOficios"));
 $("btnKaizen").addEventListener("click", () => { mostrar("vPainel"); desenharPainel(); });
 function formNovo(abrir) { $("urgNovo").hidden = !abrir; $("btnUrgNovo").setAttribute("aria-expanded", String(abrir)); $("btnUrgNovo").textContent = abrir ? "Fechar" : "+ Adicionar Edoc"; if (abrir) $("urgEdoc").focus(); }

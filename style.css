@@ -354,3 +354,4 @@ input[type=text],input[type=date],input[type=number],select,textarea{border:1px 
 .urg-ver{display:flex;flex-wrap:wrap;gap:4px 14px;align-items:end}
 .urg-ver .f{max-width:280px}
 .urg-ver p{margin:0 0 10px;font-weight:600}
+.leg-ol{list-style:decimal}

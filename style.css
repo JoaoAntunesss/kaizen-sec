@@ -355,3 +355,9 @@ input[type=text],input[type=date],input[type=number],select,textarea{border:1px 
 .urg-ver .f{max-width:280px}
 .urg-ver p{margin:0 0 10px;font-weight:600}
 .leg-ol{list-style:decimal}
+.urg-notif{border:1px solid var(--line);border-radius:10px;padding:8px 12px;background:var(--surface)}
+.urg-notif summary{font-size:14px}
+.urg-notif[open] summary{margin-bottom:8px}
+.urg-notif .chk-i{margin-bottom:6px}
+.notif-est{font-weight:600;color:var(--muted)}
+.notif-est.on{color:var(--ok)}

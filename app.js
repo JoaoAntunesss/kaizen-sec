@@ -99,7 +99,9 @@ function subscrever() {
   D.onValue(D.ref(db, COL_URGENTES), (snap) => {
     const v = snap.val() || {};
     est.urgentes = Object.entries(v).map(([id, u]) => ({ id, ...u }));
+    verificarAvisos(est.urgentes);
     desenharUrgentes();
+    if (abrirPendente) { abrirPendente = false; abrirDiario("Ofício por assinar"); history.replaceState(null, "", location.pathname); }
   }, () => { $("urgStatus").textContent = "Não consegui ler os Edocs urgentes."; $("urgStatus").className = "status err"; });
   pararSub = D.onValue(D.ref(db, COL_REUNIOES), (snap) => {
     const v = snap.val() || {};
@@ -775,6 +777,73 @@ $("vDiario").addEventListener("click", async (e) => {
     else if (acao === "apagar") await fb.D.remove(ref);
   } catch { st.textContent = "Não consegui guardar. Verifique a internet."; st.className = "status err"; b.disabled = false; }
 });
+
+/* ---------------- Notificações (neste computador) ---------------- */
+const NOTIF_KEY = "kz-notif";
+let abrirPendente = new URLSearchParams(location.search).get("abrir") === "diario";
+let notifPref = { assinar: false, muito: false };
+try { notifPref = { ...notifPref, ...JSON.parse(localStorage.getItem(NOTIF_KEY) || "{}") }; } catch {}
+let avisosVistos = null; // estado anterior de cada Edoc: "situação|tratado|prio"
+const euNome = () => { try { return localStorage.getItem("kz-urg-por") || ""; } catch { return ""; } };
+async function avisar(titulo, corpo, filtro) {
+  if (!("Notification" in window) || Notification.permission !== "granted") return;
+  const opts = { body: corpo, icon: "icons/icon-192.png", badge: "icons/icon-192.png", tag: `kz-${Date.now()}`, data: { filtro } };
+  try { const reg = await navigator.serviceWorker?.getRegistration(); if (reg) { await reg.showNotification(titulo, opts); return; } } catch {}
+  try { const n = new Notification(titulo, opts); n.onclick = () => { window.focus(); abrirDiario(filtro); n.close(); }; } catch {}
+}
+function verificarAvisos(lista) {
+  const agora = {};
+  lista.forEach((u) => { agora[u.id] = `${u.situacao || ""}|${u.tratado ? 1 : 0}|${prioDe(u)}`; });
+  const porAssinar = lista.filter((u) => !u.tratado && u.situacao === "Ofício por assinar").length;
+  try { if (navigator.setAppBadge) porAssinar ? navigator.setAppBadge(porAssinar) : navigator.clearAppBadge(); } catch {}
+  if (avisosVistos === null) { avisosVistos = agora; return; } // primeira leitura: não avisar do que já existia
+  const eu = euNome();
+  lista.forEach((u) => {
+    if (u.tratado) return;
+    const antes = avisosVistos[u.id];
+    const [sitAntes] = (antes || "").split("|");
+    const autor = antes ? (u.situacaoPor || "") : (u.criadoPor || "");
+    if (eu && autor === eu) return;
+    const desc = `${u.edoc}${u.assunto ? " — " + u.assunto : ""}`;
+    if (notifPref.assinar && u.situacao === "Ofício por assinar" && sitAntes !== "Ofício por assinar")
+      avisar("Novo ofício por assinar", `${desc}${prioDe(u) === 1 ? " · MUITO URGENTE" : ""}`, "Ofício por assinar");
+    else if (notifPref.muito && !antes && prioDe(u) === 1)
+      avisar("Edoc muito urgente", `${desc}${u.criadoPor ? " · adicionado por " + u.criadoPor : ""}`, "");
+  });
+  avisosVistos = agora;
+}
+function abrirDiario(filtro) {
+  if (!est.user) return;
+  opcoesResp(); if (typeof filtro === "string") urgFiltro = filtro; desenharUrgentes(); mostrar("vDiario");
+}
+function desenharNotif() {
+  const sup = "Notification" in window;
+  $("notifAssinar").checked = !!notifPref.assinar; $("notifMuito").checked = !!notifPref.muito;
+  const perm = sup ? Notification.permission : "denied";
+  const ligado = (notifPref.assinar || notifPref.muito) && perm === "granted";
+  $("notifEst").textContent = !sup ? "(este browser não suporta)" : perm === "denied" ? "(bloqueadas no browser)" : ligado ? "(ligadas)" : "(desligadas)";
+  $("notifEst").className = "notif-est" + (ligado ? " on" : "");
+}
+async function mudarNotif() {
+  notifPref = { assinar: $("notifAssinar").checked, muito: $("notifMuito").checked };
+  if ((notifPref.assinar || notifPref.muito) && "Notification" in window && Notification.permission === "default") {
+    try { await Notification.requestPermission(); } catch {}
+  }
+  if ("Notification" in window && Notification.permission === "denied" && (notifPref.assinar || notifPref.muito)) {
+    $("urgStatus").textContent = "As notificações estão bloqueadas: permita-as nas definições do site (cadeado ao lado do endereço)."; $("urgStatus").className = "status err";
+  }
+  try { localStorage.setItem(NOTIF_KEY, JSON.stringify(notifPref)); } catch {}
+  desenharNotif();
+}
+["notifAssinar", "notifMuito"].forEach((id) => $(id).addEventListener("change", mudarNotif));
+$("btnNotifTeste").addEventListener("click", async () => {
+  if ("Notification" in window && Notification.permission === "default") { try { await Notification.requestPermission(); } catch {} }
+  desenharNotif();
+  if (!("Notification" in window) || Notification.permission !== "granted") { $("urgStatus").textContent = "Permita as notificações para este site para receber avisos."; $("urgStatus").className = "status err"; return; }
+  avisar("Teste — Kaizen Secretaria", "Os avisos estão a funcionar neste computador.", "Ofício por assinar");
+});
+navigator.serviceWorker?.addEventListener("message", (e) => { if (e.data && e.data.abrir === "diario") abrirDiario(e.data.filtro); });
+desenharNotif();
 
 /* ---------------- Ferramentas: modelos de resposta e verificação de ofícios ---------------- */
 const MODELOS = [

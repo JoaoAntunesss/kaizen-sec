@@ -17,6 +17,10 @@ export const FIREBASE_CONFIG = {
   appId: "1:761914486599:web:53cc9a7c1b8ef591966662"
 };
 
+// Painel Power BI das reclamações do espaço público (link público «Publicar na Web»).
+// Para trocar de painel, basta mudar este link.
+export const POWERBI_URL = "https://app.powerbi.com/view?r=eyJrIjoiZGI3MGM4ZjItYzYwOC00YTEwLTg0ODctMDZjMmFmNDIwNzBiIiwidCI6Ijg1ZmYwZDc5LTI2YzQtNDQ5OS05MDg1LWQyZjEwOWFkZjE3YSIsImMiOjh9&pageName=cf552c686754b9ad0793";
+
 // Nós no Realtime Database (separados dos do Freezer).
 export const COL_REUNIOES = "kaizen_reunioes";
 export const COL_FOTOS = "kaizen_fotos";

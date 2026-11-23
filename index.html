@@ -58,6 +58,7 @@
       <div class="anos" id="anos" role="group" aria-label="Ano em consulta"></div>
       <button class="btn small" id="btnExportar" type="button">Exportar (Excel / PDF)</button>
       <button class="btn small" id="btnEquipa" type="button">Equipa</button>
+      <button class="btn small" id="btnPowerBI" type="button">Reclamações (Power BI)</button>
     </div>
 
     <div class="tiles">
@@ -187,6 +188,22 @@
         <button class="btn small" id="btnEqAdd" type="button">+ Acrescentar</button>
       </div>
       <div class="actions"><span class="status" id="eqStatus"></span><button class="btn primary" id="btnEqGuardar" type="button">Guardar equipa</button></div>
+    </div>
+  </section>
+
+  <!-- Reclamações (Power BI) -->
+  <section id="vPowerBI" class="view" hidden>
+    <div class="panel">
+      <div class="panel-head">
+        <h2>Reclamações do Espaço Público</h2>
+        <div class="pbi-acts">
+          <a class="btn small" id="pbiAbrir" href="#" target="_blank" rel="noopener">Abrir em ecrã inteiro</a>
+          <button class="btn small ghost" id="btnVoltarPbi" type="button">Voltar</button>
+        </div>
+      </div>
+      <p class="muted">Painel Power BI com a análise Kaizen das reclamações (Loja do Munícipe + Relatórios Detalhados do Edoc). Os dados atualizam-se todos os dias às 08:00. Use os separadores no fundo do painel para mudar de página.</p>
+      <div class="pbi"><iframe id="pbiFrame" title="Reclamações – Kaizen" allowfullscreen loading="lazy"></iframe></div>
+      <p class="status" id="pbiStatus" hidden>Sem ligação à Internet: o painel só abre com rede.</p>
     </div>
   </section>
 

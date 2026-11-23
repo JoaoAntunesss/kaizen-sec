@@ -1,4 +1,4 @@
-import { GROQ_API_KEY, FIREBASE_CONFIG, COL_REUNIOES, COL_FOTOS, EQUIPA as EQUIPA_INICIAL } from "./config.js";
+import { GROQ_API_KEY, FIREBASE_CONFIG, COL_REUNIOES, COL_FOTOS, EQUIPA as EQUIPA_INICIAL, POWERBI_URL } from "./config.js";
 const COL_EQUIPA = "kaizen_equipa";
 // Equipa: vem da base de dados (editável na app); enquanto não houver, usa a lista do config.js
 let EQUIPA = EQUIPA_INICIAL.map((p) => ({ ...p }));
@@ -25,7 +25,7 @@ const temFotoDe = (r, k) => !!((r.fotos && r.fotos[k]) || (k === "postits" && r.
 let fb = null;
 
 /* ---------------- Vistas ---------------- */
-const VISTAS = ["vLogin", "vConfig", "vPainel", "vReuniao", "vRegistar", "vImprimir", "vEquipa", "vRelatorio"];
+const VISTAS = ["vLogin", "vConfig", "vPainel", "vReuniao", "vRegistar", "vImprimir", "vEquipa", "vRelatorio", "vPowerBI"];
 function mostrar(v) {
   for (const id of VISTAS) $(id).hidden = id !== v;
   $("fab").hidden = v !== "vPainel";
@@ -657,6 +657,18 @@ function reunioesDoPeriodo() {
 const nomePeriodo = () => $("fPeriodo").selectedOptions[0].textContent;
 $("btnExportar").addEventListener("click", () => { $("expStatus").textContent = ""; $("fPeriodo").querySelector('[value="ano"]').textContent = `Ano ${est.ano || anoAtual()}`; mostrar("vRelatorio"); desenharRelatorio(); });
 $("btnVoltarRel").addEventListener("click", () => mostrar("vPainel"));
+
+/* ---------------- Reclamações (Power BI) ---------------- */
+// O painel só é carregado quando se abre esta aba, para não pesar no arranque da app.
+if (!POWERBI_URL) $("btnPowerBI").hidden = true;
+$("pbiAbrir").href = POWERBI_URL || "#";
+$("btnPowerBI").addEventListener("click", () => {
+  const f = $("pbiFrame");
+  if (!f.getAttribute("src")) f.src = POWERBI_URL;
+  $("pbiStatus").hidden = navigator.onLine;
+  mostrar("vPowerBI");
+});
+$("btnVoltarPbi").addEventListener("click", () => mostrar("vPainel"));
 $("fPeriodo").addEventListener("change", desenharRelatorio);
 
 function desenharRelatorio() {

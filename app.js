@@ -68,7 +68,7 @@ async function iniciarFirebase() {
 }
 function msgErroLogin(e) {
   const c = (e && e.code) || "";
-  if (c.includes("unauthorized-domain")) return "Este endereço ainda não está autorizado no Firebase (Authentication → Settings → Authorized domains).";
+  if (c.includes("unauthorized-domain")) return "Este endereço ainda não está autorizado no Firebase (Authentication > Settings > Authorized domains).";
   if (c.includes("popup-closed")) return "A janela de login foi fechada antes de terminar.";
   return "Não foi possível entrar. Tente outra vez.";
 }
@@ -178,14 +178,14 @@ function desenharPainel() {
     return `<button class="meet" type="button" data-id="${esc(r.id)}">
       <div><div class="d">${esc(fmt(r.data))}</div><div class="w">${r.semana ? "Semana " + esc(r.semana) : ""}</div></div>
       <div class="info">${marcada(r) ? `<span class="chip ok">${contaPres(r)}/${tamEq(r)} presentes</span>` : ""}<span class="chip">${t.length} post-its</span>${ab ? `<span class="chip">${ab} por fechar</span>` : ""}${at ? `<span class="chip late">${at} em atraso</span>` : ""}${r.notas ? `<span class="chip">apontamentos</span>` : ""}${Object.keys(TIPOS_FOTO).some((k) => temFotoDe(r, k)) ? `<span class="chip">fotos</span>` : ""}</div>
-      <span class="go" aria-hidden="true">Abrir →</span></button>`;
+      <span class="go" aria-hidden="true">Abrir</span></button>`;
   }).join("") : `<p class="empty">Ainda não há reuniões. Depois da reunião, carregue em «Registar reunião».</p>`;
 
   // Mapa de presenças (como a folha em papel, com a coluna Total)
   const rs = [...doAno()].filter(marcada).reverse().slice(-12);
   $("mapaSub").textContent = rs.length === 1 ? "1 reunião" : rs.length ? `últimas ${rs.length} reuniões` : "";
   $("mapa").innerHTML = rs.length ? `<table class="mapa"><thead><tr><th>N.º Mec.</th><th>Nome</th>${rs.map((r) => `<th class="c">${esc(fmtCurto(r.data))}</th>`).join("")}<th class="c">Total</th></tr></thead><tbody>${
-    equipaDoConjunto(rs).map((p) => `<tr><td class="num">${esc(p.mec)}</td><td>${esc(p.nome)}${p.saiu ? ' <span class="chip none">saiu</span>' : ""}</td>${rs.map((r) => { const v = r.presencas[p.mec]; return `<td class="c"><span class="mk ${v || ""}" title="${esc(EST_PRES[v] || "sem registo")}">${v === "P" ? "✓" : v || "·"}</span></td>`; }).join("")}<td class="c"><b>${rs.filter((r) => r.presencas[p.mec] === "P").length}</b></td></tr>`).join("")
+    equipaDoConjunto(rs).map((p) => `<tr><td class="num">${esc(p.mec)}</td><td>${esc(p.nome)}${p.saiu ? ' <span class="chip none">saiu</span>' : ""}</td>${rs.map((r) => { const v = r.presencas[p.mec]; return `<td class="c"><span class="mk ${v || ""}" title="${esc(EST_PRES[v] || "sem registo")}">${v || "·"}</span></td>`; }).join("")}<td class="c"><b>${rs.filter((r) => r.presencas[p.mec] === "P").length}</b></td></tr>`).join("")
   }<tr><td></td><td><b>Presentes</b></td>${rs.map((r) => `<td class="c"><b>${contaPres(r)}</b></td>`).join("")}<td></td></tr></tbody></table>` : `<p class="empty">As presenças aparecem aqui quando registar a primeira reunião.</p>`;
   desenharIndicadores();
 }
@@ -359,7 +359,7 @@ function abrirImprimir() {
     `<div class="sh-notes"><b>Apontamentos da reunião</b><div class="box" style="min-height:90mm">${esc(r.notas || "")}</div></div>`;
   const ord = [...ts].sort((a, b) => colIdx(a.coluna) - colIdx(b.coluna));
   const hj = hoje();
-  const linhas = ord.map((t, i) => `<tr><td class="c">${i + 1}</td><td>${esc(t.tarefa)}</td><td>${esc(t.responsavel)}</td><td>${esc(fmt(t.prazo))}${emAtraso(t, hj) ? ' <span class="sh-tag late">atraso</span>' : ""}</td><td><span class="sh-tag">${esc(t.coluna)}</span></td><td class="c"><span class="sh-box">${t.coluna === "Concluído" ? "✓" : ""}</span></td></tr>`);
+  const linhas = ord.map((t, i) => `<tr><td class="c">${i + 1}</td><td>${esc(t.tarefa)}</td><td>${esc(t.responsavel)}</td><td>${esc(fmt(t.prazo))}${emAtraso(t, hj) ? ' <span class="sh-tag late">atraso</span>' : ""}</td><td><span class="sh-tag">${esc(t.coluna)}</span></td><td class="c"><span class="sh-box">${t.coluna === "Concluído" ? "X" : ""}</span></td></tr>`);
   for (let i = ord.length; i < Math.max(15, ord.length); i++) linhas.push(`<tr><td class="c">${i + 1}</td><td></td><td></td><td></td><td></td><td class="c"><span class="sh-box"></span></td></tr>`);
   $("folhaAcoes").innerHTML = CAB("Reunião Kaizen — Ações") + meta +
     `<table class="sh-table"><thead><tr><th class="c" style="width:9mm">N.º</th><th>O que fazer</th><th style="width:34mm">Responsável</th><th style="width:26mm">Prazo</th><th style="width:22mm">Estado</th><th class="c" style="width:13mm">Feito</th></tr></thead><tbody>${linhas.join("")}</tbody></table>`;
@@ -430,7 +430,7 @@ function desenharLinhas() {
     <input class="tk" type="text" id="t${i}" aria-label="Tarefa ${i + 1}" placeholder="O que fazer" value="${esc(t.tarefa)}">
     <input type="text" id="r${i}" aria-label="Responsável da tarefa ${i + 1}" placeholder="Responsável" value="${esc(t.responsavel)}" list="nomesEquipa">
     <input type="date" id="p${i}" aria-label="Prazo da tarefa ${i + 1}" value="${isoData(t.prazo) ? t.prazo : ""}">
-    <button class="btn small danger del" type="button" data-del="${i}" aria-label="Remover tarefa ${i + 1}">✕</button></div>`).join("") +
+    <button class="btn small danger del" type="button" data-del="${i}" aria-label="Remover tarefa ${i + 1}">Remover</button></div>`).join("") +
     `<datalist id="nomesEquipa">${EQUIPA.map((p) => `<option value="${esc(p.nome.split(" ")[0])}"></option>`).join("")}</datalist>`;
 }
 function lerLinhas() {
@@ -609,7 +609,7 @@ function desenharEquipa() {
   const lista = EQUIPA.map((p, i) => `<div class="eq-row" data-i="${i}">
     <input type="text" inputmode="numeric" id="eqM${i}" aria-label="N.º mecanográfico" value="${esc(p.mec)}">
     <input type="text" id="eqN${i}" aria-label="Nome" value="${esc(p.nome)}">
-    <div class="eq-acts"><button class="btn small ghost" type="button" data-up="${i}" aria-label="Subir ${esc(p.nome)}"${i ? "" : " disabled"}>↑</button><button class="btn small danger" type="button" data-rm="${i}" aria-label="Retirar ${esc(p.nome)} da equipa">Retirar</button></div></div>`).join("");
+    <div class="eq-acts"><button class="btn small ghost" type="button" data-up="${i}" aria-label="Subir ${esc(p.nome)}"${i ? "" : " disabled"}>Subir</button><button class="btn small danger" type="button" data-rm="${i}" aria-label="Retirar ${esc(p.nome)} da equipa">Retirar</button></div></div>`).join("");
   $("eqLista").innerHTML = lista || `<p class="empty">Sem pessoas na equipa.</p>`;
 }
 function lerEquipaForm() {
@@ -700,15 +700,15 @@ function itemUrg(u, feito) {
   ].join("");
   const sit = feito ? (u.situacao ? `<span class="chip">${esc(u.situacao)}</span>` : "")
     : `<select class="urg-sit" data-urg="sit" data-id="${esc(u.id)}" aria-label="Situação do ${esc(u.edoc)}">${SITUACOES.map((s) => `<option${s === (u.situacao || "Outro") ? " selected" : ""}>${esc(s)}</option>`).join("")}</select>`;
-  const meta = feito ? `✓ Tratado por ${esc(u.tratadoPor || "")} a ${esc(quando(u.tratadoEm))} · adicionado por ${esc(u.criadoPor || "")} a ${esc(quando(u.criadoEm))}` : `Adicionado por ${esc(u.criadoPor || "")} a ${esc(quando(u.criadoEm))}`;
+  const meta = feito ? `Tratado por ${esc(u.tratadoPor || "")} a ${esc(quando(u.tratadoEm))} · adicionado por ${esc(u.criadoPor || "")} a ${esc(quando(u.criadoEm))}` : `Adicionado por ${esc(u.criadoPor || "")} a ${esc(quando(u.criadoEm))}`;
   const acts = feito
     ? `<button class="btn small ghost" type="button" data-urg="desfazer" data-id="${esc(u.id)}">Desfazer</button>`
-    : `<button class="btn small ok" type="button" data-urg="tratado" data-id="${esc(u.id)}">✓ Tratado</button>
+    : `<button class="btn small ok" type="button" data-urg="tratado" data-id="${esc(u.id)}">Marcar como tratado</button>
        <button class="btn small ghost danger" type="button" data-urg="apagar" data-id="${esc(u.id)}" aria-label="Apagar ${esc(u.edoc)}">Apagar</button>`;
   const p = prioDe(u);
   const prio = feito ? "" : `<select class="urg-prio p${p}" data-urg="prio" data-id="${esc(u.id)}" aria-label="Prioridade do ${esc(u.edoc)}">${[1, 2, 3].map((n) => `<option value="${n}"${n === p ? " selected" : ""}>${PRIO[n]}</option>`).join("")}</select>`;
   return `<div class="urg-item p${p}${atraso ? " late" : ""}${feito ? " done" : ""}">
-    <div class="urg-main"><div class="urg-top"><strong class="urg-edoc">${esc(u.edoc)}</strong>${prio}</div>${u.assunto ? `<span class="urg-assunto">${esc(u.assunto)}</span>` : ""}${u.nota ? `<span class="urg-nota">→ ${esc(u.nota)}</span>` : ""}
+    <div class="urg-main"><div class="urg-top"><strong class="urg-edoc">${esc(u.edoc)}</strong>${prio}</div>${u.assunto ? `<span class="urg-assunto">${esc(u.assunto)}</span>` : ""}${u.nota ? `<span class="urg-nota">A fazer: ${esc(u.nota)}</span>` : ""}
       <div class="urg-chips">${sit}${chips}</div><span class="urg-meta">${meta}</span></div>
     <div class="urg-acts">${acts}</div></div>`;
 }
@@ -803,7 +803,7 @@ function verificarAvisos(lista) {
     if (u.tratado) {
       const tratadoAntes = antes && antes.split("|")[1] === "1";
       if (notifPref.meu && antes && !tratadoAntes && eu && u.criadoPor === eu && u.tratadoPor !== eu)
-        avisar("✓ O seu Edoc foi tratado", `${u.edoc}${u.assunto ? " — " + u.assunto : ""}${u.tratadoPor ? " · por " + u.tratadoPor : ""}`, "");
+        avisar("Edoc tratado", `${u.edoc}${u.assunto ? " — " + u.assunto : ""}${u.tratadoPor ? " · por " + u.tratadoPor : ""}`, "");
       return;
     }
     const [sitAntes] = (antes || "").split("|");
@@ -986,7 +986,7 @@ function desenharRelatorio() {
       abertas.map((t) => `<tr><td>${esc(t.tarefa)}</td><td>${esc(t.responsavel)}</td><td>${esc(fmt(t.prazo))}${emAtraso(t, ref) ? ' <span class="sh-tag late">atraso</span>' : ""}</td><td>${esc(t.coluna)}</td></tr>`).join("") || `<tr><td colspan="4">Nenhuma.</td></tr>`
     }</tbody></table>` +
     `<h3 class="rel-h">Presenças</h3><table class="sh-table rel-pres"><thead><tr><th>N.º</th><th>Nome</th>${ordRs.map((r) => `<th class="c">${esc(fmtCurto(r.data))}</th>`).join("")}<th class="c">Total</th></tr></thead><tbody>${
-      equipaDoConjunto(rs).map((p) => `<tr><td>${esc(p.mec)}</td><td>${esc(p.nome)}${p.saiu ? " (saiu)" : ""}</td>${ordRs.map((r) => { const v = r.presencas[p.mec]; return `<td class="c">${v === "P" ? "✓" : esc(v || "")}</td>`; }).join("")}<td class="c"><b>${ordRs.filter((r) => r.presencas[p.mec] === "P").length}</b></td></tr>`).join("")
+      equipaDoConjunto(rs).map((p) => `<tr><td>${esc(p.mec)}</td><td>${esc(p.nome)}${p.saiu ? " (saiu)" : ""}</td>${ordRs.map((r) => { const v = r.presencas[p.mec]; return `<td class="c">${esc(v || "")}</td>`; }).join("")}<td class="c"><b>${ordRs.filter((r) => r.presencas[p.mec] === "P").length}</b></td></tr>`).join("")
     }</tbody></table>`;
 }
 $("btnPdf").addEventListener("click", () => {

@@ -1,5 +1,4 @@
 import { GROQ_API_KEY, FIREBASE_CONFIG, COL_REUNIOES, COL_FOTOS, EQUIPA as EQUIPA_INICIAL, POWERBI_URL } from "./config.js";
-import { EDOC_CHAVES, linkDaChave } from "./edoc-links.js";
 const COL_EQUIPA = "kaizen_equipa";
 const COL_URGENTES = "kaizen_urgentes";
 // Equipa: vem da base de dados (editável na app); enquanto não houver, usa a lista do config.js
@@ -671,9 +670,7 @@ $("btnVoltarRel").addEventListener("click", () => mostrar("vPainel"));
 const PRIO = { 1: "Muito urgente", 2: "Urgente", 3: "Normal" };
 // Só aceitamos links do Edoc da Câmara (evita guardar endereços de outros sites).
 const linkEdoc = (s) => { try { const u = new URL(String(s || "").trim()); return u.protocol === "https:" && u.hostname === "edoc.cm-matosinhos.pt" ? u.href : ""; } catch { return ""; } };
-const normEdoc = (s) => String(s || "").trim().toUpperCase().replace(/\s+/g, "");
-const linkAuto = (edoc) => { const k = EDOC_CHAVES[normEdoc(edoc)]; return k ? linkDaChave(k) : ""; };
-const linkDe = (u) => linkEdoc(u.link) || linkAuto(u.edoc);
+const linkDe = (u) => linkEdoc(u.link);
 const prioDe = (u) => (u.prio >= 1 && u.prio <= 3 ? +u.prio : 2);
 const SITUACOES = ["Por oficiar", "Ofício por assinar", "Aguarda execução", "Aguarda entidade externa", "Em análise técnica", "Outro"];
 let urgFiltro = "";
@@ -755,7 +752,7 @@ $("urgForm").addEventListener("submit", async (e) => {
       edoc, assunto: $("urgAssunto").value.trim(), prio: +$("urgPrio").value || 2,
       nota: $("urgNota").value.trim(), resp: $("urgResp").value, prazo: $("urgPrazo").value || "",
       situacao: $("urgSit").value || "Outro", situacaoEm: new Date().toISOString(),
-      link: linkEdoc($("urgLink").value) || linkAuto(edoc),
+      link: linkEdoc($("urgLink").value),
       tratado: false, criadoPor: $("urgPor").value, criadoEm: new Date().toISOString(),
     });
     const porEsc = $("urgPor").value; try { localStorage.setItem("kz-urg-por", porEsc); } catch {}
@@ -777,10 +774,6 @@ $("urgLista").addEventListener("submit", async (e) => {
   catch { st.textContent = "Não consegui guardar. Verifique a internet."; st.className = "status err"; }
 });
 $("urgLista").addEventListener("click", (e) => { if (e.target.closest("[data-cancel]")) e.target.closest(".urg-linkbox")?.remove(); });
-$("urgEdoc").addEventListener("change", () => {
-  const l = linkAuto($("urgEdoc").value);
-  if (l && !$("urgLink").value.trim()) { $("urgLink").value = l; $("urgStatus").textContent = "Link do Edoc preenchido automaticamente."; $("urgStatus").className = "status"; }
-});
 $("urgFiltros").addEventListener("click", (e) => { const b = e.target.closest("[data-filtro]"); if (!b) return; urgFiltro = b.dataset.filtro; desenharUrgentes(); });
 $("urgLista").addEventListener("change", async (e) => {
   const s = e.target.closest('[data-urg="sit"], [data-urg="prio"]'); if (!s) return;

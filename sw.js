@@ -2,7 +2,7 @@
 // Os dados (Firebase) e a IA (Groq) vão sempre à rede.
 const VERSAO = "kaizen-v1";
 const CASCA = [
-  "./", "./index.html", "./style.css", "./app.js", "./config.js", "./edoc-links.js", "./manifest.webmanifest",
+  "./", "./index.html", "./style.css", "./app.js", "./config.js", "./manifest.webmanifest",
   "./icons/icon-192.png", "./icons/icon-512.png", "./icons/logo-matosinhos.png", "./icons/logo-kaizen.png"
 ];
 

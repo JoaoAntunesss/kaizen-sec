@@ -350,3 +350,7 @@ input[type=text],input[type=date],input[type=number],select,textarea{border:1px 
 .urg-prio.p1{background:var(--late);color:#fff}
 .urg-prio.p2{background:#fde7c4;color:#7a4a00}
 .urg-prio.p3{background:var(--accent-soft);color:var(--ink)}
+@media (min-width:901px){.urg-form .btn{grid-column:4}}
+.urg-ver{display:flex;flex-wrap:wrap;gap:4px 14px;align-items:end}
+.urg-ver .f{max-width:280px}
+.urg-ver p{margin:0 0 10px;font-weight:600}

@@ -202,6 +202,7 @@
         <label class="f">De que se trata<input type="text" id="urgAssunto" list="urgAssuntos" placeholder="Ex.: reclamação de buracos na via"></label>
         <label class="f">O que há a fazer<input type="text" id="urgNota" placeholder="Ex.: oficiar ao requerente"></label>
         <label class="f">Prioridade<select id="urgPrio"><option value="1">Muito urgente</option><option value="2" selected>Urgente</option><option value="3">Normal</option></select></label>
+        <label class="f">Adicionado por<select id="urgPor" required></select></label>
         <label class="f">Responsável<select id="urgResp"></select></label>
         <label class="f">Situação<select id="urgSit"></select></label>
         <label class="f">Prazo<input type="date" id="urgPrazo"></label>
@@ -213,6 +214,7 @@
         <option value="Ofício de resposta ao munícipe"><option value="Pedido de outra entidade"><option value="Prazo legal a terminar">
       </datalist>
       <p class="status" id="urgStatus"></p>
+      <div class="urg-ver"><label class="f">Ver Edocs adicionados por<select id="urgVerDe"></select></label><p class="muted small" id="urgVerRes"></p></div>
       <div class="urg-filtros" id="urgFiltros" role="group" aria-label="Filtrar por situação"></div>
       <div class="urg-list" id="urgLista"></div>
       <details class="urg-done" id="urgFeitosBox">

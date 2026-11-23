@@ -676,6 +676,15 @@ function opcoesResp() {
   const sel = $("urgResp"), atual = sel.value;
   sel.innerHTML = `<option value="">— Sem responsável —</option>` + EQUIPA.map((p) => `<option>${esc(p.nome)}</option>`).join("");
   sel.value = atual;
+  const por = $("urgPor"), porAtual = por.value;
+  por.innerHTML = `<option value="">— Escolher —</option>` + EQUIPA.map((p) => `<option>${esc(p.nome)}</option>`).join("");
+  let lembrado = ""; try { lembrado = localStorage.getItem("kz-urg-por") || ""; } catch {}
+  const eu = EQUIPA.find((p) => quem() && (p.nome === quem() || (p.email && p.email === (est.user && est.user.email))));
+  por.value = porAtual || lembrado || (eu ? eu.nome : "");
+  if (!por.value) por.value = "";
+  const ver = $("urgVerDe"), verAtual = ver.value || (() => { try { return localStorage.getItem("kz-urg-ver") || ""; } catch { return ""; } })();
+  ver.innerHTML = `<option value="">Toda a equipa</option>` + EQUIPA.map((p) => `<option>${esc(p.nome)}</option>`).join("");
+  ver.value = verAtual; if (ver.value !== verAtual) ver.value = "";
   if (!$("urgSit").options.length) $("urgSit").innerHTML = SITUACOES.map((s) => `<option>${esc(s)}</option>`).join("");
 }
 function itemUrg(u, feito) {
@@ -689,7 +698,7 @@ function itemUrg(u, feito) {
   ].join("");
   const sit = feito ? (u.situacao ? `<span class="chip">${esc(u.situacao)}</span>` : "")
     : `<select class="urg-sit" data-urg="sit" data-id="${esc(u.id)}" aria-label="Situação do ${esc(u.edoc)}">${SITUACOES.map((s) => `<option${s === (u.situacao || "Outro") ? " selected" : ""}>${esc(s)}</option>`).join("")}</select>`;
-  const meta = feito ? `Tratado por ${esc(u.tratadoPor || "")} a ${esc(quando(u.tratadoEm))}` : `Adicionado por ${esc(u.criadoPor || "")} a ${esc(quando(u.criadoEm))}`;
+  const meta = feito ? `✓ Tratado por ${esc(u.tratadoPor || "")} a ${esc(quando(u.tratadoEm))} · adicionado por ${esc(u.criadoPor || "")} a ${esc(quando(u.criadoEm))}` : `Adicionado por ${esc(u.criadoPor || "")} a ${esc(quando(u.criadoEm))}`;
   const acts = feito
     ? `<button class="btn small ghost" type="button" data-urg="desfazer" data-id="${esc(u.id)}">Desfazer</button>`
     : `<button class="btn small ok" type="button" data-urg="tratado" data-id="${esc(u.id)}">✓ Tratado</button>
@@ -702,9 +711,11 @@ function itemUrg(u, feito) {
     <div class="urg-acts">${acts}</div></div>`;
 }
 function desenharUrgentes() {
-  const abertos = est.urgentes.filter((u) => !u.tratado)
+  const verDe = $("urgVerDe").value;
+  const meus = verDe ? est.urgentes.filter((u) => u.criadoPor === verDe) : est.urgentes;
+  const abertos = meus.filter((u) => !u.tratado)
     .sort((a, b) => prioDe(a) - prioDe(b) || (a.prazo || "9999").localeCompare(b.prazo || "9999") || String(a.criadoEm).localeCompare(String(b.criadoEm)));
-  const feitos = est.urgentes.filter((u) => u.tratado).sort((a, b) => String(b.tratadoEm).localeCompare(String(a.tratadoEm)));
+  const feitos = meus.filter((u) => u.tratado).sort((a, b) => String(b.tratadoEm).localeCompare(String(a.tratadoEm)));
   const cont = {}; abertos.forEach((u) => { const s = u.situacao || "Outro"; cont[s] = (cont[s] || 0) + 1; });
   if (urgFiltro && !cont[urgFiltro]) urgFiltro = "";
   $("urgFiltros").innerHTML = abertos.length ? [["", `Todos (${abertos.length})`], ...SITUACOES.filter((s) => cont[s]).map((s) => [s, `${s} (${cont[s]})`])]
@@ -713,8 +724,10 @@ function desenharUrgentes() {
   $("urgLista").innerHTML = vis.length ? vis.map((u) => itemUrg(u, false)).join("") : `<p class="empty">Sem Edocs urgentes por tratar.</p>`;
   $("urgFeitos").innerHTML = feitos.length ? feitos.slice(0, 100).map((u) => itemUrg(u, true)).join("") : `<p class="empty">Ainda nenhum tratado.</p>`;
   $("urgFeitosN").textContent = `(${feitos.length})`;
-  $("bdgUrg").hidden = !abertos.length; $("bdgUrg").textContent = abertos.length;
-  $("bdgUrg").classList.toggle("late", abertos.some((u) => prioDe(u) === 1 || (isoData(u.prazo) && u.prazo < hoje())));
+  $("urgVerRes").textContent = verDe ? `${verDe}: ${abertos.length} por tratar · ${feitos.length} já tratado${feitos.length === 1 ? "" : "s"}` : "";
+  const todosAbertos = est.urgentes.filter((u) => !u.tratado);
+  $("bdgUrg").hidden = !todosAbertos.length; $("bdgUrg").textContent = todosAbertos.length;
+  $("bdgUrg").classList.toggle("late", todosAbertos.some((u) => prioDe(u) === 1 || (isoData(u.prazo) && u.prazo < hoje())));
 }
 $("btnDiario").addEventListener("click", () => { opcoesResp(); $("urgStatus").textContent = ""; desenharUrgentes(); mostrar("vDiario"); });
 $("btnVoltarDia").addEventListener("click", () => mostrar("vPainel"));
@@ -723,6 +736,7 @@ $("urgForm").addEventListener("submit", async (e) => {
   const edoc = $("urgEdoc").value.trim().toUpperCase().replace(/\s+/g, "");
   const st = $("urgStatus");
   if (!edoc) { $("urgEdoc").focus(); return; }
+  if (!$("urgPor").value) { st.textContent = "Escolha quem está a adicionar o Edoc."; st.className = "status err"; $("urgPor").focus(); return; }
   if (est.urgentes.some((u) => !u.tratado && u.edoc === edoc)) { st.textContent = `O ${edoc} já está na lista de urgentes.`; st.className = "status err"; return; }
   $("btnUrgAdd").disabled = true;
   try {
@@ -730,11 +744,17 @@ $("urgForm").addEventListener("submit", async (e) => {
       edoc, assunto: $("urgAssunto").value.trim(), prio: +$("urgPrio").value || 2,
       nota: $("urgNota").value.trim(), resp: $("urgResp").value, prazo: $("urgPrazo").value || "",
       situacao: $("urgSit").value || "Outro", situacaoEm: new Date().toISOString(),
-      tratado: false, criadoPor: quem(), criadoEm: new Date().toISOString(),
+      tratado: false, criadoPor: $("urgPor").value, criadoEm: new Date().toISOString(),
     });
-    $("urgForm").reset(); $("urgSit").value = SITUACOES[0]; $("urgPrio").value = "2"; st.textContent = `${edoc} adicionado.`; st.className = "status"; $("urgEdoc").focus();
+    const porEsc = $("urgPor").value; try { localStorage.setItem("kz-urg-por", porEsc); } catch {}
+    $("urgForm").reset(); $("urgSit").value = SITUACOES[0]; $("urgPrio").value = "2"; $("urgPor").value = porEsc; st.textContent = `${edoc} adicionado.`; st.className = "status"; $("urgEdoc").focus();
   } catch { st.textContent = "Não consegui guardar. Verifique a internet."; st.className = "status err"; }
   $("btnUrgAdd").disabled = false;
+});
+$("urgVerDe").addEventListener("change", () => {
+  try { localStorage.setItem("kz-urg-ver", $("urgVerDe").value); } catch {}
+  if ($("urgVerDe").value) $("urgFeitosBox").open = true;
+  desenharUrgentes();
 });
 $("urgFiltros").addEventListener("click", (e) => { const b = e.target.closest("[data-filtro]"); if (!b) return; urgFiltro = b.dataset.filtro; desenharUrgentes(); });
 $("urgLista").addEventListener("change", async (e) => {

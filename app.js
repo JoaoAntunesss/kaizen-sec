@@ -749,6 +749,16 @@ function desenharUrgentes() {
   $("urgFeitos").innerHTML = feitos.length ? feitos.slice(0, 100).map((u) => itemUrg(u, true)).join("") : `<p class="empty">Ainda nenhum tratado.</p>`;
   $("urgFeitosN").textContent = `(${feitos.length})`;
   $("urgVerRes").textContent = verDe ? `${verDe}: ${abertos.length} por tratar · ${feitos.length} já tratado${feitos.length === 1 ? "" : "s"}` : "";
+  const semana = new Date(Date.now() - 7 * 864e5).toISOString();
+  const nAtraso = abertos.filter((u) => isoData(u.prazo) && u.prazo < hoje()).length;
+  const tiles = [
+    ["", "Por tratar", abertos.length, ""],
+    ["", "Muito urgentes", abertos.filter((u) => prioDe(u) === 1).length, "t-late"],
+    ["", "Em atraso", nAtraso, nAtraso ? "t-late" : ""],
+    ["Ofício por assinar", "Por assinar", cont["Ofício por assinar"] || 0, "t-sign"],
+    ["", "Tratados em 7 dias", feitos.filter((u) => String(u.tratadoEm || "") >= semana).length, "t-ok"],
+  ];
+  $("urgResumo").innerHTML = tiles.map(([f, t, n, c]) => `<${f ? `button type="button" data-filtro="${esc(f)}"` : "div"} class="ur-t ${c}${f && f === urgFiltro ? " on" : ""}"><span class="ur-n">${n}</span><span class="ur-l">${esc(t)}</span></${f ? "button" : "div"}>`).join("");
   const todosAbertos = est.urgentes.filter((u) => !u.tratado);
   $("bdgUrg").hidden = !todosAbertos.length; $("bdgUrg").textContent = todosAbertos.length;
   $("bdgUrg").classList.toggle("late", todosAbertos.some((u) => prioDe(u) === 1 || (isoData(u.prazo) && u.prazo < hoje())));
@@ -798,6 +808,7 @@ $("urgLista").addEventListener("submit", async (e) => {
   catch { st.textContent = "Não consegui guardar. Verifique a internet."; st.className = "status err"; }
 });
 $("urgLista").addEventListener("click", (e) => { if (e.target.closest("[data-cancel]")) e.target.closest(".urg-linkbox")?.remove(); });
+$("urgResumo").addEventListener("click", (e) => { const b = e.target.closest("[data-filtro]"); if (!b) return; urgFiltro = urgFiltro === b.dataset.filtro ? "" : b.dataset.filtro; desenharUrgentes(); });
 $("urgFiltros").addEventListener("click", (e) => { const b = e.target.closest("[data-filtro]"); if (!b) return; urgFiltro = b.dataset.filtro; desenharUrgentes(); });
 $("urgLista").addEventListener("change", async (e) => {
   const s = e.target.closest('[data-urg="sit"], [data-urg="prio"]'); if (!s) return;

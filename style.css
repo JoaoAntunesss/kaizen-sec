@@ -555,3 +555,60 @@ body:has(#fab:not([hidden])) .mestre-ola{bottom:calc(152px + env(safe-area-inset
   .urg-prio.p2{background:#3a2c12;color:#f3c879}
   .panel{box-shadow:none}
 }
+
+/* ================= Aspeto mais atrativo ================= */
+:root{--brand:#1f4e79;--brand-2:#163a5c;--radius:14px;--shadow:0 1px 2px rgba(16,32,64,.05),0 4px 14px rgba(16,32,64,.06)}
+body{background:linear-gradient(180deg,#eaf0f6 0,var(--bg) 260px) no-repeat,var(--bg)}
+/* cabeçalho na cor da Câmara */
+.topbar{background:linear-gradient(100deg,var(--brand-2),var(--brand) 60%,#2a6aa3);border-bottom:0;color:#fff}
+.topbar .ttl strong{color:#fff}
+.topbar .ttl span{color:rgba(255,255,255,.78)}
+.topbar .logos{border-color:transparent;box-shadow:0 1px 3px rgba(0,0,0,.15)}
+.topbar .btn{background:rgba(255,255,255,.12);border-color:rgba(255,255,255,.35);color:#fff}
+.topbar .btn:hover{background:rgba(255,255,255,.22)}
+/* navegação com ícones */
+.mainnav{box-shadow:0 1px 0 var(--line),0 6px 16px -12px rgba(16,32,64,.35);position:relative;z-index:4}
+.nav-i{width:17px;height:17px;flex:none;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;opacity:.85}
+.nav-b{padding:13px 14px 11px;border-radius:0}
+.nav-b:hover{background:var(--accent-soft)}
+.nav-b.on .nav-i{opacity:1}
+/* painéis */
+.panel{border-radius:var(--radius);box-shadow:var(--shadow);border-color:transparent}
+.panel-head h2,.urg-head h2{font-size:20px;font-weight:700;letter-spacing:-.01em}
+/* resumo do trabalho diário */
+.urg-resumo{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px;margin:4px 0 6px}
+@media (max-width:820px){.urg-resumo{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media (max-width:480px){.urg-resumo{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.ur-t{display:flex;flex-direction:column;align-items:flex-start;gap:2px;padding:12px 14px;border-radius:12px;background:var(--accent-soft);border:1px solid transparent;font:inherit;color:var(--ink);text-align:left;position:relative;overflow:hidden}
+.ur-t::before{content:"";position:absolute;inset:0 auto 0 0;width:4px;background:var(--accent)}
+.ur-n{font-size:28px;font-weight:800;line-height:1.1;font-variant-numeric:tabular-nums;letter-spacing:-.02em}
+.ur-l{font-size:13px;font-weight:600;color:var(--muted)}
+.ur-t.t-late{background:var(--late-soft)}.ur-t.t-late::before{background:var(--late)}.ur-t.t-late .ur-n{color:var(--late)}
+.ur-t.t-sign{background:#fbefd9}.ur-t.t-sign::before{background:#c98a1a}
+.ur-t.t-ok{background:var(--ok-soft)}.ur-t.t-ok::before{background:var(--ok)}.ur-t.t-ok .ur-n{color:var(--ok)}
+button.ur-t{cursor:pointer;transition:transform .15s ease,box-shadow .15s ease}
+button.ur-t:hover{transform:translateY(-1px);box-shadow:var(--shadow)}
+button.ur-t.on{border-color:#c98a1a}
+/* cartões dos Edocs */
+.urg-item{border-radius:12px;transition:box-shadow .15s ease,transform .15s ease}
+.urg-item:hover{box-shadow:var(--shadow)}
+/* Ofícios e legislação: secções como linhas clicáveis */
+.leg-sec{border-top:0;border:1px solid var(--line);border-radius:12px;padding:0;margin:0 0 8px;background:var(--surface)}
+.leg-sec > summary{list-style:none;cursor:pointer;padding:13px 16px;font-weight:650;display:flex;align-items:center;justify-content:space-between;gap:10px;border-radius:12px}
+.leg-sec > summary::-webkit-details-marker{display:none}
+.leg-sec > summary::after{content:"";width:8px;height:8px;border-right:2px solid var(--muted);border-bottom:2px solid var(--muted);transform:rotate(45deg);transition:transform .15s ease;margin-right:4px}
+.leg-sec[open] > summary::after{transform:rotate(-135deg)}
+.leg-sec > summary:hover{background:var(--accent-soft)}
+.leg-sec[open]{box-shadow:var(--shadow)}
+.leg-sec[open] > summary{margin-bottom:0;border-bottom:1px solid var(--line);border-radius:12px 12px 0 0}
+.leg-sec > :not(summary){margin-left:16px;margin-right:16px}
+.leg-sec[open] > :last-child{margin-bottom:16px}
+.leg-sec[open] > summary + *{margin-top:14px}
+@media (prefers-reduced-motion:reduce){.ur-t,.urg-item,.leg-sec > summary::after{transition:none}}
+@media (prefers-color-scheme: dark){
+  :root{--brand:#163a5c;--brand-2:#0f2a44;--shadow:0 1px 2px rgba(0,0,0,.3),0 6px 18px rgba(0,0,0,.25)}
+  body{background:linear-gradient(180deg,#152130 0,var(--bg) 260px) no-repeat,var(--bg)}
+  .panel{border-color:var(--line)}
+  .ur-t.t-sign{background:#3a2c12}.ur-t.t-sign::before{background:#e0a84a}
+}
+#cauAnos input:checked + span{text-decoration:none;color:var(--ink)}

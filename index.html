@@ -32,6 +32,7 @@
   <button class="nav-b" id="btnDiario" data-v="vDiario" type="button"><svg class="nav-i" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 11l3 3 8-8"/><path d="M20 12v7a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h9"/></svg>Trabalho diário <span class="badge" id="bdgUrg" hidden></span></button>
   <button class="nav-b" id="btnOficios" data-v="vOficios" type="button"><svg class="nav-i" viewBox="0 0 24 24" aria-hidden="true"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M14 3v6h6M8 13h8M8 17h5"/></svg>Ofícios e legislação</button>
   <button class="nav-b" id="btnKaizen" data-v="vPainel" type="button"><svg class="nav-i" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>Reuniões Kaizen</button>
+  <button class="nav-b" id="btnContactos" data-v="vContactos" type="button"><svg class="nav-i" viewBox="0 0 24 24" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg>Contactos</button>
   <button class="nav-b" id="btnRegras" data-v="vRegras" type="button"><svg class="nav-i" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 19.5V5a2 2 0 0 1 2-2h14v15H6.5A2.5 2.5 0 0 0 4 20.5 2.5 2.5 0 0 0 6.5 23H20"/><path d="M9 8h7M9 12h5"/></svg>Regras do MESTRE</button>
   <button class="nav-b" id="btnMapas" data-v="vMapas" type="button"><svg class="nav-i" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 10h18M9 4v16"/></svg>Mapas</button>
   <button class="nav-b" id="btnPowerBI" data-v="vPowerBI" type="button"><svg class="nav-i" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg>Reclamações</button>
@@ -202,6 +203,7 @@
 
   <!-- Trabalho diário -->
   <section id="vDiario" class="view" hidden>
+    <div class="diario-grid">
     <div class="panel">
       <button class="btn small ghost" id="btnVoltarDia" type="button" hidden>Voltar</button>
       <div class="urg-head"><h2>Edocs urgentes</h2><button class="btn primary" id="btnUrgNovo" type="button" aria-expanded="false" aria-controls="urgNovo">+ Adicionar Edoc</button></div>
@@ -242,6 +244,18 @@
         <label class="chk-i"><input type="checkbox" id="notifMuito"><span>Avisar quando for adicionado um Edoc <strong>muito urgente</strong></span></label>
         <p class="muted small">Os avisos aparecem enquanto a app estiver aberta, mesmo minimizada ou noutra janela. Não aparecem avisos das alterações feitas por si. «Os meus Edocs» são os que têm o seu nome em «Adicionado por» (o nome escolhido da última vez neste computador). <button class="btn small ghost" id="btnNotifTeste" type="button">Testar aviso</button></p>
       </details>
+    </div>
+    <aside class="equipa-hoje" id="equipaHoje" aria-label="Recados">
+      <div class="eh-head"><h3>Recados</h3><button class="btn small ghost" id="btnRecadoNovo" type="button" aria-expanded="false">+ Recado</button></div>
+      <form class="rec-form" id="recForm" hidden autocomplete="off">
+        <label class="f">Recado<textarea id="recTexto" rows="3" maxlength="200" required placeholder="Ex.: Ofícios para assinar ficam na pasta azul."></textarea></label>
+        <label class="f">Mostrar até<input type="date" id="recAte" required></label>
+        <button class="btn primary" type="submit">Afixar</button>
+      </form>
+      <div class="recados" id="recLista"></div>
+      <p class="muted small eh-vazio" id="recVazio">Sem recados. Use para avisos que hoje andam em post-its ou de boca.</p>
+      <p class="status" id="ehStatus"></p>
+    </aside>
     </div>
   </section>
 
@@ -377,6 +391,38 @@
       </details>
 
       <p class="muted small leg-links">Textos oficiais: <a href="https://diariodarepublica.pt/dr/detalhe/decreto-lei/4-2015-66041468" target="_blank" rel="noopener">CPA no Diário da República</a> · <a href="https://eur-lex.europa.eu/legal-content/PT/TXT/?uri=CELEX:32016R0679" target="_blank" rel="noopener">RGPD (EUR-Lex)</a> · <a href="https://www.cnpd.pt" target="_blank" rel="noopener">CNPD</a>. Este guia é um resumo de apoio e não substitui o texto da lei nem o parecer dos serviços jurídicos.</p>
+    </div>
+  </section>
+
+  <!-- Contactos das entidades -->
+  <section id="vContactos" class="view" hidden>
+    <div class="panel">
+      <div class="urg-head"><h2>Contactos das entidades</h2>
+        <div class="eh-acts">
+          <button class="btn ghost" id="btnCtImportar" type="button">Importar Excel</button>
+          <button class="btn primary" id="btnCtNovo" type="button" aria-expanded="false">+ Novo contacto</button>
+        </div>
+      </div>
+      <p class="muted">Para quem se enviam os ofícios. O MESTRE usa esta lista para preencher o «Destinatário» dos ofícios a entidades. Pode importar um Excel com colunas como Entidade, Cargo, Nome, E-mail, Morada e Telefone.</p>
+      <input type="file" id="ctFicheiro" accept=".xlsx,.csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv" hidden>
+      <form class="ct-form" id="ctForm" hidden autocomplete="off">
+        <label class="f">Tipo<input type="text" id="ctTipo" list="ctTipos" maxlength="60" placeholder="Ex.: Junta de Freguesia"><datalist id="ctTipos"></datalist></label>
+        <label class="f f-2">Entidade<input type="text" id="ctEntidade" maxlength="150" required placeholder="Ex.: Junta de Freguesia de Custóias"></label>
+        <label class="f">Tratamento<select id="ctTrat"><option>EXMO. SENHOR</option><option>EXMA. SENHORA</option><option>EXMOS. SENHORES</option></select></label>
+        <label class="f">Cargo<input type="text" id="ctCargo" maxlength="120" placeholder="Ex.: Presidente da Junta de Freguesia"></label>
+        <label class="f">Nome (opcional)<input type="text" id="ctNome" maxlength="120"></label>
+        <label class="f">E-mail<input type="email" id="ctEmail" maxlength="150"></label>
+        <label class="f">Telefone<input type="text" id="ctTel" maxlength="40"></label>
+        <label class="f f-2">Morada<input type="text" id="ctMorada" maxlength="200"></label>
+        <label class="f f-2">Notas<input type="text" id="ctNotas" maxlength="300" placeholder="Ex.: com conhecimento ao fiscal da obra"></label>
+        <div class="actions f-all"><button class="btn ghost" type="button" id="btnCtCancelar">Cancelar</button><button class="btn primary" type="submit" id="btnCtGuardar">Guardar contacto</button></div>
+      </form>
+      <div class="ct-barra">
+        <label class="f ct-busca">Procurar<input type="search" id="ctBusca" placeholder="Entidade, cargo, e-mail…"></label>
+        <span class="muted small" id="ctSub"></span>
+      </div>
+      <p class="status" id="ctStatus"></p>
+      <div id="ctLista"></div>
     </div>
   </section>
 

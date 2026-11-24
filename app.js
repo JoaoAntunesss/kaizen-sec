@@ -1,10 +1,13 @@
 import { GROQ_API_KEY, FIREBASE_CONFIG, COL_REUNIOES, COL_FOTOS, EQUIPA as EQUIPA_INICIAL, POWERBI_URL, MAPAS } from "./config.js";
 import { MODELOS_OFICIO, modelosRelevantes } from "./modelos-oficio.js";
+import { CONTACTOS_BASE } from "./contactos-base.js";
 import { lerValor, valorCompleto, fmtEuros, eurosPorExtenso } from "./extenso.js";
 const COL_EQUIPA = "kaizen_equipa";
 const COL_URGENTES = "kaizen_urgentes";
 const COL_MAPAS = "kaizen_mapas";
 const COL_REGRAS = "kaizen_regras";
+const COL_CONTACTOS = "kaizen_contactos";
+const COL_RECADOS = "kaizen_recados";
 // Equipa: vem da base de dados (editável na app); enquanto não houver, usa a lista do config.js
 let EQUIPA = EQUIPA_INICIAL.map((p) => ({ ...p }));
 
@@ -30,7 +33,7 @@ const temFotoDe = (r, k) => !!((r.fotos && r.fotos[k]) || (k === "postits" && r.
 let fb = null;
 
 /* ---------------- Vistas ---------------- */
-const VISTAS = ["vLogin", "vConfig", "vPainel", "vReuniao", "vRegistar", "vImprimir", "vEquipa", "vRelatorio", "vPowerBI", "vDiario", "vMapas", "vOficios", "vRegras"];
+const VISTAS = ["vLogin", "vConfig", "vPainel", "vReuniao", "vRegistar", "vImprimir", "vEquipa", "vRelatorio", "vPowerBI", "vDiario", "vMapas", "vOficios", "vRegras", "vContactos"];
 function mostrar(v) {
   for (const id of VISTAS) $(id).hidden = id !== v;
   $("fab").hidden = v !== "vPainel";
@@ -109,6 +112,12 @@ function subscrever() {
     est.mapas = Object.entries(v).map(([id, m]) => ({ id, ...m }));
     desenharMapas();
   }, () => { $("mapasStatus").textContent = "Não consegui ler os mapas."; $("mapasStatus").className = "status err"; });
+  const lerLista = (col, chave, depois) => D.onValue(D.ref(db, col), (snap) => {
+    est[chave] = Object.entries(snap.val() || {}).map(([id, r]) => ({ id, ...r })).filter((r) => r && typeof r === "object");
+    depois();
+  }, () => {});
+  lerLista(COL_CONTACTOS, "contactos", () => desenharContactos());
+  lerLista(COL_RECADOS, "recados", () => desenharEquipaHoje());
   D.onValue(D.ref(db, COL_REGRAS), (snap) => {
     const v = snap.val() || {};
     est.regras = Object.entries(v).map(([id, r]) => ({ id, ...r })).filter((r) => r && r.texto);
@@ -710,6 +719,7 @@ function opcoesResp() {
   ver.value = verAtual; if (ver.value !== verAtual) ver.value = "";
   if (!$("urgSit").options.length) $("urgSit").innerHTML = SITUACOES.map((s) => `<option>${esc(s)}</option>`).join("");
 }
+est.recados = est.recados || []; est.contactos = est.contactos || [];
 function itemUrg(u, feito) {
   const atraso = !feito && isoData(u.prazo) && u.prazo < hoje();
   const prazoHoje = !feito && u.prazo === hoje();
@@ -962,6 +972,222 @@ $("chkLista").addEventListener("change", (e) => { const c = e.target.closest("[d
 $("btnChkLimpar").addEventListener("click", () => { chk = {}; try { localStorage.removeItem("kz-chk-oficio"); } catch {} desenharChk(); });
 desenharChk();
 
+/* ---------------- Recados (post-its à direita do Trabalho diário) ---------------- */
+const isoMais = (dias) => { const d = new Date(); d.setDate(d.getDate() + dias); return d.toISOString().slice(0, 10); };
+function ehMsg(t, erro) { $("ehStatus").textContent = t; $("ehStatus").className = "status" + (erro ? " err" : ""); }
+function desenharEquipaHoje() {
+  const rec = est.recados.filter((r) => r.texto && (r.ate || "") >= hoje()).sort((a, b) => String(b.criadoEm).localeCompare(String(a.criadoEm)));
+  $("recLista").innerHTML = rec.map((r, i) => `<div class="recado c${i % 3}"><p>${esc(r.texto)}</p><div class="rec-meta"><span>${esc(r.criadoPor || "")} · até ${esc(fmt(r.ate))}</span><button type="button" class="rec-x" data-rec-rm="${esc(r.id)}" aria-label="Retirar recado">Retirar</button></div></div>`).join("");
+  $("recVazio").hidden = !!rec.length || !$("recForm").hidden;
+  // recados expirados há mais de 30 dias são apagados (limpeza)
+  est.recados.filter((r) => r.ate && r.ate < isoMais(-30)).forEach((r) => fb.D.remove(fb.D.ref(fb.db, `${COL_RECADOS}/${r.id}`)).catch(() => {}));
+}
+function abrirForm(qual) {
+  ["recForm"].forEach((id) => { $(id).hidden = id !== qual || !$(id).hidden; });
+  $("btnRecadoNovo").setAttribute("aria-expanded", String(!$("recForm").hidden));
+  desenharEquipaHoje();
+  if (!$("recForm").hidden) { if (!$("recAte").value) $("recAte").value = isoMais(7); $("recTexto").focus(); }
+}
+$("btnRecadoNovo").addEventListener("click", () => abrirForm("recForm"));
+$("recForm").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const texto = $("recTexto").value.trim().slice(0, 200), ate = $("recAte").value;
+  if (!texto || !isoData(ate)) return;
+  try { await fb.D.set(fb.D.push(fb.D.ref(fb.db, COL_RECADOS)), { texto, ate, criadoPor: euNome() || quem(), criadoEm: new Date().toISOString() });
+    $("recTexto").value = ""; $("recAte").value = ""; abrirForm(""); ehMsg("Recado afixado."); } catch { ehMsg("Não consegui guardar o recado.", true); }
+});
+$("equipaHoje").addEventListener("click", async (e) => {
+  const r = e.target.closest("[data-rec-rm]");
+  if (!r || !confirm("Retirar este recado?")) return;
+  try { await fb.D.remove(fb.D.ref(fb.db, `${COL_RECADOS}/${r.dataset.recRm}`)); } catch { ehMsg("Não consegui apagar.", true); }
+});
+
+/* ---------------- Contactos das entidades ---------------- */
+const TIPOS_CT = ["Junta de Freguesia", "Água e saneamento", "Energia", "Empresa municipal", "Serviços municipais", "Fiscalização / empreitadas", "Empresa", "Outro"];
+const tiposCt = () => [...new Set([...TIPOS_CT, ...est.contactos.map((c) => c.tipo).filter(Boolean)])];
+const ordTipo = (t) => { const i = TIPOS_CT.indexOf(t); return i < 0 ? 50 : i; };
+let ctEdit = null;
+const ctMsg = (t, erro) => { $("ctStatus").textContent = t; $("ctStatus").className = "status" + (erro ? " err" : ""); };
+const linhaDest = (c) => `Destinatário: ${c.tratamento || "EXMOS. SENHORES"} | ${[c.cargo, c.nome, c.entidade, c.email || c.morada].filter(Boolean).join(" | ")}`;
+const normCt = (s) => String(s || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
+function desenharContactos() {
+  const q = normCt($("ctBusca").value.trim());
+  const l = est.contactos.filter((c) => c.entidade && (!q || normCt([c.entidade, c.cargo, c.nome, c.email, c.morada, c.notas, c.tipo].join(" ")).includes(q)))
+    .sort((a, b) => ordTipo(a.tipo) - ordTipo(b.tipo) || String(a.tipo).localeCompare(String(b.tipo), "pt") || a.entidade.localeCompare(b.entidade, "pt"));
+  $("ctSub").textContent = est.contactos.length ? `${l.length} de ${est.contactos.length} contacto${est.contactos.length === 1 ? "" : "s"}` : "";
+  if (!est.contactos.length) {
+    $("ctLista").innerHTML = `<div class="empty ct-vazio"><p>Ainda não há contactos.</p><p class="muted small">Pode carregar a lista inicial com os contactos públicos das 10 juntas de freguesia do concelho, da INDAQUA Matosinhos, da MatosinhosHabit e da E-REDES, e depois importar o vosso Excel.</p><button class="btn primary" type="button" id="btnCtBase">Carregar lista inicial</button></div>`;
+    return;
+  }
+  let tipo = "";
+  $("ctLista").innerHTML = l.length ? l.map((c) => {
+    const cab = c.tipo !== tipo ? `<h3 class="sec-ttl regra-tema">${esc((tipo = c.tipo) || "Outro")}</h3>` : "";
+    return `${cab}<div class="ct">
+      <div class="ct-main">
+        <strong class="ct-ent">${esc(c.entidade)}${c.obrigatorio ? ` <span class="chip ok">Dar sempre conhecimento</span>` : ""}</strong>
+        ${c.cargo || c.nome ? `<span class="ct-cargo">${esc([c.tratamento, c.cargo, c.nome].filter(Boolean).join(" · "))}</span>` : ""}
+        <span class="ct-dados">${c.email ? `<a href="mailto:${esc(c.email)}">${esc(c.email)}</a>` : `<span class="chip none">sem e-mail</span>`}${c.telefone ? `<span>${esc(c.telefone)}</span>` : ""}${c.morada ? `<span>${esc(c.morada)}</span>` : ""}</span>
+        ${c.notas ? `<span class="muted small">${esc(c.notas)}</span>` : ""}
+      </div>
+      <div class="regra-acts"><button class="btn small ghost" type="button" data-ct-copiar="${esc(c.id)}">Copiar destinatário</button><button class="btn small ghost" type="button" data-ct-edit="${esc(c.id)}">Editar</button><button class="btn small ghost danger" type="button" data-ct-rm="${esc(c.id)}">Apagar</button></div>
+    </div>`;
+  }).join("") : `<p class="empty">Nenhum contacto encontrado.</p>`;
+}
+function formCt(c) {
+  ctEdit = c ? c.id : null; $("ctForm").hidden = false; $("btnCtNovo").setAttribute("aria-expanded", "true");
+  const v = c || { tipo: "Outro", tratamento: "EXMOS. SENHORES" };
+  [["ctTipo", "tipo"], ["ctEntidade", "entidade"], ["ctTrat", "tratamento"], ["ctCargo", "cargo"], ["ctNome", "nome"], ["ctEmail", "email"], ["ctTel", "telefone"], ["ctMorada", "morada"], ["ctNotas", "notas"]]
+    .forEach(([id, k]) => ($(id).value = v[k] || ""));
+  $("ctTipos").innerHTML = tiposCt().map((t) => `<option value="${esc(t)}">`).join(""); if (!$("ctTipo").value) $("ctTipo").value = "Outro"; if (!$("ctTrat").value) $("ctTrat").value = "EXMOS. SENHORES";
+  $("btnCtGuardar").textContent = c ? "Guardar alterações" : "Guardar contacto"; $("ctEntidade").focus();
+}
+function fecharCt() { ctEdit = null; $("ctForm").hidden = true; $("btnCtNovo").setAttribute("aria-expanded", "false"); }
+const limpaCt = (c) => { const o = {}; ["tipo", "entidade", "tratamento", "cargo", "nome", "email", "telefone", "morada", "notas"].forEach((k) => (o[k] = String(c[k] || "").trim().slice(0, k === "notas" ? 300 : 200))); if (!o.tipo) o.tipo = "Outro"; o.obrigatorio = !!c.obrigatorio; if (!o.tratamento) o.tratamento = "EXMOS. SENHORES"; return o; };
+$("btnContactos").addEventListener("click", () => { ctMsg(""); desenharContactos(); mostrar("vContactos"); });
+$("btnCtNovo").addEventListener("click", () => ($("ctForm").hidden ? formCt(null) : fecharCt()));
+$("btnCtCancelar").addEventListener("click", fecharCt);
+$("ctBusca").addEventListener("input", desenharContactos);
+$("ctForm").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const c = limpaCt({ obrigatorio: ctEdit ? !!(est.contactos.find((x) => x.id === ctEdit) || {}).obrigatorio : false, tipo: $("ctTipo").value, entidade: $("ctEntidade").value, tratamento: $("ctTrat").value, cargo: $("ctCargo").value, nome: $("ctNome").value, email: $("ctEmail").value, telefone: $("ctTel").value, morada: $("ctMorada").value, notas: $("ctNotas").value });
+  if (!c.entidade) return;
+  try {
+    if (ctEdit) await fb.D.update(fb.D.ref(fb.db, `${COL_CONTACTOS}/${ctEdit}`), { ...c, editadoPor: euNome() || quem(), editadoEm: new Date().toISOString() });
+    else await fb.D.set(fb.D.push(fb.D.ref(fb.db, COL_CONTACTOS)), { ...c, criadoPor: euNome() || quem(), criadoEm: new Date().toISOString() });
+    ctMsg(ctEdit ? "Contacto atualizado." : "Contacto guardado."); fecharCt();
+  } catch { ctMsg("Não consegui guardar. Verifique a internet.", true); }
+});
+async function gravarVarios(lista, origem) {
+  const emailDe = (c) => normCt(c.email).trim();
+  const porEmail = new Map(est.contactos.filter((c) => c.email).map((c) => [emailDe(c), c]));
+  const porEnt = new Map(est.contactos.map((c) => [normCt(c.entidade), c]));
+  const novos = [], fundir = {}; let iguais = 0;
+  lista.map(limpaCt).forEach((c) => {
+    if (!c.entidade) return;
+    const exE = porEnt.get(normCt(c.entidade));
+    const ex = (c.email && porEmail.get(emailDe(c))) || (exE && (!c.email || !exE.email) ? exE : null);
+    if (ex) {
+      const up = {}; ["nome", "cargo", "telefone", "morada", "notas"].forEach((k) => { if (c[k] && !ex[k]) up[k] = c[k]; });
+      if (c.obrigatorio && !ex.obrigatorio) up.obrigatorio = true;
+      if (Object.keys(up).length && ex.id) fundir[ex.id] = { ...(fundir[ex.id] || {}), ...up }; else iguais++;
+      return;
+    }
+    novos.push(c); if (c.email) porEmail.set(emailDe(c), c); porEnt.set(normCt(c.entidade), c);
+  });
+  const nF = Object.keys(fundir).length;
+  if (!novos.length && !nF) { ctMsg("Não há contactos novos (já existiam todos)."); return; }
+  if (!confirm(`${origem}:\n- ${novos.length} contacto(s) novo(s)\n- ${nF} contacto(s) já existente(s) completado(s) com dados em falta\n- ${iguais} repetido(s) ignorado(s)\n\nContinuar?`)) return;
+  const upd = {}; const por = euNome() || quem(), em = new Date().toISOString();
+  try {
+    novos.forEach((c) => { upd[fb.D.push(fb.D.ref(fb.db, COL_CONTACTOS)).key] = { ...c, criadoPor: por, criadoEm: em }; });
+    Object.entries(fundir).forEach(([id, up]) => Object.entries(up).forEach(([k, v]) => (upd[`${id}/${k}`] = v)));
+    await fb.D.update(fb.D.ref(fb.db, COL_CONTACTOS), upd);
+    ctMsg(`${novos.length} contacto(s) acrescentado(s)${nF ? ` e ${nF} completado(s)` : ""}.`);
+  } catch { ctMsg("Não consegui guardar. Verifique a internet.", true); }
+}
+$("ctLista").addEventListener("click", async (e) => {
+  if (e.target.closest("#btnCtBase")) { gravarVarios(CONTACTOS_BASE, "Lista inicial de contactos públicos"); return; }
+  const cp = e.target.closest("[data-ct-copiar]"), ed = e.target.closest("[data-ct-edit]"), rm = e.target.closest("[data-ct-rm]");
+  const c = est.contactos.find((x) => x.id === (cp || ed || rm || {}).dataset?.[cp ? "ctCopiar" : ed ? "ctEdit" : "ctRm"]);
+  if (!c) return;
+  if (cp) { try { await navigator.clipboard.writeText(linhaDest(c)); cp.textContent = "Copiado"; setTimeout(() => (cp.textContent = "Copiar destinatário"), 1500); } catch {} return; }
+  if (ed) { formCt(c); $("ctForm").scrollIntoView({ block: "nearest" }); return; }
+  if (rm && confirm(`Apagar o contacto «${c.entidade}»?`)) { try { await fb.D.remove(fb.D.ref(fb.db, `${COL_CONTACTOS}/${c.id}`)); ctMsg("Contacto apagado."); } catch { ctMsg("Não consegui apagar.", true); } }
+});
+// Importar Excel (.xlsx, primeira folha) ou CSV
+$("btnCtImportar").addEventListener("click", () => $("ctFicheiro").click());
+const colLetra = (ref) => { let n = 0; for (const ch of String(ref).replace(/\d+/g, "")) n = n * 26 + ch.charCodeAt(0) - 64; return n - 1; };
+const xmlTxt = (s) => String(s).replace(/<[^>]+>/g, "").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&apos;/g, "'").replace(/&amp;/g, "&");
+async function folhasXlsx(buf) {
+  const z = await JSZip.loadAsync(buf);
+  const txt = async (n) => (z.file(n) ? await z.file(n).async("string") : "");
+  const ss = [...(await txt("xl/sharedStrings.xml")).matchAll(/<si>([\s\S]*?)<\/si>/g)].map((m) => xmlTxt([...m[1].matchAll(/<t[^>]*>([\s\S]*?)<\/t>/g)].map((t) => t[1]).join("")));
+  // estilos: que células têm fundo verde («a verde as entidades que obrigatoriamente devem ser contactadas»)
+  const st = await txt("xl/styles.xml");
+  const fills = [...((st.match(/<fills[^>]*>([\s\S]*?)<\/fills>/) || [])[1] || "").matchAll(/<fill>([\s\S]*?)<\/fill>/g)].map((f) => ((f[1].match(/fgColor[^>]*rgb="([0-9A-Fa-f]{6,8})"/) || [])[1] || ""));
+  const xfs = [...((st.match(/<cellXfs[^>]*>([\s\S]*?)<\/cellXfs>/) || [])[1] || "").matchAll(/<xf\b([^>]*)/g)].map((x) => +((x[1].match(/fillId="(\d+)"/) || [])[1] || 0));
+  const verde = (s) => { const rgb = fills[xfs[s]] || ""; if (rgb.length < 6) return false; const h = rgb.slice(-6); const [r, g, b] = [0, 2, 4].map((k) => parseInt(h.slice(k, k + 2), 16)); return g > 120 && g > r + 50 && g > b + 50; };
+  const wb = await txt("xl/workbook.xml"), rels = await txt("xl/_rels/workbook.xml.rels");
+  const folhas = [...wb.matchAll(/<sheet\b[^>]*name="([^"]*)"[^>]*r:id="([^"]+)"/g)].map((m) => ({ nome: xmlTxt(m[1]), alvo: ((rels.match(new RegExp(`Id="${m[2]}"[^>]*Target="([^"]+)"`)) || rels.match(new RegExp(`Target="([^"]+)"[^>]*Id="${m[2]}"`)) || [])[1] || "") }));
+  const out = [];
+  for (const f of folhas) {
+    const xml = await txt("xl/" + f.alvo.replace(/^\/?xl\//, "").replace(/^\//, ""));
+    const rows = [...xml.matchAll(/<row[^>]*>([\s\S]*?)<\/row>/g)].map((r) => {
+      const lin = []; let g = false;
+      for (const c of r[1].matchAll(/<c ([^>]*?)(?:\/>|>([\s\S]*?)<\/c>)/g)) {
+        const ref = (c[1].match(/r="([A-Z]+\d+)"/) || [])[1], t = (c[1].match(/t="(\w+)"/) || [])[1], s = +((c[1].match(/ s="(\d+)"/) || [])[1] || 0), corpo = c[2] || "";
+        const v = (corpo.match(/<v>([\s\S]*?)<\/v>/) || [])[1];
+        const val = t === "s" ? ss[+v] || "" : t === "inlineStr" ? xmlTxt((corpo.match(/<t[^>]*>([\s\S]*?)<\/t>/) || [])[1] || "") : xmlTxt(v || "");
+        lin[ref ? colLetra(ref) : lin.length] = val.replace(/ /g, " ").trim();
+        if (val && s && verde(s)) g = true;
+      }
+      const a = Array.from(lin, (x) => x || ""); a.verde = g; return a;
+    });
+    out.push({ nome: f.nome, rows });
+  }
+  return out;
+}
+const linhasCsv = (txt) => { const sep = (txt.split("\n")[0].match(/;/g) || []).length >= (txt.split("\n")[0].match(/,/g) || []).length ? ";" : ",";
+  return txt.split(/\r?\n/).filter((l) => l.trim()).map((l) => { const o = []; let cur = "", aspas = false; for (const ch of l) { if (ch === '"') aspas = !aspas; else if (ch === sep && !aspas) { o.push(cur.trim()); cur = ""; } else cur += ch; } o.push(cur.trim()); return o; }); };
+const RX_CT = { entidade: /entidade|organismo|empresa|institui/, nome: /^nome|representante|pessoa|interlocutor/, cargo: /cargo|fun[cç][aã]o|destinat/, email: /mail|correio/, morada: /morada|endere[cç]o/, codpostal: /c[oó]d.{0,3}postal|codigo postal/, telefone: /telef|telem|tlm|^tel|^contacto$|^contactos$/, tipo: /^tipo|categoria/, notas: /nota|obs/, tratamento: /tratamento/ };
+const ehCab = (r) => r.filter((x) => x && Object.values(RX_CT).some((rx) => rx.test(normCt(x).trim()))).length >= 2;
+function mapearFolha(nomeFolha, rows) {
+  const out = []; let idx = null, seccao = /lista tel/i.test(nomeFolha) ? "" : nomeFolha;
+  for (const r of rows) {
+    const cheias = r.filter(Boolean);
+    if (!cheias.length) continue;
+    if (ehCab(r)) {
+      idx = {}; const cab = r.map((x) => normCt(x).trim());
+      Object.entries(RX_CT).forEach(([k, rx]) => { const i = cab.findIndex((x, j) => x && rx.test(x) && !Object.values(idx).includes(j)); if (i >= 0) idx[k] = i; });
+      if (idx.entidade === undefined) { // ex.: «Outros | Email | Contacto»: a 1.ª coluna sem título reconhecido é a entidade e dá nome à secção
+        const i = r.findIndex((x, j) => x && !Object.values(idx).includes(j));
+        if (i >= 0 && idx.nome === undefined) { idx.entidade = i; if (!/^nome$/i.test(r[i])) seccao = r[i]; }
+        else if (idx.nome !== undefined) { idx.entidade = idx.nome; delete idx.nome; }
+      }
+      continue;
+    }
+    if (cheias.length === 1 && String(cheias[0]).length > 2 && (!idx || !r[idx.email] )) { if (idx || !seccao) seccao = cheias[0]; continue; }
+    if (!idx || cheias.length < 2) continue;
+    const c = {}; Object.entries(idx).forEach(([k, i]) => (c[k] = (r[i] || "").trim()));
+    // «EXMO. SENHOR / Presidente do Conselho de Administração / INDAQUA…» numa só célula: separar tratamento, cargo e entidade
+    { const ls = (c.entidade || "").split(/\n+/).map((x) => x.trim()).filter(Boolean);
+      if (ls.length > 1 && /^exm[oa]s?\.?\s/i.test(ls[0])) c.tratamento = c.tratamento || ls.shift();
+      if (ls.length > 1 && /^(presidente|gestor|gestora|diretor|diretora|director|vereador|vereadora|chefe|administrador|comandante|coordenador|coordenadora)\b/i.test(ls[0])) c.cargo = c.cargo || ls.shift();
+      c.entidade = ls.join(" – "); }
+    const mails = (c.email || "").split(/[\s;,]+/).filter((x) => /@/.test(x));
+    c.email = mails[0] || ""; const outros = mails.slice(1);
+    if (/@/.test(c.morada || "") && !/\s/.test(c.morada.trim())) { outros.push(c.morada.trim()); c.morada = ""; }
+    if (/@/.test(c.telefone || "")) { outros.push(...c.telefone.split(/[\s;,]+/).filter((x) => /@/.test(x) && x !== c.email)); c.telefone = ""; }
+    c.morada = [c.morada, c.codpostal].filter(Boolean).join(", ").replace(/\s*\n\s*/g, ", "); delete c.codpostal;
+    c.telefone = (c.telefone || "").replace(/\s*\n\s*/g, " / ");
+    c.notas = [c.notas && c.notas.replace(/\s*\n+\s*/g, " "), [...new Set(outros)].filter((x) => x !== c.email).length ? `Outros e-mails: ${[...new Set(outros)].filter((x) => x !== c.email).join(", ")}` : "",
+      /^uni[aã]o d(as|e) freguesias/i.test(c.entidade) ? "União de freguesias extinta em 2025 (freguesias repostas): confirmar se ainda se usa." : ""].filter(Boolean).join(" · ");
+    c.obrigatorio = !!r.verde;
+    c.tipo = c.tipo || (/junta de freguesia|uni[aã]o d(as|e) freguesias/i.test(c.entidade) ? "Junta de Freguesia" : seccao || "Outro");
+    if (c.tratamento) { const t = c.tratamento.toUpperCase(); c.tratamento = /SENHORES|EXMOS/.test(t) ? "EXMOS. SENHORES" : /SENHORA|EXMA/.test(t) ? "EXMA. SENHORA" : "EXMO. SENHOR"; }
+    else c.tratamento = c.nome ? "EXMO.(A) SENHOR(A)" : "EXMOS. SENHORES";
+    if (c.entidade) out.push(c);
+  }
+  return out;
+}
+$("ctFicheiro").addEventListener("change", async () => {
+  const f = $("ctFicheiro").files[0]; $("ctFicheiro").value = ""; if (!f) return;
+  try {
+    const folhas = /\.csv$/i.test(f.name) ? [{ nome: "", rows: linhasCsv(await f.text()) }] : await folhasXlsx(await f.arrayBuffer());
+    const lista = folhas.flatMap((x) => mapearFolha(x.nome, x.rows));
+    if (!folhas.some((x) => x.rows.some(ehCab))) { ctMsg("Não encontrei a linha de títulos. O Excel precisa de colunas como «Entidade», «E-mail», «Morada» ou «Cargo».", true); return; }
+    if (!lista.length) { ctMsg("O ficheiro não tem contactos.", true); return; }
+    gravarVarios(lista, `Ficheiro ${f.name} (${folhas.length} folha${folhas.length === 1 ? "" : "s"}, ${lista.length} contactos lidos)`);
+  } catch { ctMsg("Não consegui ler o ficheiro. Guarde-o como .xlsx ou .csv e tente de novo.", true); }
+});
+const contactosPrompt = (pedido) => {
+  if (!est.contactos.length) return "";
+  const linha = (c) => `- ${linhaDest(c).replace(/^Destinatário: /, "")}${c.morada && c.email ? ` | morada: ${c.morada}` : ""}${c.notas ? ` | nota: ${c.notas}` : ""}${c.obrigatorio ? " | dar sempre conhecimento" : ""}`;
+  let l = est.contactos.map(linha).join("\n");
+  if (l.length > 5000) { const p = normCt(pedido); l = est.contactos.filter((c) => normCt(c.entidade).split(/[^a-z0-9]+/).some((w) => w.length > 4 && p.includes(w))).map(linha).join("\n").slice(0, 5000); }
+  return l;
+};
+
 /* ---------------- Regras do MESTRE (memória partilhada da equipa) ---------------- */
 est.regras = est.regras || [];
 const TEMAS_REGRA = ["Escrita dos ofícios", "Preferências da chefia", "Entidades e contactos", "Prazos e procedimentos", "Outro"];
@@ -1136,6 +1362,7 @@ function dadosApp() {
     t.slice(0, 25).forEach((x) => L.push(`- ${x.tarefa}${x.responsavel ? " | " + x.responsavel : ""} | ${x.coluna || ""}${x.prazo ? " | até " + fmt(x.prazo) : ""}`));
   });
   L.push(`Equipa: ${EQUIPA.map((p) => p.nome).join(", ")}.`);
+  const recA = est.recados.filter((r) => r.ate >= hoje()); if (recA.length) L.push(`Recados da equipa: ${recA.map((r) => `«${r.texto}» (${r.criadoPor || ""})`).join("; ")}.`);
   L.push(`Mapas Excel partilhados (só os nomes; o MESTRE não abre os ficheiros): ${[...(MAPAS || []), ...est.mapas].map((m) => m.nome).join("; ")}.`);
   return L.join("\n").slice(0, 5000);
 }
@@ -1164,6 +1391,8 @@ Regras:
 - Quando o utilizador pedir para te lembrares de algo para o futuro («lembra-te que…», «a partir de agora…», «memoriza…»), reescreve-o como uma regra curta e clara e termina a resposta com uma linha exatamente neste formato:
 [[LEMBRAR {"tema":"Escrita dos ofícios","texto":"..."}]]
   (tema: uma de ${TEMAS_REGRA.join(", ")}). A app pede confirmação antes de guardar em «Regras do MESTRE».
+- Nos contactos, «dar sempre conhecimento» marca as entidades que a Secretaria contacta obrigatoriamente (ex.: forças de segurança, bombeiros, proteção civil em cortes de trânsito ou obras); lembra-as quando o assunto o justificar.
+- Ofícios a entidades (juntas de freguesia, INDAQUA, E-REDES, MatosinhosHabit, etc.): se a entidade estiver em CONTACTOS DAS ENTIDADES, preenche a linha «Destinatário:» exatamente com esses dados, pela mesma ordem (tratamento | cargo | nome, se houver | entidade | e-mail ou morada). Se não estiver na lista, não inventes contactos: deixa [ ] e diz na Nota que a entidade não está nos Contactos.
 - PEDIDOS DE OFÍCIO (regra principal, acima das indicações de estilo):
   a) Se pedirem um ofício e ainda não tiveres o relatório detalhado do Edoc (anexado ou colado, com os dados do processo: requerente, contactos, n.º de submissão, OD, local, despacho), NÃO escrevas o ofício. Responde só, em poucas linhas: «Para fazer o ofício, anexe (PDF) ou cole aqui o relatório detalhado do Edoc.» Se o tipo de ofício não for claro, pergunta também qual é, indicando 2 ou 3 nomes de modelos da lista que possam servir.
   b) Com o relatório: escolhe o modelo da Secretaria que corresponde ao caso (os textos completos estão no fim, em MODELO(S) DA SECRETARIA). Copia o modelo palavra a palavra: as três linhas iniciais, todos os parágrafos, a pontuação e as fórmulas finais. Só podes (1) substituir os campos entre [ ] pelos dados do relatório (nome, e-mail ou morada, OD, n.º de submissão, rua, freguesia, datas, valores) e (2) escolher entre alternativas que o próprio modelo indique, retirando a que não se aplica. Não reescrevas, não resumas, não melhores frases, não acrescentes nem retires parágrafos. O que o relatório não disser fica entre [ ].
@@ -1176,7 +1405,10 @@ Regras:
 - Para a frase da liberação escreve [[CAUCAO valor_total anos]] (ex.: [[CAUCAO 14490,40 1]] ou, para o 1.º e 2.º anos juntos, [[CAUCAO 14490,40 1-2]]; anos soltos: [[CAUCAO 14490,40 1,3]]) e a app escreve «será liberado …% do valor total da caução …, que corresponde à liberação de … € (…)». Usa-a sempre que houver liberação, também quando são vários anos de uma vez.
 - Revisão de ofício (quando pedirem para rever ou anexarem o Word final): responde com uma lista curta «Verificação», em que cada ponto começa por «OK:» ou «Atenção:», cobrindo: destinatário e tratamento (EXMO./EXMA., V. Ex.ª/V. Exas.); referência (OD/EDOC) igual no cabeçalho e no texto; assunto; datas, prazos e artigos citados (CPA/CCP) corretos e coerentes; valores e extensos certos; campos [ ] ou «xxx» por preencher; português (norma europeia, acordo ortográfico); dados pessoais desnecessários; fórmula final. Depois indica só as correções necessárias, com o texto corrigido.
 
-${textoRegras() ? `REGRAS DA SECRETARIA (definidas pela equipa; têm prioridade sobre as indicações gerais e sobre os modelos):
+${contactosPrompt(pedido) ? `CONTACTOS DAS ENTIDADES (formato: tratamento | cargo | nome | entidade | e-mail ou morada):
+${contactosPrompt(pedido)}
+
+` : ""}${textoRegras() ? `REGRAS DA SECRETARIA (definidas pela equipa; têm prioridade sobre as indicações gerais e sobre os modelos):
 ${textoRegras()}
 
 ` : ""}INFORMAÇÃO DE REFERÊNCIA:

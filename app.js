@@ -1153,6 +1153,12 @@ Regras:
 - Quando o utilizador pedir para te lembrares de algo para o futuro («lembra-te que…», «a partir de agora…», «memoriza…»), reescreve-o como uma regra curta e clara e termina a resposta com uma linha exatamente neste formato:
 [[LEMBRAR {"tema":"Escrita dos ofícios","texto":"..."}]]
   (tema: uma de ${TEMAS_REGRA.join(", ")}). A app pede confirmação antes de guardar em «Regras do MESTRE».
+- PEDIDOS DE OFÍCIO (regra principal, acima das indicações de estilo):
+  a) Se pedirem um ofício e ainda não tiveres o relatório detalhado do Edoc (anexado ou colado, com os dados do processo: requerente, contactos, n.º de submissão, OD, local, despacho), NÃO escrevas o ofício. Responde só, em poucas linhas: «Para fazer o ofício, anexe (PDF) ou cole aqui o relatório detalhado do Edoc.» Se o tipo de ofício não for claro, pergunta também qual é, indicando 2 ou 3 nomes de modelos da lista que possam servir.
+  b) Com o relatório: escolhe o modelo da Secretaria que corresponde ao caso (os textos completos estão no fim, em MODELO(S) DA SECRETARIA). Copia o modelo palavra a palavra: as três linhas iniciais, todos os parágrafos, a pontuação e as fórmulas finais. Só podes (1) substituir os campos entre [ ] pelos dados do relatório (nome, e-mail ou morada, OD, n.º de submissão, rua, freguesia, datas, valores) e (2) escolher entre alternativas que o próprio modelo indique, retirando a que não se aplica. Não reescrevas, não resumas, não melhores frases, não acrescentes nem retires parágrafos. O que o relatório não disser fica entre [ ].
+  c) Se o modelo tiver um campo de descrição livre (ex.: [Descrever o que foi verificado…]), preenche-o só com o que estiver no relatório, em uma ou duas frases no mesmo registo; se o relatório não tiver essa informação, deixa o campo entre [ ].
+  d) No fim, depois de «Com os melhores cumprimentos,», escreve uma linha começada por «Nota:» com o nome do modelo usado e os campos que ficaram por preencher.
+  e) Só se nenhum modelo servir é que redige de raiz no estilo da Secretaria, e di-lo na Nota.
 - Quando houver um documento anexado, resume-o, diz claramente o que é pedido e, se fizer sentido, propõe um rascunho de resposta.
 - Valores em euros: escreve SEMPRE [[EXTENSO valor]] (ex.: [[EXTENSO 45656,16]]) e a app converte em «45.656,16 € (quarenta e cinco mil … cêntimos)». Não escrevas tu o extenso. Faz as contas com cuidado (ex.: 30% de 14.490,40 = 4.347,12).
 - Liberação de caução (art. 295.º CCP), faseada a contar da receção provisória: 30% no 1.º ano, 30% no 2.º, 15% no 3.º, 15% no 4.º e 10% no 5.º, salvo se o contrato ou o despacho indicar outra coisa.
@@ -1215,7 +1221,7 @@ function desenharChat() {
       <button type="button" class="hist-x" data-conv-rm="${esc(x.id)}" aria-label="Apagar conversa">Apagar</button></div>`).join("")
     : `<p class="empty small">Sem conversas guardadas.</p>`;
   $("chatSug").innerHTML = msgs.length ? "" : [
-    ["Redigir ofício", "Redige um ofício de resposta ao munícipe a partir destas notas:\n"],
+    ["Fazer ofício", "Quero fazer um ofício. Segue o relatório detalhado do Edoc (anexe o PDF ou cole o texto):\n"],
     ["Rever um texto", "Revê este texto, corrige o português e torna-o mais claro e profissional:\n"],
     ["Que prazo se aplica?", "Que prazo se aplica nesta situação e como se conta? Situação: "],
     ["Passo seguinte (indemnização)", "Num pedido de indemnização, qual é o passo seguinte e que ofício devo usar? Situação: "],
@@ -1335,7 +1341,7 @@ async function enviarChat() {
     if (comImg) { const u = hist[hist.length - 1]; u.content = [{ type: "text", text: u.content }, ...anexo.imgs.map((url) => ({ type: "image_url", image_url: { url } }))]; }
     const r = await fetch("https://api.groq.com/openai/v1/chat/completions", {
       method: "POST", headers: { "Content-Type": "application/json", Authorization: "Bearer " + GROQ_API_KEY },
-      body: JSON.stringify({ model: comImg ? await escolherModelo() : await modeloTexto(), temperature: 0.3, stream: true, messages: [{ role: "system", content: promptSistema(c.msgs.slice(-4).map((m) => m.t + " " + (m.doc || "").slice(0, 3000)).join(" ")) }, ...hist] }),
+      body: JSON.stringify({ model: comImg ? await escolherModelo() : await modeloTexto(), temperature: 0.15, stream: true, messages: [{ role: "system", content: promptSistema(c.msgs.slice(-4).map((m) => m.t + " " + (m.doc || "").slice(0, 3000)).join(" ")) }, ...hist] }),
     });
     if (!r.ok || !r.body) throw new Error("groq " + r.status);
     const leitor = r.body.getReader(), dec = new TextDecoder(); let buf = "", ultimo = 0;
@@ -1451,7 +1457,7 @@ const xmlEsc = (s) => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").rep
 const iniciais = (n) => String(n || "").split(/\s+/).filter((p) => p && !/^(d[aeo]s?|e)$/i.test(p)).map((p) => p[0].toUpperCase()).filter((c, k, l) => k === 0 || k === l.length - 1).join("") || "[iniciais]";
 function partesOficio(texto) {
   const r = { trat: "EXMO.(A) SENHOR(A)", dest: ["[Nome do destinatário]", "[E-mail ou morada]"], ref: "[Referência]", assunto: "[Assunto]", corpo: [] };
-  const fecho = /^(com os melhores cumprimentos|a coordenadora|o coordenador|departamento de conservação|cd\/|\(\*\)|pede-se o favor)/i;
+  const fecho = /^(com os melhores cumprimentos|a coordenadora|o coordenador|departamento de conservação|cd\/|\(\*\)|pede-se o favor|nota\s*:|modelo usado\s*:)/i;
   for (const l0 of String(texto).replace(/\*\*/g, "").split("\n")) {
     const l = l0.trim(); if (!l) continue;
     let m;

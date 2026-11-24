@@ -216,7 +216,7 @@ Com os melhores cumprimentos,` },
 ];
 
 // Escolhe os modelos mais parecidos com o pedido (para dar ao MESTRE só os que interessam).
-export function modelosRelevantes(texto, max = 2) {
+export function modelosRelevantes(texto, max = 3) {
   const t = String(texto || "").toLowerCase();
   return MODELOS_OFICIO.map((m) => ({ m, s: m.p.reduce((n, p) => n + (t.includes(p) ? (p.length > 6 ? 2 : 1) : 0), 0) + (t.includes(m.t.toLowerCase()) ? 5 : 0) }))
     .filter((x) => x.s > 0).sort((a, b) => b.s - a.s).slice(0, max).map((x) => x.m);

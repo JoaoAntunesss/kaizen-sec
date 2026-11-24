@@ -8,6 +8,7 @@ const COL_MAPAS = "kaizen_mapas";
 const COL_REGRAS = "kaizen_regras";
 const COL_CONTACTOS = "kaizen_contactos";
 const COL_RECADOS = "kaizen_recados";
+const COL_HORARIO = "kaizen_horario";
 // Equipa: vem da base de dados (editável na app); enquanto não houver, usa a lista do config.js
 let EQUIPA = EQUIPA_INICIAL.map((p) => ({ ...p }));
 
@@ -33,7 +34,7 @@ const temFotoDe = (r, k) => !!((r.fotos && r.fotos[k]) || (k === "postits" && r.
 let fb = null;
 
 /* ---------------- Vistas ---------------- */
-const VISTAS = ["vLogin", "vConfig", "vPainel", "vReuniao", "vRegistar", "vImprimir", "vEquipa", "vRelatorio", "vPowerBI", "vDiario", "vMapas", "vOficios", "vRegras", "vContactos"];
+const VISTAS = ["vLogin", "vConfig", "vPainel", "vReuniao", "vRegistar", "vImprimir", "vEquipa", "vRelatorio", "vPowerBI", "vDiario", "vMapas", "vOficios", "vRegras", "vContactos", "vHorario"];
 function mostrar(v) {
   for (const id of VISTAS) $(id).hidden = id !== v;
   $("fab").hidden = v !== "vPainel";
@@ -118,6 +119,7 @@ function subscrever() {
   }, () => {});
   lerLista(COL_CONTACTOS, "contactos", () => desenharContactos());
   lerLista(COL_RECADOS, "recados", () => desenharEquipaHoje());
+  D.onValue(D.ref(db, COL_HORARIO), (snap) => { const v = snap.val() || {}; est.horario = { equipas: v.equipas || {}, dias: v.dias || {} }; desenharHorario(); desenharEquipaHoje(); }, () => {});
   D.onValue(D.ref(db, COL_REGRAS), (snap) => {
     const v = snap.val() || {};
     est.regras = Object.entries(v).map(([id, r]) => ({ id, ...r })).filter((r) => r && r.texto);
@@ -976,6 +978,8 @@ desenharChk();
 const isoMais = (dias) => { const d = new Date(); d.setDate(d.getDate() + dias); return d.toISOString().slice(0, 10); };
 function ehMsg(t, erro) { $("ehStatus").textContent = t; $("ehStatus").className = "status" + (erro ? " err" : ""); }
 function desenharEquipaHoje() {
+  { const { e, nota } = equipaDeHoje(); const el = $("horHoje");
+    if (el) el.innerHTML = e || nota ? `<span class="muted small">Hoje</span>${e ? `<span class="hor-chip" style="background:${esc(e.cor)};color:${corTexto(e.cor)}">Equipa ${esc(e.nome)}</span>` : ""}${nota ? `<span class="small">${esc(nota)}</span>` : ""}` : ""; }
   const rec = est.recados.filter((r) => r.texto && (r.ate || "") >= hoje()).sort((a, b) => String(b.criadoEm).localeCompare(String(a.criadoEm)));
   $("recLista").innerHTML = rec.map((r, i) => `<div class="recado c${i % 3}"><p>${esc(r.texto)}</p><div class="rec-meta"><span>${esc(r.criadoPor || "")} · até ${esc(fmt(r.ate))}</span><button type="button" class="rec-x" data-rec-rm="${esc(r.id)}" aria-label="Retirar recado">Retirar</button></div></div>`).join("");
   $("recVazio").hidden = !!rec.length || !$("recForm").hidden;
@@ -1001,6 +1005,148 @@ $("equipaHoje").addEventListener("click", async (e) => {
   if (!r || !confirm("Retirar este recado?")) return;
   try { await fb.D.remove(fb.D.ref(fb.db, `${COL_RECADOS}/${r.dataset.recRm}`)); } catch { ehMsg("Não consegui apagar.", true); }
 });
+
+/* ---------------- Horário das equipas ---------------- */
+est.horario = est.horario || { equipas: {}, dias: {} };
+const MESES = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
+const DIAS_SEM = ["Seg", "Ter", "Qua", "Qui", "Sex", "Sáb", "Dom"];
+let horMes = hoje().slice(0, 7), horSel = null;
+const isoD = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+const eqsOrd = () => Object.entries(est.horario.equipas).map(([id, e]) => ({ id, ...e })).sort((a, b) => (a.ordem ?? 99) - (b.ordem ?? 99) || String(a.nome).localeCompare(b.nome, "pt"));
+const corTexto = (hex) => { const h = String(hex || "#ffffff").replace("#", ""); const [r, g, b] = [0, 2, 4].map((i) => parseInt(h.slice(i, i + 2), 16) || 255); return (r * 299 + g * 587 + b * 114) / 1000 > 150 ? "#1b1b1b" : "#ffffff"; };
+const horMsg = (t, erro) => { $("horStatus").textContent = t; $("horStatus").className = "status" + (erro ? " err" : ""); };
+function desenharHorario() {
+  if (!$("horGrid")) return;
+  const [y, m] = horMes.split("-").map(Number);
+  $("horMes").textContent = `${MESES[m - 1]} ${y}`;
+  const eqs = est.horario.equipas;
+  $("horLeg").innerHTML = eqsOrd().map((e) => `<span class="hor-chip" style="background:${esc(e.cor)};color:${corTexto(e.cor)}">${esc(e.nome)}</span>`).join("");
+  const ini = new Date(y, m - 1, 1); ini.setDate(1 - ((ini.getDay() + 6) % 7));
+  const fim = new Date(y, m, 0); fim.setDate(fim.getDate() + ((7 - fim.getDay()) % 7));
+  let html = DIAS_SEM.map((d, i) => `<div class="hor-h${i > 4 ? " fds" : ""}">${d}</div>`).join("");
+  for (const d = new Date(ini); d <= fim; d.setDate(d.getDate() + 1)) {
+    const iso = isoD(d), reg = est.horario.dias[iso] || {}, e = reg.eq && eqs[reg.eq];
+    const fds = d.getDay() === 0 || d.getDay() === 6, fora = d.getMonth() !== m - 1, feriado = /feriado/i.test(reg.nota || "");
+    html += `<button type="button" class="hor-d${fds ? " fds" : ""}${fora ? " fora" : ""}${iso === hoje() ? " hoje" : ""}${iso === horSel ? " sel" : ""}${feriado ? " fer" : ""}" data-dia="${iso}"
+      ${e ? `style="--eq:${esc(e.cor)};--eqt:${corTexto(e.cor)}"` : ""} aria-label="${fmt(iso)}${e ? ", equipa " + esc(e.nome) : ""}${reg.nota ? ", " + esc(reg.nota) : ""}">
+      <span class="hor-n">${d.getDate()}</span>${e ? `<span class="hor-eq">${esc(e.nome)}</span>` : ""}${reg.nota ? `<span class="hor-nota">${esc(reg.nota)}</span>` : ""}</button>`;
+  }
+  $("horGrid").innerHTML = html;
+  $("horEdEq").innerHTML = `<option value="">— Nenhuma —</option>` + eqsOrd().map((e) => `<option value="${esc(e.id)}">${esc(e.nome)}</option>`).join("");
+  if (!$("horEqsEditor").hidden) desenharEqsEditor();
+}
+function abrirDia(iso) {
+  horSel = iso; const reg = est.horario.dias[iso] || {};
+  $("horEd").hidden = false; $("horEdTit").textContent = `${["Domingo", "Segunda-feira", "Terça-feira", "Quarta-feira", "Quinta-feira", "Sexta-feira", "Sábado"][new Date(iso + "T12:00").getDay()]}, ${fmt(iso)}`;
+  desenharHorario(); $("horEdEq").value = reg.eq || ""; $("horEdNota").value = reg.nota || ""; $("horEdSemana").checked = false; $("horEdEq").focus();
+}
+$("btnHorario").addEventListener("click", () => { horMsg(""); desenharHorario(); mostrar("vHorario"); });
+$("btnHorAnt").addEventListener("click", () => { const [y, m] = horMes.split("-").map(Number); horMes = isoD(new Date(y, m - 2, 1)).slice(0, 7); desenharHorario(); });
+$("btnHorSeg").addEventListener("click", () => { const [y, m] = horMes.split("-").map(Number); horMes = isoD(new Date(y, m, 1)).slice(0, 7); desenharHorario(); });
+$("btnHorHoje").addEventListener("click", () => { horMes = hoje().slice(0, 7); desenharHorario(); });
+$("horGrid").addEventListener("click", (e) => { const b = e.target.closest("[data-dia]"); if (b) abrirDia(b.dataset.dia); });
+$("btnHorEdFechar").addEventListener("click", () => { horSel = null; $("horEd").hidden = true; desenharHorario(); });
+$("horEd").addEventListener("submit", async (e) => {
+  e.preventDefault(); if (!horSel) return;
+  const eq = $("horEdEq").value, nota = $("horEdNota").value.trim().slice(0, 200), upd = {}, por = euNome() || quem();
+  upd[`dias/${horSel}`] = eq || nota ? { eq, nota, por } : null;
+  if ($("horEdSemana").checked) {
+    const d = new Date(horSel + "T12:00"); d.setDate(d.getDate() - ((d.getDay() + 6) % 7));
+    for (let i = 0; i < 5; i++, d.setDate(d.getDate() + 1)) { const iso = isoD(d); if (iso === horSel) continue; const r = est.horario.dias[iso] || {}; upd[`dias/${iso}`] = eq || r.nota ? { eq, nota: r.nota || "", por } : null; }
+  }
+  try { await fb.D.update(fb.D.ref(fb.db, COL_HORARIO), upd); horMsg("Guardado."); } catch { horMsg("Não consegui guardar. Verifique a internet.", true); }
+});
+// equipas e cores
+function desenharEqsEditor() {
+  $("horEqsLista").innerHTML = eqsOrd().map((e) => `<div class="hor-eqr" data-eq="${esc(e.id)}"><input type="color" value="${esc(e.cor || "#cccccc")}" aria-label="Cor de ${esc(e.nome)}" data-eq-cor><input type="text" value="${esc(e.nome)}" maxlength="40" aria-label="Nome da equipa" data-eq-nome><button class="btn small ghost danger" type="button" data-eq-rm>Apagar</button></div>`).join("") || `<p class="muted small">Ainda não há equipas. Importe o Excel ou acrescente-as aqui.</p>`;
+}
+$("btnHorEquipas").addEventListener("click", () => { $("horEqsEditor").hidden = !$("horEqsEditor").hidden; $("btnHorEquipas").setAttribute("aria-expanded", String(!$("horEqsEditor").hidden)); desenharEqsEditor(); });
+$("btnHorEqNova").addEventListener("click", async () => { try { await fb.D.set(fb.D.push(fb.D.ref(fb.db, `${COL_HORARIO}/equipas`)), { nome: "Nova equipa", cor: "#9ec5e8", ordem: eqsOrd().length + 1 }); } catch { horMsg("Não consegui guardar.", true); } });
+$("horEqsLista").addEventListener("change", async (e) => {
+  const r = e.target.closest("[data-eq]"); if (!r) return;
+  const k = e.target.matches("[data-eq-cor]") ? "cor" : e.target.matches("[data-eq-nome]") ? "nome" : null; if (!k) return;
+  const v = e.target.value.trim(); if (!v) return;
+  try { await fb.D.update(fb.D.ref(fb.db, `${COL_HORARIO}/equipas/${r.dataset.eq}`), { [k]: v }); } catch { horMsg("Não consegui guardar.", true); }
+});
+$("horEqsLista").addEventListener("click", async (e) => {
+  if (!e.target.closest("[data-eq-rm]")) return; const r = e.target.closest("[data-eq]"); const eq = est.horario.equipas[r.dataset.eq];
+  const usados = Object.values(est.horario.dias).filter((d) => d.eq === r.dataset.eq).length;
+  if (!confirm(`Apagar a equipa «${eq?.nome}»?${usados ? ` Está marcada em ${usados} dia(s), que ficam sem equipa.` : ""}`)) return;
+  const upd = { [`equipas/${r.dataset.eq}`]: null }; Object.entries(est.horario.dias).forEach(([d, v]) => { if (v.eq === r.dataset.eq) upd[`dias/${d}/eq`] = ""; });
+  try { await fb.D.update(fb.D.ref(fb.db, COL_HORARIO), upd); } catch { horMsg("Não consegui apagar.", true); }
+});
+// Importar o Excel do horário: cada folha é um mês; a cor de cada dia diz a equipa (legenda «Equipa N - Nome»); a linha de baixo tem as notas.
+$("btnHorImportar").addEventListener("click", () => $("horFicheiro").click());
+async function lerHorarioXlsx(buf) {
+  const z = await JSZip.loadAsync(buf);
+  const txt = async (n) => (z.file(n) ? await z.file(n).async("string") : "");
+  const ss = [...(await txt("xl/sharedStrings.xml")).matchAll(/<si>([\s\S]*?)<\/si>/g)].map((m) => xmlTxt([...m[1].matchAll(/<t[^>]*>([\s\S]*?)<\/t>/g)].map((t) => t[1]).join("")));
+  const th = await txt("xl/theme/theme1.xml");
+  const tema = ["lt1", "dk1", "lt2", "dk2", "accent1", "accent2", "accent3", "accent4", "accent5", "accent6"].map((k) => { const m = th.match(new RegExp(`<a:${k}>[\\s\\S]*?(?:srgbClr val|lastClr)="([0-9A-Fa-f]{6})"`)); return m ? m[1] : "FFFFFF"; });
+  const st = await txt("xl/styles.xml");
+  const fills = [...((st.match(/<fills[^>]*>([\s\S]*?)<\/fills>/) || [])[1] || "").matchAll(/<fill>([\s\S]*?)<\/fill>/g)].map((f) => {
+    if (!/patternType="solid"/.test(f[1])) return null;
+    const fg = (f[1].match(/<fgColor([^>]*)\/?>/) || [])[1] || ""; const rgb = (fg.match(/rgb="[0-9A-Fa-f]{0,2}([0-9A-Fa-f]{6})"/) || [])[1];
+    let hex = rgb; if (!hex) { const t = (fg.match(/theme="(\d+)"/) || [])[1]; if (t === undefined) return null; hex = tema[+t] || "FFFFFF"; }
+    const tint = parseFloat((fg.match(/tint="([-\d.eE]+)"/) || [])[1] || 0);
+    const c = [0, 2, 4].map((i) => parseInt(hex.slice(i, i + 2), 16)).map((v) => Math.round(tint < 0 ? v * (1 + tint) : v + (255 - v) * tint));
+    return c;
+  });
+  const xfs = [...((st.match(/<cellXfs[^>]*>([\s\S]*?)<\/cellXfs>/) || [])[1] || "").matchAll(/<xf\b([^>]*)/g)].map((x) => +((x[1].match(/fillId="(\d+)"/) || [])[1] || 0));
+  const wb = await txt("xl/workbook.xml"), rels = await txt("xl/_rels/workbook.xml.rels");
+  const folhas = [...wb.matchAll(/<sheet\b[^>]*name="([^"]*)"[^>]*r:id="([^"]+)"/g)].map((m) => ({ nome: xmlTxt(m[1]), alvo: (rels.match(new RegExp(`Id="${m[2]}"[^>]*Target="([^"]+)"`)) || rels.match(new RegExp(`Target="([^"]+)"[^>]*Id="${m[2]}"`)) || [])[1] || "" }));
+  const equipas = {}, dias = {};
+  const hexDe = (c) => "#" + c.map((v) => v.toString(16).padStart(2, "0")).join("");
+  const dist = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]);
+  const serialIso = (n) => { const d = new Date(Date.UTC(1899, 11, 30) + Math.round(n) * 864e5); return d.toISOString().slice(0, 10); };
+  for (const f of folhas) {
+    const xml = await txt("xl/" + f.alvo.replace(/^\/?xl\//, "").replace(/^\//, ""));
+    const cel = {}; // "r,c" -> {v, cor}
+    for (const r of xml.matchAll(/<row[^>]*>([\s\S]*?)<\/row>/g)) for (const c of r[1].matchAll(/<c ([^>]*?)(?:\/>|>([\s\S]*?)<\/c>)/g)) {
+      const ref = (c[1].match(/r="([A-Z]+)(\d+)"/) || []); if (!ref[1]) continue;
+      const t = (c[1].match(/t="(\w+)"/) || [])[1], s = +((c[1].match(/ s="(\d+)"/) || [])[1] || 0), corpo = c[2] || "";
+      const v = (corpo.match(/<v>([\s\S]*?)<\/v>/) || [])[1];
+      const val = t === "s" ? ss[+v] || "" : t === "inlineStr" ? xmlTxt((corpo.match(/<t[^>]*>([\s\S]*?)<\/t>/) || [])[1] || "") : t === "str" ? xmlTxt(v || "") : v === undefined ? "" : +v;
+      cel[`${+ref[2]},${colLetra(ref[1])}`] = { v: val, cor: fills[xfs[s]] || null };
+    }
+    const leg = [];
+    Object.values(cel).forEach((c) => { const m = typeof c.v === "string" && c.v.match(/equipa\s*\d+\s*[-–]\s*(.+)/i); if (m && c.cor) leg.push({ nome: m[1].trim(), cor: c.cor }); });
+    leg.forEach((l) => { const k = normCt(l.nome); equipas[k] = { nome: l.nome, cor: hexDe(l.cor), ordem: equipas[k] ? equipas[k].ordem : Object.keys(equipas).length + 1 }; }); // a cor do mês mais recente fica
+    const mesFolha = MESES.findIndex((m) => normCt(f.nome).startsWith(normCt(m)));
+    for (const [k, c] of Object.entries(cel)) {
+      if (typeof c.v !== "number" || c.v < 40000 || c.v > 60000) continue;
+      const [rr, cc] = k.split(",").map(Number), iso = serialIso(c.v);
+      const proprio = mesFolha < 0 || +iso.slice(5, 7) === mesFolha + 1;
+      const nb = cel[`${rr + 1},${cc}`], nota = nb && typeof nb.v === "string" ? nb.v.replace(/\s+/g, " ").trim() : "";
+      let eq = "";
+      const cinza = c.cor && Math.max(...c.cor) - Math.min(...c.cor) < 40; // fundos cinzentos/brancos (fins de semana, dias sem equipa)
+      if (c.cor && !cinza && leg.length) { const best = leg.map((l) => ({ l, d: dist(l.cor, c.cor) })).sort((a, b) => a.d - b.d)[0]; if (best.d < 90) eq = normCt(best.l.nome); }
+      if (/feriado/i.test(nota)) eq = "";
+      if (!eq && !nota) continue;
+      if (dias[iso] && !proprio) continue; // o mês da própria folha manda
+      dias[iso] = { eq, nota };
+    }
+  }
+  return { equipas, dias };
+}
+$("horFicheiro").addEventListener("change", async () => {
+  const f = $("horFicheiro").files[0]; $("horFicheiro").value = ""; if (!f) return;
+  try {
+    const r = await lerHorarioXlsx(await f.arrayBuffer());
+    const nEq = Object.keys(r.equipas).length, nD = Object.keys(r.dias).length;
+    if (!nEq || !nD) { horMsg("Não encontrei equipas («Equipa N - Nome») ou dias com cor neste ficheiro.", true); return; }
+    const anos = [...new Set(Object.keys(r.dias).map((d) => d.slice(0, 4)))].join(", ");
+    if (!confirm(`Ficheiro ${f.name}:\n- ${nEq} equipas: ${Object.values(r.equipas).map((e) => e.nome).join(", ")}\n- ${nD} dias com equipa ou nota (${anos})\n\nOs dias deste ficheiro substituem o que estiver na app nessas datas. Continuar?`)) return;
+    const upd = {}, idPorNome = {};
+    eqsOrd().forEach((e) => (idPorNome[normCt(e.nome)] = e.id));
+    Object.entries(r.equipas).forEach(([k, e]) => { if (!idPorNome[k]) { const id = fb.D.push(fb.D.ref(fb.db, `${COL_HORARIO}/equipas`)).key; idPorNome[k] = id; upd[`equipas/${id}`] = e; } });
+    const por = euNome() || quem();
+    Object.entries(r.dias).forEach(([d, v]) => (upd[`dias/${d}`] = { eq: v.eq ? idPorNome[v.eq] || "" : "", nota: v.nota, por }));
+    await fb.D.update(fb.D.ref(fb.db, COL_HORARIO), upd);
+    horMsg(`Importado: ${nEq} equipas e ${nD} dias.`);
+  } catch { horMsg("Não consegui ler ou guardar o ficheiro. Verifique se é o Excel do horário (.xlsx) e a internet.", true); }
+});
+const equipaDeHoje = () => { const r = est.horario.dias[hoje()]; const e = r && r.eq && est.horario.equipas[r.eq]; return { e, nota: r && r.nota }; };
 
 /* ---------------- Contactos das entidades ---------------- */
 const TIPOS_CT = ["Junta de Freguesia", "Água e saneamento", "Energia", "Empresa municipal", "Serviços municipais", "Fiscalização / empreitadas", "Empresa", "Outro"];
@@ -1362,6 +1508,8 @@ function dadosApp() {
     t.slice(0, 25).forEach((x) => L.push(`- ${x.tarefa}${x.responsavel ? " | " + x.responsavel : ""} | ${x.coluna || ""}${x.prazo ? " | até " + fmt(x.prazo) : ""}`));
   });
   L.push(`Equipa: ${EQUIPA.map((p) => p.nome).join(", ")}.`);
+  { const d = new Date(); const lin = []; for (let i = 0; i < 14; i++, d.setDate(d.getDate() + 1)) { const iso = isoD(d), r = est.horario.dias[iso]; if (!r) continue; const e = r.eq && est.horario.equipas[r.eq]; lin.push(`${fmt(iso)}: ${e ? "equipa " + e.nome : "sem equipa"}${r.nota ? " (" + r.nota + ")" : ""}`); }
+    if (lin.length) L.push(`Horário das equipas (próximos 14 dias): ${lin.join("; ")}.`); }
   const recA = est.recados.filter((r) => r.ate >= hoje()); if (recA.length) L.push(`Recados da equipa: ${recA.map((r) => `«${r.texto}» (${r.criadoPor || ""})`).join("; ")}.`);
   L.push(`Mapas Excel partilhados (só os nomes; o MESTRE não abre os ficheiros): ${[...(MAPAS || []), ...est.mapas].map((m) => m.nome).join("; ")}.`);
   return L.join("\n").slice(0, 5000);

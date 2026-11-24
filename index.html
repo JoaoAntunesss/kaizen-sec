@@ -32,6 +32,7 @@
   <button class="nav-b" id="btnDiario" data-v="vDiario" type="button"><svg class="nav-i" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 11l3 3 8-8"/><path d="M20 12v7a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h9"/></svg>Trabalho diário <span class="badge" id="bdgUrg" hidden></span></button>
   <button class="nav-b" id="btnOficios" data-v="vOficios" type="button"><svg class="nav-i" viewBox="0 0 24 24" aria-hidden="true"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M14 3v6h6M8 13h8M8 17h5"/></svg>Ofícios e legislação</button>
   <button class="nav-b" id="btnKaizen" data-v="vPainel" type="button"><svg class="nav-i" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>Reuniões Kaizen</button>
+  <button class="nav-b" id="btnHorario" data-v="vHorario" type="button"><svg class="nav-i" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="17" rx="2"/><path d="M3 9h18M8 2v4M16 2v4M7 13h3M14 13h3M7 17h3"/></svg>Horário</button>
   <button class="nav-b" id="btnContactos" data-v="vContactos" type="button"><svg class="nav-i" viewBox="0 0 24 24" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg>Contactos</button>
   <button class="nav-b" id="btnRegras" data-v="vRegras" type="button"><svg class="nav-i" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 19.5V5a2 2 0 0 1 2-2h14v15H6.5A2.5 2.5 0 0 0 4 20.5 2.5 2.5 0 0 0 6.5 23H20"/><path d="M9 8h7M9 12h5"/></svg>Regras do MESTRE</button>
   <button class="nav-b" id="btnMapas" data-v="vMapas" type="button"><svg class="nav-i" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 10h18M9 4v16"/></svg>Mapas</button>
@@ -246,6 +247,7 @@
       </details>
     </div>
     <aside class="equipa-hoje" id="equipaHoje" aria-label="Recados">
+      <div class="hor-hoje" id="horHoje"></div>
       <div class="eh-head"><h3>Recados</h3><button class="btn small ghost" id="btnRecadoNovo" type="button" aria-expanded="false">+ Recado</button></div>
       <form class="rec-form" id="recForm" hidden autocomplete="off">
         <label class="f">Recado<textarea id="recTexto" rows="3" maxlength="200" required placeholder="Ex.: Ofícios para assinar ficam na pasta azul."></textarea></label>
@@ -391,6 +393,39 @@
       </details>
 
       <p class="muted small leg-links">Textos oficiais: <a href="https://diariodarepublica.pt/dr/detalhe/decreto-lei/4-2015-66041468" target="_blank" rel="noopener">CPA no Diário da República</a> · <a href="https://eur-lex.europa.eu/legal-content/PT/TXT/?uri=CELEX:32016R0679" target="_blank" rel="noopener">RGPD (EUR-Lex)</a> · <a href="https://www.cnpd.pt" target="_blank" rel="noopener">CNPD</a>. Este guia é um resumo de apoio e não substitui o texto da lei nem o parecer dos serviços jurídicos.</p>
+    </div>
+  </section>
+
+  <!-- Horário das equipas -->
+  <section id="vHorario" class="view" hidden>
+    <div class="panel">
+      <div class="urg-head"><h2>Horário das equipas</h2>
+        <div class="eh-acts">
+          <button class="btn ghost" id="btnHorImportar" type="button">Importar Excel</button>
+          <button class="btn ghost" id="btnHorEquipas" type="button" aria-expanded="false">Equipas e cores</button>
+        </div>
+      </div>
+      <input type="file" id="horFicheiro" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" hidden>
+      <div class="hor-eqs" id="horEqsEditor" hidden>
+        <div id="horEqsLista"></div>
+        <button class="btn small ghost" id="btnHorEqNova" type="button">+ Equipa</button>
+      </div>
+      <div class="hor-nav">
+        <button class="btn small ghost" id="btnHorAnt" type="button" aria-label="Mês anterior">‹</button>
+        <h3 id="horMes"></h3>
+        <button class="btn small ghost" id="btnHorSeg" type="button" aria-label="Mês seguinte">›</button>
+        <button class="btn small ghost" id="btnHorHoje" type="button">Hoje</button>
+        <div class="hor-leg" id="horLeg"></div>
+      </div>
+      <p class="status" id="horStatus"></p>
+      <div class="hor-grid" id="horGrid" role="grid" aria-label="Calendário do mês"></div>
+      <form class="hor-ed" id="horEd" hidden autocomplete="off">
+        <strong id="horEdTit"></strong>
+        <label class="f">Equipa<select id="horEdEq"></select></label>
+        <label class="f f-2">Nota<input type="text" id="horEdNota" maxlength="200" placeholder="Ex.: CR - Férias, Feriado, tolerância…"></label>
+        <label class="chk-i hor-sem"><input type="checkbox" id="horEdSemana"><span>Aplicar a equipa à semana toda (segunda a sexta)</span></label>
+        <div class="actions"><button class="btn ghost" type="button" id="btnHorEdFechar">Fechar</button><button class="btn primary" type="submit">Guardar</button></div>
+      </form>
     </div>
   </section>
 

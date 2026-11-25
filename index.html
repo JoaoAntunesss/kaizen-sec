@@ -34,6 +34,7 @@
   <button class="nav-b" id="btnKaizen" data-v="vPainel" type="button"><svg class="nav-i" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>Reuniões Kaizen</button>
   <button class="nav-b" id="btnHorario" data-v="vHorario" type="button"><svg class="nav-i" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="17" rx="2"/><path d="M3 9h18M8 2v4M16 2v4M7 13h3M14 13h3M7 17h3"/></svg>Horário</button>
   <button class="nav-b" id="btnContactos" data-v="vContactos" type="button"><svg class="nav-i" viewBox="0 0 24 24" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg>Contactos</button>
+  <button class="nav-b" id="btnManual" data-v="vManual" type="button"><svg class="nav-i" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 4h12a2 2 0 0 1 2 2v14H6a2 2 0 0 1-2-2z"/><path d="M8 8h6M8 12h6M8 16h4"/><path d="M18 6h2v16H8"/></svg>Manual</button>
   <button class="nav-b" id="btnRegras" data-v="vRegras" type="button"><svg class="nav-i" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 19.5V5a2 2 0 0 1 2-2h14v15H6.5A2.5 2.5 0 0 0 4 20.5 2.5 2.5 0 0 0 6.5 23H20"/><path d="M9 8h7M9 12h5"/></svg>Regras do MESTRE</button>
   <button class="nav-b" id="btnMapas" data-v="vMapas" type="button"><svg class="nav-i" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 10h18M9 4v16"/></svg>Mapas</button>
   <button class="nav-b" id="btnPowerBI" data-v="vPowerBI" type="button"><svg class="nav-i" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg>Reclamações</button>
@@ -265,6 +266,24 @@
   <section id="vOficios" class="view" hidden>
     <div class="panel leg">
       <div class="panel-head"><h2>Ferramentas</h2><span class="sub">Para as respostas e ofícios do dia a dia</span></div>
+      <details class="leg-sec" id="eoSec" open>
+        <summary>Do Edoc ao ofício</summary>
+        <p class="muted small">Cole o relatório detalhado do Edoc (ou anexe o PDF), escolha o modelo e o MESTRE preenche o ofício com os dados do processo. O que não estiver no relatório fica entre [ ] para completar.</p>
+        <label class="f">Relatório detalhado do Edoc<textarea id="eoRel" rows="7" placeholder="Cole aqui o texto do relatório detalhado do Edoc…"></textarea></label>
+        <div class="eo-bar">
+          <button class="btn small ghost" id="btnEoAnexar" type="button">Anexar PDF ou Word</button><input type="file" id="eoFicheiro" accept=".pdf,.docx,.txt,application/pdf" hidden>
+          <span class="muted small" id="eoAnexo"></span>
+        </div>
+        <label class="f">Modelo<select id="eoModelo"></select></label>
+        <div class="actions"><span class="status" id="eoStatus"></span><button class="btn primary" id="btnEoPreencher" type="button">Preencher ofício</button></div>
+        <div id="eoRes" hidden>
+          <div class="eo-info" id="eoInfo"></div>
+          <textarea id="eoTexto" rows="14" aria-label="Ofício preenchido"></textarea>
+          <div id="eoAssinar"></div>
+          <div class="actions"><span class="status" id="eoStatus2"></span><button class="btn" id="btnEoCopiar" type="button">Copiar</button><button class="btn" id="btnEoWord" type="button">Abrir em Word</button><button class="btn primary" id="btnEoAssinar" type="button">Enviar para assinatura</button></div>
+        </div>
+      </details>
+
       <details class="leg-sec">
         <summary>Modelos de ofício da Secretaria</summary>
         <p class="muted small">Escolha o modelo, ajuste os campos entre [ ] e copie, ou abra já no modelo Word da Câmara (cabeçalho, referência e assinatura incluídos).</p>
@@ -462,6 +481,32 @@
   </section>
 
   <!-- Regras do MESTRE (memória partilhada) -->
+  <section id="vManual" class="view" hidden>
+    <div class="panel">
+      <div class="panel-head"><h2>Manual da Secretaria</h2><span class="sub" id="manSub"></span></div>
+      <p class="muted">Os passos de cada procedimento, os prazos, a legislação e os modelos de ofício a usar. A equipa pode corrigir e acrescentar procedimentos, e o MESTRE consulta o manual quando lhe perguntam.</p>
+      <div class="man-bar">
+        <input type="text" id="manQ" placeholder="Procurar procedimento (ex.: caução, indemnização)" aria-label="Procurar procedimento" autocomplete="off">
+        <button class="btn primary" id="btnManNovo" type="button">Novo procedimento</button>
+      </div>
+      <div class="man-areas" id="manAreas"></div>
+      <p class="status" id="manStatus"></p>
+      <form class="man-form" id="manForm" hidden autocomplete="off">
+        <h3 id="manFormT">Novo procedimento</h3>
+        <label class="f">Título<input id="mfTitulo" maxlength="120" required></label>
+        <label class="f">Área<select id="mfArea"></select></label>
+        <label class="f">Quando se usa<textarea id="mfQuando" rows="2" maxlength="400"></textarea></label>
+        <label class="f">Passos (um por linha)<textarea id="mfPassos" rows="7" maxlength="4000" required></textarea></label>
+        <label class="f">Prazos<textarea id="mfPrazos" rows="2" maxlength="600"></textarea></label>
+        <label class="f">Legislação<textarea id="mfLeg" rows="2" maxlength="600"></textarea></label>
+        <label class="f">Notas<textarea id="mfNotas" rows="2" maxlength="600"></textarea></label>
+        <fieldset class="f"><legend>Modelos de ofício usados</legend><div class="mf-mods" id="mfMods"></div></fieldset>
+        <div class="actions"><button class="btn ghost" id="btnManCancelar" type="button">Cancelar</button><button class="btn primary" type="submit">Guardar</button></div>
+      </form>
+      <div class="man-lista" id="manLista"></div>
+    </div>
+  </section>
+
   <section id="vRegras" class="view" hidden>
     <div class="panel">
       <div class="panel-head"><h2>Regras do MESTRE</h2><span class="sub" id="regrasSub"></span></div>

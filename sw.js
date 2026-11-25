@@ -1,8 +1,8 @@
 // Service worker: guarda a "casca" da app para abrir depressa e funcionar como app instalada.
 // Os dados (Firebase) e a IA (Groq) vão sempre à rede.
-const VERSAO = "kaizen-v1";
+const VERSAO = "kaizen-v2";
 const CASCA = [
-  "./", "./index.html", "./style.css", "./app.js", "./config.js", "./modelos-oficio.js", "./extenso.js", "./contactos-base.js", "./manifest.webmanifest",
+  "./", "./index.html", "./style.css", "./app.js", "./config.js", "./modelos-oficio.js", "./extenso.js", "./contactos-base.js", "./manual-base.js", "./manifest.webmanifest",
   "./icons/icon-192.png", "./icons/icon-512.png", "./icons/logo-matosinhos.png", "./icons/logo-kaizen.png", "./icons/mestre-busto.webp", "./icons/mestre-corpo-sem-mao.webp", "./icons/mestre-mao.webp"
 ];
 

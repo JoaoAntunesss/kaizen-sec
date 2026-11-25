@@ -713,3 +713,48 @@ button.ur-t.on{border-color:#c98a1a}
 .hor-eqr input[type=text]{width:220px}
 .hor-hoje{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 .hor-hoje:empty{display:none}
+
+/* Do Edoc ao ofício */
+#eoSec > p.small{margin-top:0}
+#eoSec label.f{margin-bottom:10px}
+#eoSec textarea,#eoSec select{width:100%;font:inherit;font-size:14px;color:var(--ink);background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:10px 12px}
+#eoTexto{min-height:300px;line-height:1.5;margin:8px 0}
+.eo-bar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:-2px 16px 12px}
+#eoRes{border-top:1px solid var(--line);margin-top:12px;padding-top:12px;padding-bottom:12px}
+.eo-info p{margin:0 0 6px;font-size:14px}
+.eo-falta{color:var(--late)}
+.eo-ok{color:var(--ok)}
+.eo-c{display:inline-block;background:var(--accent-soft);color:var(--ink);border-radius:6px;padding:1px 7px;margin:2px 2px 0 0;font-size:12.5px;font-weight:600}
+#eoSec .actions{margin-bottom:12px}
+
+/* Manual da Secretaria */
+.man-bar{display:flex;gap:10px;flex-wrap:wrap;margin:12px 0 10px}
+.man-bar input{flex:1 1 240px;font:inherit;font-size:15px;border:1px solid var(--line);border-radius:10px;padding:10px 12px;background:var(--surface);color:var(--ink)}
+.man-areas{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:14px}
+.man-areas .muted{font-weight:500;margin-left:2px}
+.man-areas .fchip.on .muted{color:inherit;opacity:.8}
+.man-lista{display:flex;flex-direction:column;gap:8px}
+.man-item{border:1px solid var(--line);border-radius:12px;background:var(--surface)}
+.man-item > summary{list-style:none;cursor:pointer;display:flex;align-items:center;justify-content:space-between;gap:10px;padding:13px 16px;border-radius:12px}
+.man-item > summary::-webkit-details-marker{display:none}
+.man-item > summary:hover{background:var(--accent-soft)}
+.man-t{font-weight:650;font-size:15px}
+.man-a{font-size:12px;font-weight:600;color:var(--muted);border:1px solid var(--line);border-radius:999px;padding:2px 10px;white-space:nowrap}
+.man-corpo{padding:0 16px 14px;font-size:14px;line-height:1.55}
+.man-corpo h4{font-size:12px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);margin:14px 0 4px}
+.man-corpo p{margin:0}
+.man-q{color:var(--muted);border-left:3px solid var(--accent);padding-left:10px}
+.man-passos{margin:0;padding-left:22px}
+.man-passos li{margin:0 0 5px;padding-left:2px}
+.man-mods{display:flex;flex-wrap:wrap;gap:6px}
+.man-acoes{display:flex;flex-wrap:wrap;align-items:center;gap:6px;border-top:1px solid var(--line);margin-top:14px;padding-top:10px}
+.man-acoes .small{margin-right:auto}
+.man-form{border:1px solid var(--line);border-radius:12px;padding:14px 16px;margin-bottom:14px;background:var(--surface)}
+.man-form h3{margin:0 0 10px;font-size:16px}
+.man-form label.f{margin-bottom:10px}
+.man-form input,.man-form textarea,.man-form select{width:100%;font:inherit;font-size:14px;color:var(--ink);background:var(--bg,#fff);border:1px solid var(--line);border-radius:10px;padding:9px 11px}
+.man-form fieldset{border:0;padding:0;margin:0 0 10px}
+.man-form legend{font-size:13px;font-weight:600;color:var(--muted);margin-bottom:6px}
+.mf-mods{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:4px 12px}
+.mf-chk{display:flex;gap:8px;align-items:center;font-size:13.5px;cursor:pointer}
+.mf-chk input{width:18px;height:18px;flex:none;accent-color:var(--accent)}

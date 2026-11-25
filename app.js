@@ -1,6 +1,7 @@
 import { GROQ_API_KEY, FIREBASE_CONFIG, COL_REUNIOES, COL_FOTOS, EQUIPA as EQUIPA_INICIAL, POWERBI_URL, MAPAS } from "./config.js";
 import { MODELOS_OFICIO, modelosRelevantes } from "./modelos-oficio.js";
 import { CONTACTOS_BASE } from "./contactos-base.js";
+import { MANUAL_BASE, AREAS_MANUAL, procedimentosRelevantes } from "./manual-base.js";
 import { lerValor, valorCompleto, fmtEuros, eurosPorExtenso } from "./extenso.js";
 const COL_EQUIPA = "kaizen_equipa";
 const COL_URGENTES = "kaizen_urgentes";
@@ -9,6 +10,7 @@ const COL_REGRAS = "kaizen_regras";
 const COL_CONTACTOS = "kaizen_contactos";
 const COL_RECADOS = "kaizen_recados";
 const COL_HORARIO = "kaizen_horario";
+const COL_MANUAL = "kaizen_manual";
 // Equipa: vem da base de dados (editável na app); enquanto não houver, usa a lista do config.js
 let EQUIPA = EQUIPA_INICIAL.map((p) => ({ ...p }));
 
@@ -34,7 +36,7 @@ const temFotoDe = (r, k) => !!((r.fotos && r.fotos[k]) || (k === "postits" && r.
 let fb = null;
 
 /* ---------------- Vistas ---------------- */
-const VISTAS = ["vLogin", "vConfig", "vPainel", "vReuniao", "vRegistar", "vImprimir", "vEquipa", "vRelatorio", "vPowerBI", "vDiario", "vMapas", "vOficios", "vRegras", "vContactos", "vHorario"];
+const VISTAS = ["vLogin", "vConfig", "vPainel", "vReuniao", "vRegistar", "vImprimir", "vEquipa", "vRelatorio", "vPowerBI", "vDiario", "vMapas", "vOficios", "vRegras", "vManual", "vContactos", "vHorario"];
 function mostrar(v) {
   for (const id of VISTAS) $(id).hidden = id !== v;
   $("fab").hidden = v !== "vPainel";
@@ -119,6 +121,7 @@ function subscrever() {
   }, () => {});
   lerLista(COL_CONTACTOS, "contactos", () => desenharContactos());
   lerLista(COL_RECADOS, "recados", () => desenharEquipaHoje());
+  lerLista(COL_MANUAL, "manualBD", () => desenharManual());
   D.onValue(D.ref(db, COL_HORARIO), (snap) => { const v = snap.val() || {}; est.horario = { equipas: v.equipas || {}, dias: v.dias || {} }; desenharHorario(); desenharEquipaHoje(); }, () => {});
   D.onValue(D.ref(db, COL_REGRAS), (snap) => {
     const v = snap.val() || {};
@@ -1489,7 +1492,7 @@ async function modeloTexto() {
 }
 function contextoTrabalho() {
   // Usa o texto da Legislação de apoio e dos modelos que estão na própria app (fonte única).
-  const leg = [...document.querySelectorAll("#vDiario .leg-sec")].filter((d) => !d.querySelector("#przIni")).map((d) => d.innerText.replace(/\s+\n/g, "\n").trim()).join("\n\n");
+  const leg = [...document.querySelectorAll("#vOficios .leg-sec")].filter((d) => d.id !== "eoSec" && !d.querySelector("#przIni, #modTabs")).map((d) => d.innerText.replace(/\s+\n/g, "\n").trim()).join("\n\n");
   const mods = MODELOS_OFICIO.map((m) => `- ${m.g}: ${m.t}`).join("\n");
   return `${leg.slice(0, 7000)}\n\nMODELOS DE OFÍCIO DA SECRETARIA (o utilizador pode pedir qualquer um):\n${mods}`;
 }
@@ -1555,6 +1558,9 @@ Regras:
 
 ${contactosPrompt(pedido) ? `CONTACTOS DAS ENTIDADES (formato: tratamento | cargo | nome | entidade | e-mail ou morada):
 ${contactosPrompt(pedido)}
+
+` : ""}${manualPrompt(pedido) ? `MANUAL DA SECRETARIA (procedimentos escritos pela equipa; segue estes passos quando o pedido for sobre um destes procedimentos e indica o procedimento na resposta):
+${manualPrompt(pedido)}
 
 ` : ""}${textoRegras() ? `REGRAS DA SECRETARIA (definidas pela equipa; têm prioridade sobre as indicações gerais e sobre os modelos):
 ${textoRegras()}
@@ -2108,3 +2114,183 @@ function mestreGrande(on) {
 }
 $("btnMestreGrande").addEventListener("click", () => mestreGrande(!$("mestre").classList.contains("grande")));
 try { if (localStorage.getItem("kz-mestre-grande")) mestreGrande(true); } catch {}
+
+/* ---------------- Do Edoc ao ofício ---------------- */
+let eoModeloUsado = "";
+function desenharEoModelos(sel = "") {
+  const grupos = [...new Set(MODELOS_OFICIO.map((m) => m.g))];
+  $("eoModelo").innerHTML = `<option value="">Escolher automaticamente pelo relatório</option>` + grupos.map((g) => `<optgroup label="${esc(g)}">${MODELOS_OFICIO.map((m, i) => m.g !== g ? "" : `<option value="${i}"${String(i) === String(sel) ? " selected" : ""}>${esc(m.t)}</option>`).join("")}</optgroup>`).join("");
+}
+desenharEoModelos();
+async function textoDeFicheiro(f) {
+  if (f.size > 15 * 1024 * 1024) throw new Error("grande");
+  if (f.type === "application/pdf" || /\.pdf$/i.test(f.name)) {
+    const lib = await carregarPdfjs();
+    const pdf = await lib.getDocument({ data: new Uint8Array(await f.arrayBuffer()) }).promise;
+    let t = "";
+    for (let p = 1; p <= Math.min(pdf.numPages, 20); p++) { const pg = await pdf.getPage(p); const tc = await pg.getTextContent(); t += tc.items.map((i) => i.str).join(" ") + "\n\n"; }
+    return t.replace(/[ \t]+/g, " ").trim();
+  }
+  if (/\.docx$/i.test(f.name)) {
+    const z = await JSZip.loadAsync(await f.arrayBuffer());
+    const x = await z.file("word/document.xml").async("string");
+    return x.replace(/<w:tab\/>/g, "\t").replace(/<\/w:p>/g, "\n").replace(/<[^>]+>/g, "").replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/\n{3,}/g, "\n\n").trim();
+  }
+  return (await f.text()).trim();
+}
+const eoMsg = (id, t, err) => { $(id).textContent = t; $(id).className = "status" + (err ? " err" : ""); };
+$("btnEoAnexar").addEventListener("click", () => $("eoFicheiro").click());
+$("eoFicheiro").addEventListener("change", async (e) => {
+  const f = e.target.files[0]; e.target.value = ""; if (!f) return;
+  eoMsg("eoStatus", `A ler «${f.name}»…`);
+  try {
+    const t = await textoDeFicheiro(f);
+    if (t.length < 80) { eoMsg("eoStatus", "Este PDF parece digitalizado (sem texto). Copie o texto do relatório no Edoc e cole-o aqui.", true); return; }
+    $("eoRel").value = t.slice(0, 15000); $("eoAnexo").textContent = f.name; eoMsg("eoStatus", "");
+  } catch (err) { eoMsg("eoStatus", err.message === "grande" ? "Ficheiro demasiado grande (máximo 15 MB)." : "Não consegui ler esse ficheiro.", true); }
+});
+function camposPorPreencher(t) { return [...new Set((t.match(/\[[^\]\n]{2,80}\]/g) || []).filter((c) => !/^\[\[/.test(c)))]; }
+function desenharEoInfo() {
+  const t = $("eoTexto").value, falta = camposPorPreencher(t);
+  $("eoInfo").innerHTML = `<p><strong>Modelo:</strong> ${esc(eoModeloUsado)}</p>` + (falta.length
+    ? `<p class="eo-falta"><strong>${falta.length} campo${falta.length > 1 ? "s" : ""} por preencher:</strong> ${falta.map((c) => `<span class="eo-c">${esc(c)}</span>`).join(" ")}</p>`
+    : `<p class="eo-ok">Todos os campos preenchidos. Reveja o texto antes de enviar.</p>`);
+}
+$("eoTexto").addEventListener("input", () => desenharEoInfo());
+$("btnEoPreencher").addEventListener("click", async () => {
+  const rel = $("eoRel").value.trim(), b = $("btnEoPreencher");
+  if (rel.length < 80) { eoMsg("eoStatus", "Cole primeiro o relatório detalhado do Edoc (ou anexe o PDF).", true); $("eoRel").focus(); return; }
+  if (semChave()) { eoMsg("eoStatus", "O MESTRE ainda não está configurado (falta a chave do Groq).", true); return; }
+  let m = $("eoModelo").value !== "" ? MODELOS_OFICIO[+$("eoModelo").value] : modelosRelevantes(rel, 1)[0];
+  if (!m) { eoMsg("eoStatus", "Não consegui perceber o tipo de ofício pelo relatório. Escolha o modelo na lista.", true); $("eoModelo").focus(); return; }
+  eoModeloUsado = m.t + ($("eoModelo").value === "" ? " (escolhido automaticamente)" : "");
+  b.disabled = true; eoMsg("eoStatus", `A preencher «${m.t}»…`);
+  const pedido = `Faz o ofício com o modelo «${m.t}» a partir deste relatório detalhado do Edoc.
+Copia o modelo abaixo palavra a palavra e substitui apenas os campos entre [ ] pelos dados do relatório. O que o relatório não disser fica entre [ ]. Responde só com o ofício (as três linhas iniciais e o corpo) e, no fim, a linha «Nota:».
+
+MODELO «${m.t}»:
+${m.x}
+
+RELATÓRIO DETALHADO DO EDOC:
+${rel.slice(0, 12000)}`;
+  try {
+    const r = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+      method: "POST", headers: { "Content-Type": "application/json", Authorization: "Bearer " + GROQ_API_KEY },
+      body: JSON.stringify({ model: await modeloTexto(), temperature: 0.05, messages: [{ role: "system", content: promptSistema(m.t + " " + rel.slice(0, 3000)) }, { role: "user", content: pedido }] }),
+    });
+    if (!r.ok) throw new Error("groq " + r.status);
+    const j = await r.json();
+    let t = expandirExtenso(expandirCaucao(limparPensar(j.choices?.[0]?.message?.content || "")));
+    if (!t) throw new Error("vazio");
+    $("eoTexto").value = t; $("eoRes").hidden = false; $("eoAssinar").innerHTML = ""; desenharEoInfo(); eoMsg("eoStatus", ""); eoMsg("eoStatus2", "");
+    $("eoRes").scrollIntoView({ behavior: "smooth", block: "start" });
+  } catch (e) {
+    eoMsg("eoStatus", String(e.message).includes("429") ? "Limite de pedidos do Groq atingido; aguarde um minuto." : "Não consegui contactar o MESTRE. Verifique a internet e tente outra vez.", true);
+  }
+  b.disabled = false;
+});
+$("btnEoCopiar").addEventListener("click", async () => {
+  try { await navigator.clipboard.writeText($("eoTexto").value); eoMsg("eoStatus2", "Texto copiado."); }
+  catch { $("eoTexto").select(); eoMsg("eoStatus2", "Selecionei o texto: use Ctrl+C para copiar."); }
+});
+$("btnEoWord").addEventListener("click", async () => {
+  try { await passarAWord($("eoTexto").value); eoMsg("eoStatus2", "Word descarregado: reveja os campos entre [ ]."); } catch { eoMsg("eoStatus2", "Não consegui gerar o Word.", true); }
+});
+$("btnEoAssinar").addEventListener("click", () => {
+  const box = $("eoAssinar"); if (box.innerHTML) { box.innerHTML = ""; return; }
+  box.innerHTML = formAssinar($("eoTexto").value); box.querySelector('[name="link"]').focus();
+});
+$("eoAssinar").addEventListener("click", (e) => { if (e.target.closest("[data-fechar-assinar]")) $("eoAssinar").innerHTML = ""; });
+$("eoAssinar").addEventListener("submit", async (e) => {
+  const f = e.target.closest("form.assinar"); if (!f) return; e.preventDefault();
+  if (await submeterAssinar(f, $("eoStatus2"))) $("eoAssinar").innerHTML = "";
+});
+function abrirEdocOficio(titulo) {
+  const i = MODELOS_OFICIO.findIndex((m) => m.t === titulo);
+  desenharEoModelos(i >= 0 ? i : "");
+  $("eoSec").open = true; mostrar("vOficios");
+  setTimeout(() => { $("eoSec").scrollIntoView({ behavior: "smooth", block: "start" }); $("eoRel").focus({ preventScroll: true }); }, 50);
+}
+
+/* ---------------- Manual da Secretaria ---------------- */
+est.manualBD = est.manualBD || [];
+let manArea = "", manEditar = null;
+function manualLista() {
+  const bd = Object.fromEntries((est.manualBD || []).map((r) => [r.id, r]));
+  const base = MANUAL_BASE.filter((m) => !(bd[m.id] && bd[m.id].apagado)).map((m) => (bd[m.id] && bd[m.id].titulo ? { ...m, ...bd[m.id], base: true, editado: true } : { ...m, base: true }));
+  const novos = (est.manualBD || []).filter((r) => !r.id.startsWith("base-") && !r.apagado && r.titulo);
+  return [...base, ...novos];
+}
+function manualPrompt(pedido) {
+  const r = procedimentosRelevantes(manualLista(), pedido, 2);
+  return r.map((m) => `«${m.titulo}» (${m.area})\nQuando: ${m.quando || "-"}\nPassos:\n${(m.passos || []).map((p, i) => `${i + 1}. ${p}`).join("\n")}${m.prazos ? "\nPrazos: " + m.prazos : ""}${m.legislacao ? "\nLegislação: " + m.legislacao : ""}${(m.modelos || []).length ? "\nModelos: " + m.modelos.join("; ") : ""}${m.notas ? "\nNotas: " + m.notas : ""}`).join("\n\n").slice(0, 3500);
+}
+const semAcento = (s) => String(s || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
+function desenharManual() {
+  if (!$("manLista")) return;
+  const todos = manualLista(), q = semAcento($("manQ").value.trim());
+  const areas = [...new Set(todos.map((m) => m.area))];
+  $("manAreas").innerHTML = [["", "Todos"], ...areas.map((a) => [a, a])].map(([v, t]) => `<button type="button" class="fchip${v === manArea ? " on" : ""}" data-area="${esc(v)}" aria-pressed="${v === manArea}">${esc(t)} <span class="muted">${v ? todos.filter((m) => m.area === v).length : todos.length}</span></button>`).join("");
+  const lista = todos.filter((m) => (!manArea || m.area === manArea) && (!q || semAcento([m.titulo, m.quando, ...(m.passos || []), m.legislacao, ...(m.p || [])].join(" ")).includes(q)));
+  $("manSub").textContent = `${todos.length} procedimentos`;
+  $("manLista").innerHTML = lista.length ? lista.map((m) => `<details class="man-item" data-id="${esc(m.id)}">
+    <summary><span class="man-t">${esc(m.titulo)}</span><span class="man-a">${esc(m.area)}</span></summary>
+    <div class="man-corpo">
+      ${m.quando ? `<p class="man-q">${esc(m.quando)}</p>` : ""}
+      <h4>Passos</h4><ol class="man-passos">${(m.passos || []).map((p) => `<li>${esc(p)}</li>`).join("")}</ol>
+      ${m.prazos ? `<h4>Prazos</h4><p>${esc(m.prazos)}</p>` : ""}
+      ${m.legislacao ? `<h4>Legislação</h4><p>${esc(m.legislacao)}</p>` : ""}
+      ${m.notas ? `<h4>Notas</h4><p>${esc(m.notas)}</p>` : ""}
+      ${(m.modelos || []).length ? `<h4>Modelos de ofício</h4><div class="man-mods">${m.modelos.map((t) => `<button type="button" class="ct-b" data-man-mod="${esc(t)}" title="Abrir em Do Edoc ao ofício">${esc(t)}</button>`).join("")}</div>` : ""}
+      <div class="man-acoes">
+        <span class="muted small">${m.editadoEm ? `Atualizado por ${esc(m.editadoPor || "?")} em ${esc(quando(m.editadoEm))}` : "Versão inicial do manual"}</span>
+        <button type="button" class="ct-b" data-man-perg="${esc(m.id)}">Perguntar ao MESTRE</button>
+        <button type="button" class="ct-b" data-man-edit="${esc(m.id)}">Editar</button>
+        ${m.editado ? `<button type="button" class="ct-b" data-man-repor="${esc(m.id)}">Repor original</button>` : ""}
+        ${!m.base ? `<button type="button" class="ct-b" data-man-rm="${esc(m.id)}">Apagar</button>` : ""}
+      </div>
+    </div></details>`).join("") : `<p class="muted">Nenhum procedimento encontrado.</p>`;
+}
+$("manQ").addEventListener("input", desenharManual);
+$("manAreas").addEventListener("click", (e) => { const b = e.target.closest("[data-area]"); if (!b) return; manArea = b.dataset.area; desenharManual(); });
+function abrirManForm(m) {
+  manEditar = m ? m.id : null;
+  $("manFormT").textContent = m ? "Editar procedimento" : "Novo procedimento";
+  $("mfArea").innerHTML = AREAS_MANUAL.map((a) => `<option${m && m.area === a ? " selected" : ""}>${esc(a)}</option>`).join("");
+  $("mfTitulo").value = m ? m.titulo : ""; $("mfQuando").value = m ? m.quando || "" : "";
+  $("mfPassos").value = m ? (m.passos || []).join("\n") : ""; $("mfPrazos").value = m ? m.prazos || "" : "";
+  $("mfLeg").value = m ? m.legislacao || "" : ""; $("mfNotas").value = m ? m.notas || "" : "";
+  const sel = new Set(m ? m.modelos || [] : []);
+  $("mfMods").innerHTML = MODELOS_OFICIO.map((x) => `<label class="mf-chk"><input type="checkbox" value="${esc(x.t)}"${sel.has(x.t) ? " checked" : ""}> ${esc(x.t)}</label>`).join("");
+  $("manForm").hidden = false; $("manForm").scrollIntoView({ behavior: "smooth", block: "start" }); $("mfTitulo").focus({ preventScroll: true });
+}
+$("btnManNovo").addEventListener("click", () => abrirManForm(null));
+$("btnManCancelar").addEventListener("click", () => { $("manForm").hidden = true; manEditar = null; });
+const manMsg = (t, err) => { $("manStatus").textContent = t; $("manStatus").className = "status" + (err ? " err" : ""); };
+$("manForm").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const passos = $("mfPassos").value.split("\n").map((l) => l.replace(/^\s*\d+[.)]\s*/, "").trim()).filter(Boolean).slice(0, 30);
+  if (!$("mfTitulo").value.trim() || !passos.length) { manMsg("Indique o título e pelo menos um passo.", true); return; }
+  const atual = manEditar ? manualLista().find((m) => m.id === manEditar) : null;
+  const dados = { titulo: $("mfTitulo").value.trim().slice(0, 120), area: $("mfArea").value, quando: $("mfQuando").value.trim().slice(0, 400), passos,
+    prazos: $("mfPrazos").value.trim().slice(0, 600), legislacao: $("mfLeg").value.trim().slice(0, 600), notas: $("mfNotas").value.trim().slice(0, 600),
+    modelos: [...$("mfMods").querySelectorAll("input:checked")].map((i) => i.value), p: atual ? atual.p || [] : [],
+    editadoPor: euNome() || quem(), editadoEm: new Date().toISOString() };
+  try {
+    if (manEditar) await fb.D.set(fb.D.ref(fb.db, `${COL_MANUAL}/${manEditar}`), dados);
+    else await fb.D.set(fb.D.push(fb.D.ref(fb.db, COL_MANUAL)), { ...dados, criadoPor: dados.editadoPor, criadoEm: dados.editadoEm });
+    $("manForm").hidden = true; manEditar = null; manMsg("Procedimento guardado.");
+  } catch { manMsg("Não consegui guardar. Verifique a internet.", true); }
+});
+$("manLista").addEventListener("click", async (e) => {
+  const b = e.target.closest("button"); if (!b) return;
+  const lista = manualLista();
+  if (b.dataset.manMod) return abrirEdocOficio(b.dataset.manMod);
+  if (b.dataset.manEdit) return abrirManForm(lista.find((m) => m.id === b.dataset.manEdit));
+  if (b.dataset.manPerg) { const m = lista.find((x) => x.id === b.dataset.manPerg); abrirAssistente(); $("chatTxt").value = `Tenho um caso de «${m.titulo}». `; $("chatTxt").focus(); return; }
+  const id = b.dataset.manRepor || b.dataset.manRm; if (!id) return;
+  if (b.dataset.ok !== "1") { const t = b.textContent; b.dataset.ok = "1"; b.textContent = "Confirmar"; setTimeout(() => { b.dataset.ok = ""; b.textContent = t; }, 4000); return; }
+  try { await fb.D.remove(fb.D.ref(fb.db, `${COL_MANUAL}/${id}`)); manMsg(b.dataset.manRepor ? "Reposta a versão original." : "Procedimento apagado."); } catch { manMsg("Não consegui guardar. Verifique a internet.", true); }
+});
+$("btnManual").addEventListener("click", () => { manMsg(""); desenharManual(); mostrar("vManual"); });
+desenharManual();

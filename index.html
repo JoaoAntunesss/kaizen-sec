@@ -257,6 +257,17 @@
         <p class="hist-rel small" id="histRel"></p>
         <div class="hist-lista" id="histLista"></div>
       </details>
+      <details class="urg-done rel" id="relBox">
+        <summary>O meu relatório</summary>
+        <p class="muted small">Os Edocs que adicionou e o que lhes aconteceu (envios para assinatura, devoluções e motivos, datas de tratamento), para exportar para Excel.</p>
+        <div class="rel-filtros">
+          <label class="f">Pessoa<select id="relQuem"></select></label>
+          <label class="f">Período<select id="relPer"><option value="mes">Este mês</option><option value="mesant">Mês passado</option><option value="ano">Este ano</option><option value="tudo">Tudo</option><option value="datas">Escolher datas</option></select></label>
+          <div class="rel-datas" id="relDatas" hidden><label class="f">De<input type="date" id="relDe"></label><label class="f">Até<input type="date" id="relAte"></label></div>
+        </div>
+        <div id="relRes"></div>
+        <div class="actions rel-acts"><button class="btn small primary" type="button" id="btnRelEdocs">Exportar resumo por Edoc</button><button class="btn small ghost" type="button" id="btnRelAcoes">Exportar todas as ações com datas</button></div>
+      </details>
       <details class="urg-notif" id="notifBox">
         <summary>Notificações neste computador <span class="notif-est" id="notifEst"></span></summary>
         <label class="chk-i"><input type="checkbox" id="notifAssinar"><span>Avisar quando for <strong>adicionado</strong> um Edoc ou um ofício for <strong>enviado/reenviado para assinatura</strong></span></label>

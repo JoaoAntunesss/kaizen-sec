@@ -798,6 +798,7 @@ function desenharUrgentes() {
   $("urgFeitos").innerHTML = (porArq.length > 1 ? `<div class="arq-barra"><span class="muted small">Arquive os que já viu ou deu seguimento: deixam de aparecer aqui.</span><button class="btn small ghost" type="button" data-urg="arquivar-todos">Arquivar todos (${porArq.length})</button></div>` : "")
     + (porArq.length ? porArq.slice(0, 150).map((u) => itemUrg(u, true)).join("") : `<p class="empty">Nenhum tratado por arquivar.</p>`);
   $("urgFeitosN").textContent = `(${porArq.length})`;
+  if ($("relBox") && $("relBox").open) desenharMeuRel();
   $("urgArqN").textContent = `(${arq.length})`;
   $("urgArq").innerHTML = arq.length ? arq.slice(0, 200).map((u) => itemUrg(u, true)).join("") : `<p class="empty">Ainda nada arquivado.</p>`;
   desenharHist();
@@ -1021,6 +1022,66 @@ function desenharHist() {
       <span class="hist-p">${esc(h.por || "")}${h.antigo ? " · registo anterior" : ""}</span></div>`;
   }).join("") : `<p class="empty">Sem registos com estes filtros.</p>`;
 }
+
+/* ---------------- O meu relatório (cada pessoa exporta o que fez) ---------------- */
+const csvMeuRel = (linhas) => "\ufeff" + linhas.map((l) => l.map((v) => `"${String(v ?? "").replace(/"/g, '""')}"`).join(";")).join("\r\n");
+function descarregarCsv(nome, txt) { const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([txt], { type: "text/csv;charset=utf-8" })); a.download = nome; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 2000); }
+const diasEntre = (a, b) => (a && b ? Math.max(0, Math.round((new Date(b) - new Date(a)) / 864e5)) : "");
+function meuRelPeriodo() {
+  const v = $("relPer").value, d = new Date(), y = d.getFullYear(), m = d.getMonth();
+  if (v === "mes") return [isoD(new Date(y, m, 1)), hoje()];
+  if (v === "mesant") return [isoD(new Date(y, m - 1, 1)), isoD(new Date(y, m, 0))];
+  if (v === "ano") return [`${y}-01-01`, hoje()];
+  if (v === "datas") return [$("relDe").value || "2000-01-01", $("relAte").value || hoje()];
+  return ["2000-01-01", hoje()];
+}
+// tudo o que diz respeito à pessoa: o que fez e o que aconteceu aos Edocs que ela adicionou
+function dadosMeuRel() {
+  const quemR = $("relQuem").value || euNome(), [de, ate] = meuRelPeriodo();
+  const dentro = (iso) => { const d = String(iso || "").slice(0, 10); return d >= de && d <= ate; };
+  const evs = eventosHist().filter((h) => dentro(h.em)).filter((h) => {
+    const u = est.urgentes.find((x) => x.id === h.uid);
+    return h.por === quemR || h.para === quemR || (u && u.criadoPor === quemR);
+  });
+  const ids = [...new Set(evs.map((h) => h.uid))];
+  const edocs = ids.map((id) => {
+    const u = est.urgentes.find((x) => x.id === id) || {}, hs = eventosHist().filter((h) => h.uid === id).sort((x, y) => String(x.em).localeCompare(String(y.em)));
+    const h0 = hs[0] || {}, env = hs.find((h) => TIPO_HIST(h.acao) === "env"), devs = hs.filter((h) => TIPO_HIST(h.acao) === "dev"), trat = [...hs].reverse().find((h) => TIPO_HIST(h.acao) === "trat");
+    const tratEm = u.tratadoEm || (trat && trat.em) || "";
+    return { edoc: u.edoc || h0.edoc, assunto: u.assunto || h0.assunto || "", prio: PRIO[prioDe(u.edoc ? u : h0)] || "", criadoPor: u.criadoPor || "", criadoEm: u.criadoEm || h0.em,
+      envEm: env ? env.em : "", ndev: devs.length, motivos: devs.map((h) => h.motivo).filter(Boolean).join(" | "), tratEm, dias: diasEntre(env ? env.em : u.criadoEm, tratEm), estado: estadoAtual(id).t };
+  }).sort((x, y) => String(y.criadoEm).localeCompare(String(x.criadoEm)));
+  return { quemR, de, ate, evs, edocs };
+}
+function desenharMeuRel() {
+  if (!$("relQuem")) return;
+  const eu = euNome(), pode = est.assina || est.admin, atual = $("relQuem").value;
+  const nomes = pode ? EQUIPA.map((p) => p.nome) : [eu].filter(Boolean);
+  $("relQuem").innerHTML = nomes.map((n) => `<option${n === (atual || eu) ? " selected" : ""}>${esc(n)}</option>`).join("") || `<option value="">(escolha o seu nome em «Adicionado por»)</option>`;
+  $("relQuem").disabled = !pode;
+  $("relDatas").hidden = $("relPer").value !== "datas";
+  if (!$("relQuem").value) { $("relRes").textContent = ""; return; }
+  const r = dadosMeuRel();
+  const env = r.evs.filter((h) => h.por === r.quemR && TIPO_HIST(h.acao) === "env").length;
+  const dev = r.evs.filter((h) => TIPO_HIST(h.acao) === "dev" && (h.para === r.quemR || (est.urgentes.find((u) => u.id === h.uid) || {}).criadoPor === r.quemR)).length;
+  const trat = r.edocs.filter((e) => e.tratEm && String(e.tratEm).slice(0, 10) >= r.de && String(e.tratEm).slice(0, 10) <= r.ate).length;
+  const ds = r.edocs.map((e) => e.dias).filter((d) => d !== ""), med = ds.length ? Math.round(ds.reduce((s, d) => s + d, 0) / ds.length) : null;
+  $("relRes").innerHTML = `<div class="rel-n"><span><strong>${r.edocs.length}</strong> Edocs</span><span><strong>${env}</strong> enviados para assinatura</span><span><strong>${dev}</strong> devolvidos</span><span><strong>${trat}</strong> tratados</span>${med !== null ? `<span><strong>${med}</strong> dias em média até tratado</span>` : ""}</div>`;
+}
+["relQuem", "relPer", "relDe", "relAte"].forEach((id) => $(id).addEventListener("change", desenharMeuRel));
+$("relBox").addEventListener("toggle", () => { if ($("relBox").open) desenharMeuRel(); });
+$("btnRelEdocs").addEventListener("click", () => {
+  const r = dadosMeuRel(); if (!r.quemR) return;
+  descarregarCsv(`relatorio-${normCt(r.quemR).replace(/\s+/g, "-")}-${r.de}-a-${r.ate}.csv`, csvMeuRel([
+    ["Edoc", "Assunto", "Urgência", "Adicionado por", "Adicionado em", "Enviado para assinatura em", "N.º de devoluções", "Motivos das devoluções", "Tratado em", "Dias até tratado", "Situação atual"],
+    ...r.edocs.map((e) => [e.edoc, e.assunto, e.prio, e.criadoPor, fmt(String(e.criadoEm).slice(0, 10)), e.envEm ? fmt(e.envEm.slice(0, 10)) : "", e.ndev, e.motivos, e.tratEm ? fmt(String(e.tratEm).slice(0, 10)) : "", e.dias, e.estado])]));
+});
+$("btnRelAcoes").addEventListener("click", () => {
+  const r = dadosMeuRel(); if (!r.quemR) return;
+  descarregarCsv(`acoes-${normCt(r.quemR).replace(/\s+/g, "-")}-${r.de}-a-${r.ate}.csv`, csvMeuRel([
+    ["Data", "Hora", "Ação", "Para", "Edoc", "Assunto", "Quem", "Motivo"],
+    ...[...r.evs].sort((x, y) => String(x.em).localeCompare(String(y.em))).map((h) => [fmt(String(h.em).slice(0, 10)), new Date(h.em).toLocaleTimeString("pt-PT", { hour: "2-digit", minute: "2-digit" }), h.acao, h.para || "", h.edoc, h.assunto || "", h.por || "", h.motivo || ""])]));
+});
 
 /* ---------------- Notificações (neste computador) ---------------- */
 const NOTIF_KEY = "kz-notif";

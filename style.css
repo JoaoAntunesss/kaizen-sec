@@ -932,3 +932,5 @@ body.com-fundo .panel{box-shadow:0 4px 18px rgba(0,0,0,.18)}
 .cp-tab{max-height:360px;overflow:auto}
 .cp-tab table{font-size:13px;width:100%}
 .cp-tab .nw{white-space:nowrap}
+.radio-moldura iframe{width:100%;height:min(720px,80vh);border:0;border-radius:10px;background:#1a4f8a;display:block}
+.radio-nota{margin:10px 0}

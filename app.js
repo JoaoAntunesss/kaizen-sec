@@ -864,6 +864,13 @@ function desenharUrgentes() {
 }
 $("btnDiario").addEventListener("click", () => abrirDiario());
 $("btnOficios").addEventListener("click", () => mostrar("vOficios"));
+// Rádio Secretaria: só carrega quando se abre a caixa; ao fechar a caixa, a rádio para
+const RADIO_URL = "https://joaoantunesss.github.io/Radio/";
+$("radioBox").addEventListener("toggle", () => {
+  const m = $("radioMoldura");
+  if ($("radioBox").open) { if (!m.firstChild) m.innerHTML = `<iframe src="${RADIO_URL}" title="Rádio Secretaria" allow="autoplay; encrypted-media" loading="lazy"></iframe>`; }
+  else m.innerHTML = "";
+});
 $("btnFerramentas").addEventListener("click", () => { mostrar("vFerramentas"); if ($("cpBox").open) cpPrepararConcelhos(); });
 $("btnKaizen").addEventListener("click", () => { mostrar("vPainel"); desenharPainel(); });
 function formNovo(abrir) { $("urgNovo").hidden = !abrir; $("btnUrgNovo").setAttribute("aria-expanded", String(abrir)); $("btnUrgNovo").textContent = abrir ? "Fechar" : "+ Adicionar Edoc"; if (abrir) $("urgEdoc").focus(); }

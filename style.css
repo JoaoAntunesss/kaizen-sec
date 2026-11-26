@@ -1008,3 +1008,4 @@ body.com-fundo.transp.transp-alta :is(.panel,.equipa-hoje) :is(.card,.tile,.ct,.
 .dr-fav:hover{color:#d9a400;background:color-mix(in srgb,#d9a400 12%,transparent)}
 .dr-fav.on{color:#d9a400}.dr-fav.on svg{fill:currentColor}
 .dr-tabs button[aria-pressed="true"]{background:var(--accent-soft);color:var(--accent);font-weight:700}
+.dr-emi{font-size:12px;font-weight:600;color:var(--accent)}

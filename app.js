@@ -941,7 +941,7 @@ function drAlternarFav(id) {
   const a = drFav[id] || (drAtos || []).find((x) => drId(x) === id); if (!a) return;
   const ref = fb.D.ref(fb.db, `${COL_DR_FAV}/${k}/${id}`);
   if (drFav[id]) { delete drFav[id]; fb.D.remove(ref).catch(() => {}); }
-  else { const g = { data: a.data || "", serie: a.serie || "", ato: a.ato || "", titulo: a.titulo || "", sumario: a.sumario || "", link: a.link || "", guardadoEm: new Date().toISOString() };
+  else { const g = { data: a.data || "", serie: a.serie || "", ato: a.ato || "", emissor: a.emissor || "", titulo: a.titulo || "", sumario: a.sumario || "", link: a.link || "", guardadoEm: new Date().toISOString() };
     drFav[id] = g; fb.D.set(ref, g).catch(() => {}); }
   drDesenhar();
 }
@@ -953,13 +953,13 @@ function drDesenhar() {
   if (drVista === "semana" && !drAtos) return;
   const limite = new Date(Date.now() - 7 * 864e5).toISOString().slice(0, 10);
   const base = drVista === "fav" ? favs : drAtos.filter((a) => !a.data || a.data >= limite);
-  const q = cpNorm($("drQ").value), l = q ? base.filter((a) => cpNorm(`${a.ato} ${a.titulo} ${a.sumario}`).includes(q)) : base;
+  const q = cpNorm($("drQ").value), l = q ? base.filter((a) => cpNorm(`${a.ato} ${a.titulo} ${a.sumario} ${a.emissor || ""}`).includes(q)) : base;
   const vazio = q ? "Nenhum ato com esse texto. Carregue em «Pesquisar no DR» para procurar em todo o Diário da República."
     : drVista === "fav" ? "Ainda não tem favoritos. Carregue na estrela de um ato para o guardar aqui."
     : "Nenhum ato de Matosinhos nos últimos 7 dias. Os novos aparecem aqui sozinhos.";
   $("drLista").innerHTML = l.length ? `<p class="muted small">${l.length} ato${l.length === 1 ? "" : "s"}${drVista === "semana" ? " nos últimos 7 dias" : " guardados"}${q ? ` com «${esc($("drQ").value.trim())}»` : ""}</p>` + l.slice(0, 200).map((a) => { const id = drId(a), f = !!drFav[id];
       return `<div class="dr-item"><a class="dr-ato" href="${esc(a.link)}" target="_blank" rel="noopener">
-      <span class="dr-top"><b>${esc(a.ato)}</b><span class="dr-meta">Série ${esc(a.serie)} · ${a.data ? esc(fmt(a.data)) : ""}</span></span><span class="dr-sum">${esc(a.sumario)}</span></a>
+      <span class="dr-top"><b>${esc(a.ato)}</b><span class="dr-meta">Série ${esc(a.serie)} · ${a.data ? esc(fmt(a.data)) : ""}</span></span>${a.emissor ? `<span class="dr-emi">${esc(a.emissor)}</span>` : ""}<span class="dr-sum">${esc(a.sumario)}</span></a>
       <button class="dr-fav${f ? " on" : ""}" type="button" data-drfav="${esc(id)}" aria-pressed="${f}" title="${f ? "Tirar dos favoritos" : "Guardar nos favoritos"}" aria-label="${f ? "Tirar dos favoritos" : "Guardar nos favoritos"}"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M12 3.5l2.6 5.3 5.9.9-4.3 4.1 1 5.8L12 16.9l-5.2 2.7 1-5.8-4.3-4.1 5.9-.9z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></svg></button></div>`; }).join("")
     : `<p class="empty">${vazio}</p>`;
 }

@@ -2245,9 +2245,10 @@ function abrirPainelMapa(tipo) {
 $("btnVoltarMp").addEventListener("click", () => { desenharMapas(); mostrar("vMapas"); });
 $("mpAnos").addEventListener("click", (e) => { const b = e.target.closest("[data-mp-ano]"); if (b) { mp.ano = b.dataset.mpAno; desenharPainelMapa(); } });
 $("mpCarregar").addEventListener("click", () => $("mpFicheiro").click());
-$("mpQ").addEventListener("input", desenharProcuraMapa);
-$("mpRes").addEventListener("click", (e) => { if (e.target.closest("#mpQLimpar")) { $("mpQ").value = ""; desenharProcuraMapa(); $("mpQ").focus(); } });
-$("mpCorpo").addEventListener("click", (e) => { const b = e.target.closest("[data-mp-q]"); if (b) { $("mpQ").value = b.dataset.mpQ; desenharProcuraMapa(); $("mpQ").scrollIntoView({ block: "start", behavior: "smooth" }); } });
+let mpQT = 0;
+$("mpQ").addEventListener("input", () => { clearTimeout(mpQT); mpQT = setTimeout(desenharPainelMapa, 250); });
+$("mpRes").addEventListener("click", (e) => { if (e.target.closest("#mpQLimpar")) { $("mpQ").value = ""; desenharPainelMapa(); $("mpQ").focus(); } });
+$("mpCorpo").addEventListener("click", (e) => { const b = e.target.closest("[data-mp-q]"); if (b) { $("mpQ").value = b.dataset.mpQ; desenharPainelMapa(); $("mpQ").scrollIntoView({ block: "start", behavior: "smooth" }); } });
 $("mpFicheiro").addEventListener("change", async (e) => {
   const f = e.target.files[0]; e.target.value = ""; if (!f) return;
   const st = $("mpStatus"); st.className = "status"; st.textContent = "A ler o Excel…";
@@ -2308,8 +2309,10 @@ function desenharProcuraMapa() {
   if (!d || !Array.isArray(d.linhas) || q.trim().length < 2) { box.hidden = true; box.innerHTML = ""; return; }
   const r = procurar(d.linhas, q);
   box.hidden = false;
+  const ab = r.length <= 3;
   box.innerHTML = `<div class="panel-head"><h2>Resultados <span class="muted">(${r.length})</span></h2><button class="btn small ghost" type="button" id="mpQLimpar">Limpar</button></div>` +
-    (r.length ? r.slice(0, 20).map((x) => fichaMapa(mp.tipo, x)).join("") + (r.length > 20 ? `<p class="muted small">A mostrar 20 de ${r.length}. Escreva mais para afinar a procura.</p>` : "")
+    (r.length ? `<p class="muted small">Os indicadores, gráficos e listas abaixo mostram só estes ${r.length === 1 ? "dados" : r.length + " contratos"}. Use «Limpar» para voltar a ver tudo.</p>` : "") +
+    (r.length ? (ab ? "" : '<div class="mp-fds">') + r.slice(0, 50).map((x) => ab ? fichaMapa(mp.tipo, x) : `<details class="mp-fd"><summary><strong>${esc(x.des)}</strong> <span class="muted small">· ${x.ano} · ${esc(ESTADOS[mp.tipo][x.est] || "Sem estado")}${x.valor ? " · " + eurT(x.valor) : ""}</span></summary>${fichaMapa(mp.tipo, x)}</details>`).join("") + (ab ? "" : "</div>") + (r.length > 50 ? `<p class="muted small">Na lista aparecem 50 de ${r.length} (os indicadores contam todos). Escreva mais para afinar a procura.</p>` : "")
       : `<p class="empty">Nada encontrado com «${esc(q.trim())}».</p>`);
 }
 
@@ -2321,8 +2324,10 @@ function desenharPainelMapa() {
   $("mpMeta").textContent = tem ? `Dados de «${d.ficheiro || "Excel"}», carregados em ${fmt(String(d.carregadoEm || "").slice(0, 10))}${d.carregadoPor ? " por " + d.carregadoPor : ""}. Folhas lidas: ${(d.folhas || []).join(", ")}.` : d === undefined && fb ? "A carregar…" : "";
   $("mpProcura").hidden = !tem;
   if (!tem) { $("mpAnos").innerHTML = ""; $("mpRes").hidden = true; return; }
-  const linhas = d.linhas, i = indicadores(t, linhas, { ano: mp.ano });
-  $("mpAnos").innerHTML = ["", ...i.anos].map((a) => `<button type="button" class="ano" data-mp-ano="${a}" aria-pressed="${String(a) === String(mp.ano)}">${a || "Todos os anos"}</button>`).join("");
+  const q = $("mpQ").value.trim(), filtro = q.length >= 2;
+  const linhas = filtro ? procurar(d.linhas, q) : d.linhas, i = indicadores(t, linhas, { ano: mp.ano });
+  const anosTodos = [...new Set(d.linhas.map((x) => x.ano))].sort();
+  $("mpAnos").innerHTML = ["", ...anosTodos].map((a) => `<button type="button" class="ano" data-mp-ano="${a}" aria-pressed="${String(a) === String(mp.ano)}">${a || "Todos os anos"}</button>`).join("");
   const E = ESTADOS[t], n = (e) => (i.estados.find((x) => x[0] === e) || [0, 0])[1];
   const emp = t === "empreitadas";
   const tiles = emp ? [
@@ -2343,7 +2348,7 @@ function desenharPainelMapa() {
 
   // 1. Por ano e estado (sempre todos os anos, para comparar)
   const ests = ["exec", "conc", "susp", "canc", ""].filter((e) => i.porAnoEstado.some((a) => a[e]));
-  $("mpT1").textContent = (emp ? "Obras" : "Contratos") + " por ano e estado"; $("mpS1").textContent = "todas as folhas";
+  $("mpT1").textContent = (emp ? "Obras" : "Contratos") + " por ano e estado"; $("mpS1").textContent = filtro ? `só «${q}»` : "todas as folhas";
   $("mpLg1").innerHTML = ests.map((e) => `<span><i class="sw" style="background:var(${COR_EST[e]})"></i>${esc(E[e])}</span>`).join("");
   const b1 = baseOpcoes();
   desenharGrafico("mpCh1", { type: "bar",

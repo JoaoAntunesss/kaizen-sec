@@ -840,3 +840,9 @@ button.ur-t.on{border-color:#c98a1a}
 .mp-ficha dd{margin:0;font-size:14px}
 .mp-ficha .tag-late{margin:0 0 8px}
 .lnk{background:none;border:0;padding:0;font:inherit;color:var(--accent,#1a4f8a);text-decoration:underline;cursor:pointer}
+.mp-fd{border:1px solid var(--line);border-radius:10px;padding:10px 14px;background:var(--surface)}
+.mp-fd summary{cursor:pointer}
+.mp-fd .mp-ficha{border:0;padding:10px 0 0;border-radius:0}
+.mp-fd .mp-ficha h3{display:none}
+.mp-fds{display:flex;flex-direction:column;gap:8px;max-height:380px;overflow:auto;padding-right:4px}
+.mp-fd summary strong{font-weight:600}

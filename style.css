@@ -764,3 +764,5 @@ button.ur-t.on{border-color:#c98a1a}
 .urg-devbox .f{flex:1;min-width:220px}
 .urg-item{flex-wrap:wrap}
 .chip.urg-dev{white-space:normal}
+.urg-aguarda{font-size:13px;font-weight:600;color:var(--muted);align-self:center}
+.urg-aguarda:empty{display:none}

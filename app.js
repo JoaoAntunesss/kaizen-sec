@@ -73,7 +73,11 @@ async function iniciarFirebase() {
   fb = { auth: authM.getAuth(app), db: dbM.getDatabase(app), A: authM, D: dbM };
   fb.A.getRedirectResult(fb.auth).catch((e) => { $("loginStatus").textContent = msgErroLogin(e); $("loginStatus").className = "status err"; });
   fb.A.onAuthStateChanged(fb.auth, (u) => {
-    est.user = u;
+    est.user = u; est.assina = false;
+    if (u && u.email && crypto.subtle) crypto.subtle.digest("SHA-256", new TextEncoder().encode(u.email.trim().toLowerCase())).then((h) => {
+      est.assina = [...new Uint8Array(h)].map((b) => b.toString(16).padStart(2, "0")).join("") === ASSINA_HASH;
+      if (est.urgentes) desenharUrgentes();
+    }).catch(() => {});
     $("btnMestreAbrir").hidden = !u; if (u) olaMestre();
     if (!u) { chatLimparUI(); fecharMestre(); mostrar("vLogin"); return; }
     if ($("vLogin").hidden === false || $("vConfig").hidden === false || VISTAS.every((v) => $(v).hidden)) abrirDiario();
@@ -705,8 +709,10 @@ const linkEdoc = (s) => { try { const u = new URL(String(s || "").trim()); retur
 const linkDe = (u) => linkEdoc(u.link);
 const prioDe = (u) => (u.prio >= 1 && u.prio <= 3 ? +u.prio : 2);
 const DEVOLVIDO = "Devolvido para correção";
-// quem assina os ofícios (destaque do botão «Devolver» no computador dela)
-const QUEM_ASSINA = (EQUIPA_INICIAL[0] && EQUIPA_INICIAL[0].nome) || "";
+// Só quem assina os ofícios (a chefia) pode devolver e marcar como tratado. Reconhece-se pela conta Google com que entrou;
+// guarda-se só o resumo (SHA-256) do email, para o email não ficar à vista no código público.
+const QUEM_ASSINA = (EQUIPA_INICIAL[0] && EQUIPA_INICIAL[0].nome) || "a chefia";
+const ASSINA_HASH = "6d41b74a8be4dca7a83965a6cc6685657139ad010cc0b7c10313b93214553a15";
 const SITUACOES = ["Por oficiar", "Ofício por assinar", DEVOLVIDO, "Aguarda execução", "Aguarda entidade externa", "Em análise técnica", "Outro"];
 let urgFiltro = "";
 const diasDesde = (iso) => { const d = new Date(iso); return isNaN(d) ? null : Math.max(0, Math.floor((Date.now() - d) / 864e5)); };
@@ -743,10 +749,10 @@ function itemUrg(u, feito) {
     : `<select class="urg-sit" data-urg="sit" data-id="${esc(u.id)}" aria-label="Situação do ${esc(u.edoc)}">${SITUACOES.map((s) => `<option${s === (u.situacao || "Outro") ? " selected" : ""}>${esc(s)}</option>`).join("")}</select>`;
   const meta = feito ? `Tratado por ${esc(u.tratadoPor || "")} a ${esc(quando(u.tratadoEm))} · adicionado por ${esc(u.criadoPor || "")} a ${esc(quando(u.criadoEm))}` : `Adicionado por ${esc(u.criadoPor || "")} a ${esc(quando(u.criadoEm))}`;
   const acts = feito
-    ? `<button class="btn small ghost" type="button" data-urg="desfazer" data-id="${esc(u.id)}">Desfazer</button>`
-    : `${u.situacao === "Ofício por assinar" ? `<button class="btn small ${euNome() === QUEM_ASSINA ? "primary" : "ghost"}" type="button" data-urg="devolver" data-id="${esc(u.id)}">Devolver para corrigir</button>` : ""}
+    ? (est.assina ? `<button class="btn small ghost" type="button" data-urg="desfazer" data-id="${esc(u.id)}">Desfazer</button>` : "")
+    : `${est.assina && u.situacao === "Ofício por assinar" ? `<button class="btn small primary" type="button" data-urg="devolver" data-id="${esc(u.id)}">Devolver para corrigir</button>` : ""}
        ${u.situacao === DEVOLVIDO ? `<button class="btn small primary" type="button" data-urg="reenviar" data-id="${esc(u.id)}">Reenviar para assinatura</button>` : ""}
-       <button class="btn small ok" type="button" data-urg="tratado" data-id="${esc(u.id)}">Marcar como tratado</button>
+       ${est.assina ? `<button class="btn small ok" type="button" data-urg="tratado" data-id="${esc(u.id)}">Marcar como tratado</button>` : `<span class="urg-aguarda">${u.situacao === "Ofício por assinar" ? `Aguarda ${esc(QUEM_ASSINA)}` : ""}</span>`}
        <button class="btn small ghost" type="button" data-urg="link" data-id="${esc(u.id)}">${linkDe(u) ? "Alterar link" : "Juntar link"}</button>
        <button class="btn small ghost danger" type="button" data-urg="apagar" data-id="${esc(u.id)}" aria-label="Apagar ${esc(u.edoc)}">Apagar</button>`;
   const p = prioDe(u);
@@ -833,6 +839,7 @@ $("urgLista").addEventListener("click", (e) => { if (e.target.closest("[data-can
 $("urgLista").addEventListener("submit", async (e) => {
   const f = e.target.closest(".urg-devbox"); if (!f) return;
   e.preventDefault();
+  if (!est.assina) return;
   const u = est.urgentes.find((x) => x.id === f.dataset.id); if (!u) return;
   const st = $("urgStatus"), agora = new Date().toISOString(), por = euNome() || quem();
   try {
@@ -855,6 +862,7 @@ $("vDiario").addEventListener("click", async (e) => {
   const b = e.target.closest("button[data-urg]"); if (!b) return;
   const id = b.dataset.id, acao = b.dataset.urg, ref = fb.D.ref(fb.db, `${COL_URGENTES}/${id}`);
   const st = $("urgStatus");
+  if (["devolver", "tratado", "desfazer"].includes(acao) && !est.assina) { st.textContent = `Só ${QUEM_ASSINA} pode devolver ou marcar como tratado.`; st.className = "status err"; return; }
   if (acao === "devolver") {
     const item = b.closest(".urg-item"); if (!item || item.querySelector(".urg-devbox")) return;
     item.insertAdjacentHTML("beforeend", `<form class="urg-devbox" data-id="${esc(id)}"><label class="f">O que há a corrigir (opcional)<input type="text" maxlength="300" placeholder="Ex.: falta o n.º de submissão; prazo errado"></label><button class="btn small ghost" type="button" data-cancel-dev>Cancelar</button><button class="btn small primary" type="submit">Devolver</button></form>`);

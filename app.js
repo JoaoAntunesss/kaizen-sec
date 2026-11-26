@@ -728,6 +728,7 @@ const CONTAS = {
   "4ff1108ebfca07696d4fcc4db69ee9efea5610789d45cd01f51f9416154ff91f": { nome: "Inês Miranda" },
   "9192620e47f8314535f98b81b7035ea959c2ab8bf8125bbbdb0b3e7b15aecc40": { nome: "Daniela Rodrigues" },
   "5d1d78f97ae5af3093ac5333e7c7ee2076272c7bfaea0a20e3829100f20aaaee": { nome: "Sandra Peixoto" },
+  "2830d5b00080ae8887d317fa216ccd1ba3b0038e7eea257381e3079962807623": { nome: "Carlos Ribeiro" },
 };
 const SITUACOES = ["Por oficiar", "Ofício por assinar", DEVOLVIDO, "Aguarda execução", "Aguarda entidade externa", "Em análise técnica", "Outro"];
 let urgFiltro = "";

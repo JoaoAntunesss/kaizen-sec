@@ -126,6 +126,7 @@ async function iniciarFirebase() {
     if (est.urgentes) desenharUrgentes();
     desenharHist();
     carregarFundo();
+    spPuxarRemoto().then((novo) => { if (novo || spLerTok()) spIniciar(); });
   });
 }
 function msgErroLogin(e) {
@@ -913,7 +914,38 @@ const SP_SCOPES = "streaming user-read-email user-read-private user-read-playbac
 const SP_REDIRECT = /github\.io$/.test(location.hostname) ? "https://joaoantunesss.github.io/kaizen-sec/" : location.origin + location.pathname;
 const sp = { tok: null, player: null, device: "", estado: null, eu: null, listas: [], pronto: false, sdk: null };
 const spLerTok = () => { try { return JSON.parse(localStorage.getItem("kz-sp-tok") || "null"); } catch { return null; } };
-const spGuardarTok = (t) => { try { t ? localStorage.setItem("kz-sp-tok", JSON.stringify(t)) : localStorage.removeItem("kz-sp-tok"); } catch {} };
+const spGuardarLocal = (t) => { try { t ? localStorage.setItem("kz-sp-tok", JSON.stringify(t)) : localStorage.removeItem("kz-sp-tok"); } catch {} };
+// O login também fica na conta Google de quem entrou (cifrado), para passar do telemóvel para o PC sem voltar a entrar
+const COL_SPTOK = "kaizen_sptok";
+async function spCifra() {
+  const u = fb && fb.auth.currentUser; if (!u || !crypto.subtle) return null;
+  const h = async (s) => new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(s)));
+  const chave = await crypto.subtle.importKey("raw", await h(u.uid + "|kz-sp-chave|" + (u.email || "")), "AES-GCM", false, ["encrypt", "decrypt"]);
+  const nome = [...(await h("kz-sp|" + u.uid))].map((b) => b.toString(16).padStart(2, "0")).join("");
+  return { chave, ref: fb.D.ref(fb.db, `${COL_SPTOK}/${nome}`) };
+}
+async function spEnviarRemoto(t) {
+  try {
+    const c = await spCifra(); if (!c) return;
+    if (!t) { await fb.D.remove(c.ref); return; }
+    const iv = crypto.getRandomValues(new Uint8Array(12));
+    const ct = new Uint8Array(await crypto.subtle.encrypt({ name: "AES-GCM", iv }, c.chave, new TextEncoder().encode(JSON.stringify(t))));
+    await fb.D.set(c.ref, { iv: b64url(iv), ct: b64url(ct), em: Date.now() });
+  } catch {}
+}
+async function spPuxarRemoto() {
+  try {
+    const c = await spCifra(); if (!c) return false;
+    const v = (await fb.D.get(c.ref)).val();
+    if (!v || !v.ct) { const loc = spLerTok(); if (loc) spEnviarRemoto({ ...loc, em: loc.em || Date.now() }); return false; }
+    const de = (s) => Uint8Array.from(atob(s.replace(/-/g, "+").replace(/_/g, "/") + "===".slice((s.length + 3) % 4)), (ch) => ch.charCodeAt(0));
+    const t = JSON.parse(new TextDecoder().decode(await crypto.subtle.decrypt({ name: "AES-GCM", iv: de(v.iv) }, c.chave, de(v.ct))));
+    const loc = spLerTok();
+    if (!loc || (t.em || 0) > (loc.em || 0)) { spGuardarLocal(t); return true; }
+    return false;
+  } catch { return false; }
+}
+const spGuardarTok = (t) => { const x = t ? { ...t, em: Date.now() } : null; spGuardarLocal(x); spEnviarRemoto(x); };
 const b64url = (buf) => btoa(String.fromCharCode(...new Uint8Array(buf))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 async function spTrocarCodigo(code) {
   const ver = localStorage.getItem("kz-sp-ver") || "";
@@ -930,7 +962,10 @@ async function spToken() {
       body: new URLSearchParams({ client_id: SPOTIFY_CLIENT_ID, grant_type: "refresh_token", refresh_token: t.r }) });
     if (!r.ok) throw new Error();
     const j = await r.json(); t = { a: j.access_token, r: j.refresh_token || t.r, exp: Date.now() + (j.expires_in - 60) * 1000 }; spGuardarTok(t); return t.a;
-  } catch { spGuardarTok(null); return null; }
+  } catch {
+    if (!spToken.repetiu && await spPuxarRemoto()) { spToken.repetiu = true; try { return await spToken(); } finally { spToken.repetiu = false; } }
+    spGuardarTok(null); return null;
+  }
 }
 async function spApi(caminho, op = {}) {
   const a = await spToken(); if (!a) throw new Error("sessao");

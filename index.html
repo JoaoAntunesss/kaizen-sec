@@ -580,6 +580,7 @@
       <div class="panel-head"><h2 id="mpTitulo">Painel</h2><button class="btn small ghost" id="btnVoltarMp" type="button">Voltar aos mapas</button></div>
       <div class="toolbar mp-bar">
         <div class="anos" id="mpAnos" role="group" aria-label="Ano em consulta"></div>
+        <button class="btn small" id="mpPdf" type="button" hidden>Exportar PDF</button>
         <button class="btn small primary" id="mpCarregar" type="button">Carregar Excel</button>
         <input type="file" id="mpFicheiro" accept=".xlsx" hidden>
       </div>
@@ -656,6 +657,7 @@
     </div>
   </section>
 </main>
+<div id="mpPrint" class="mp-print" aria-hidden="true"></div>
 
 <button class="fab" id="fab" type="button" hidden aria-label="Registar reunião">
   <svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg>

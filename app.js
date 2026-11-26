@@ -2323,10 +2323,12 @@ function desenharPainelMapa() {
   $("mpCorpo").hidden = !tem;
   $("mpMeta").textContent = tem ? `Dados de «${d.ficheiro || "Excel"}», carregados em ${fmt(String(d.carregadoEm || "").slice(0, 10))}${d.carregadoPor ? " por " + d.carregadoPor : ""}. Folhas lidas: ${(d.folhas || []).join(", ")}.` : d === undefined && fb ? "A carregar…" : "";
   $("mpProcura").hidden = !tem;
-  if (!tem) { $("mpAnos").innerHTML = ""; $("mpRes").hidden = true; return; }
+  if (!tem) { $("mpAnos").innerHTML = ""; $("mpRes").hidden = true; $("mpPdf").hidden = true; return; }
   const q = $("mpQ").value.trim(), filtro = q.length >= 2;
   const linhas = filtro ? procurar(d.linhas, q) : d.linhas, i = indicadores(t, linhas, { ano: mp.ano });
   const anosTodos = [...new Set(d.linhas.map((x) => x.ano))].sort();
+  mp.ultimo = { i, q: filtro ? q : "", d };
+  $("mpPdf").hidden = false;
   $("mpAnos").innerHTML = ["", ...anosTodos].map((a) => `<button type="button" class="ano" data-mp-ano="${a}" aria-pressed="${String(a) === String(mp.ano)}">${a || "Todos os anos"}</button>`).join("");
   const E = ESTADOS[t], n = (e) => (i.estados.find((x) => x[0] === e) || [0, 0])[1];
   const emp = t === "empreitadas";
@@ -2393,6 +2395,46 @@ function desenharPainelMapa() {
   $("mpListas").innerHTML = L.join("");
   desenharProcuraMapa();
 }
+
+// Relatório em PDF (impressão do navegador → «Guardar como PDF»), com a marca de água do autor
+const AUTOR_RELATORIOS = "João Antunes";
+function relatorioMapaHTML() {
+  const { i, q, d } = mp.ultimo, t = mp.tipo, emp = t === "empreitadas", E = ESTADOS[t], hj = hoje(), MAX = 60;
+  const n = (e) => (i.estados.find((x) => x[0] === e) || [0, 0])[1];
+  const tab = (titulo, cab, linhas, nota = "") => `<h3 class="rel-h">${esc(titulo)} (${linhas.length})</h3>${nota ? `<p class="mpp-nota">${esc(nota)}</p>` : ""}` +
+    (linhas.length ? `<table class="sh-table mpp-t"><thead><tr>${cab.map((c) => `<th>${esc(c)}</th>`).join("")}</tr></thead><tbody>${linhas.slice(0, MAX).map((l) => `<tr>${l.map((v) => `<td>${v}</td>`).join("")}</tr>`).join("")}</tbody></table>` +
+      (linhas.length > MAX ? `<p class="mpp-nota">Mostram-se ${MAX} de ${linhas.length}. A lista completa está na app.</p>` : "") : `<p class="mpp-nota">Nenhum.</p>`);
+  const nw = (v) => `<span class="nw">${v}</span>`;
+  const des = (x) => `${esc(x.des)}${x.edoc ? `<br><small>${esc(x.edoc)}${x.div ? " · " + esc(x.div) : ""}</small>` : ""}`;
+  const img = (id, titulo) => { const c = $(id); let u = ""; try { u = c.toDataURL("image/png"); } catch {} return u ? `<figure class="mpp-g"><figcaption>${esc(titulo)}</figcaption><img src="${u}" alt=""></figure>` : ""; };
+  const kpis = emp ? [["Obras", i.total], ["Concluídas", n("conc")], ["Em execução", i.exec.length], ["Canceladas", n("canc")], ["Valor contratado s/ IVA", eurT(i.valor)], ["Prazo ultrapassado", i.atrasados.length], ["Liberações de caução vencidas sem EDOC", i.liberacoes.filter((x) => x.atraso).length]]
+    : [["Contratos", i.total], ["Em execução", n("exec")], ["Concluídos", n("conc")], ["Valor contratado (acresce IVA)", eurT(i.valor)], ["Faturado", `${eurT(i.faturado)}${i.valor ? ` (${Math.round((i.faturado / i.valor) * 100)}%)` : ""}`], ["Por faturar", eurT(i.porFaturar)], ["Prazo ultrapassado", i.atrasados.length]];
+  let h = `<div class="mpp-marca" aria-hidden="true">${Array.from({ length: 6 }, () => `<span>${esc(AUTOR_RELATORIOS)}</span>`).join("")}</div>
+  <div class="sh-head"><img src="icons/logo-matosinhos.png" alt="Câmara Municipal de Matosinhos"><div class="sh-title"><b>Relatório · ${esc(emp ? "Empreitadas" : "Fornecimentos e aquisições")}</b><span>Subunidade Orgânica da Conservação — Secretaria</span></div><img src="icons/logo-kaizen.png" alt="Kaizen Institute"></div>
+  <div class="sh-meta"><span>Ano: <b>${esc(mp.ano || "todos (" + i.anos.join(", ") + ")")}</b></span>${q ? `<span>Filtro: <b>«${esc(q)}»</b></span>` : ""}<span>Dados: <b>${esc(d.ficheiro || "Excel")}</b>, de ${esc(fmt(String(d.carregadoEm || "").slice(0, 10)))}</span><span>Gerado a <b>${esc(fmt(hj))}</b></span></div>
+  <table class="sh-table mpp-k"><tbody>${kpis.map(([k, v]) => `<tr><th>${esc(k)}</th><td>${esc(String(v))}</td></tr>`).join("")}</tbody></table>
+  <div class="mpp-gs">${[1, 2, 3, 4].map((k) => img("mpCh" + k, $("mpT" + k).textContent)).join("")}</div>`;
+  h += tab("Prazo ultrapassado", [emp ? "Obra" : "Contrato", "Gestor", "Conclusão", "Valor"], i.atrasados.map((x) => [des(x), esc(x.gestor || ""), nw(fmt(x.concl)), nw(eurT(x.valor))]));
+  h += tab("Terminam nos próximos 60 dias", [emp ? "Obra" : "Contrato", "Gestor", "Conclusão", "Valor"], i.aTerminar.map((x) => [des(x), esc(x.gestor || ""), nw(fmt(x.concl)), nw(eurT(x.valor))]));
+  if (emp) {
+    h += tab("Liberações de caução", ["Obra", "Liberação", "Data", "Adjudicatário"], i.liberacoes.map((x) => [des(x), esc(x.fase), nw(fmt(x.quando)) + (x.quando < hj ? " (vencida)" : ""), esc(x.adj || "")]), "Auto do ano já vencido ou nos próximos 60 dias, sem EDOC registado.");
+    h += tab("Concluídas sem auto de receção provisória", ["Obra", "Conclusão", "Adjudicatário"], i.semRp.map((x) => [des(x), nw(fmt(x.concl || "")), esc(x.adj || "")]));
+  } else {
+    h += tab("Quanto falta faturar por processo", ["Contrato", "Estado", "Valor", "Faturado", "Por faturar"], i.porFaturarLista.map((x) => [des(x), esc(E[x.est] || "Sem estado"), nw(eurT(x.valor)), nw(eurT(x.fat)), nw(`<b>${eurT(x.porFat)}</b>`)]), "Do maior para o menor valor por faturar.");
+    h += tab("Concluídos com valor por faturar", ["Contrato", "Adjudicatário", "Valor", "Por faturar"], i.concluidosPorFaturar.map((x) => [des(x), esc(corta(x.adj, 50)), nw(eurT(x.valor)), nw(eurT(x.porFat))]));
+  }
+  if (q) { const r = procurar(d.linhas, q); if (r.length && r.length <= 5) h += `<h3 class="rel-h">Ficha${r.length > 1 ? "s" : ""}</h3>` + r.map((x) => fichaMapa(t, x)).join(""); }
+  h += `<p class="mpp-rodape">Relatório elaborado por ${esc(AUTOR_RELATORIOS)} · Secretaria da Conservação · Câmara Municipal de Matosinhos</p>`;
+  return h;
+}
+$("mpPdf").addEventListener("click", () => {
+  if (!mp.ultimo) return;
+  $("mpPrint").innerHTML = `<div class="sheet rel mpp">${relatorioMapaHTML()}</div>`;
+  document.body.classList.add("p-mapa");
+  const t0 = document.title; document.title = `Relatório ${mp.tipo === "empreitadas" ? "Empreitadas" : "Fornecimentos"} ${hoje()}`;
+  setTimeout(() => { window.print(); document.title = t0; }, 150);
+});
+window.addEventListener("afterprint", () => { document.body.classList.remove("p-mapa"); $("mpPrint").innerHTML = ""; });
 
 /* ---------------- Reclamações (Power BI) ---------------- */
 // O painel só é carregado quando se abre esta aba, para não pesar no arranque da app.

@@ -3,21 +3,24 @@ from playwright.async_api import async_playwright
 async def main():
     async with async_playwright() as p:
         b = await p.chromium.launch(); pg = await b.new_page()
-        etapa = {"n": ""}
+        cap = []
         async def resp(r):
-            if "screenservices" in r.url:
-                try: body = await r.text()
-                except: body = ""
-                c = body.lower().count("matosinhos")
-                if c or "esquisa" in r.url: print("RESP", etapa["n"], r.url.split("screenservices/")[1], len(body), "matosinhos:", c); print("REQ", (r.request.post_data or "")[:1200]); print("BODY", body[:1800]); print("---")
+            if "Conteudo_Det_Diario/DataActionGetDados" in r.url:
+                body = await r.text(); req = r.request.post_data or ""
+                d = json.loads(body)["data"]; lst = d["DetalheConteudo"]["List"]
+                print("ITENS", len(lst), "keys", list(d.keys())[:20])
+                v = json.loads(req)["screenData"]["variables"]
+                print("VARS", {k: (v[k] if not isinstance(v[k], (dict, list)) else "...") for k in v})
+                print("MATO", [x["Numero"] + " " + x["Emissor"] + " | " + x["Sumario"][:80] for x in lst if "matosinhos" in (x["Emissor"] + x["Sumario"]).lower()])
+                cap.append(1)
         pg.on("response", resp)
-        etapa["n"] = "diario"
-        await pg.goto("https://diariodarepublica.pt/dr/detalhe/diario-republica/227-2026-1196996214", wait_until="networkidle", timeout=90000); await pg.wait_for_timeout(6000)
-        t = await pg.inner_text("body"); print("DIARIO texto", len(t), "ocorr", t.lower().count("matosinhos")); print(t[:1500])
-        etapa["n"] = "pesquisa"
-        await pg.goto("https://diariodarepublica.pt/dr/home", wait_until="networkidle", timeout=90000)
-        inp = pg.locator("input[type=text], input[type=search]").first
-        await inp.fill("Matosinhos"); await inp.press("Enter"); await pg.wait_for_timeout(10000)
-        print("URL", pg.url); t = await pg.inner_text("body"); print("PESQ texto", len(t), "ocorr", t.lower().count("matosinhos")); print(t[:3000])
+        await pg.goto("https://diariodarepublica.pt/dr/detalhe/diario-republica/227-2026-1196996214", wait_until="networkidle", timeout=90000); await pg.wait_for_timeout(3000)
+        sel = pg.locator("select"); print("SELECTS", await sel.count())
+        for i in range(await sel.count()):
+            print(i, await sel.nth(i).inner_text())
+        try:
+            s = pg.locator("select", has_text="200").first; await s.select_option(label="200"); await pg.wait_for_timeout(8000)
+        except Exception as e: print("sel err", e)
+        t = await pg.inner_text("body"); m = re.search(r"\d+ de \d+ resultados", t); print("TXT", m and m.group(0))
         await b.close()
 asyncio.run(main())

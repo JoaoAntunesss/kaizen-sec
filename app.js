@@ -820,11 +820,12 @@ function itemUrg(u, feito) {
   ].join("");
   const sit = feito ? (u.situacao ? `<span class="chip">${esc(u.situacao)}</span>` : "")
     : `<select class="urg-sit" data-urg="sit" data-id="${esc(u.id)}" aria-label="Situação do ${esc(u.edoc)}">${SITUACOES.map((s) => `<option${s === (u.situacao || "Outro") ? " selected" : ""}>${esc(s)}</option>`).join("")}</select>`;
-  const meta = feito ? `${u.arquivado ? `Arquivado por ${esc(u.arquivadoPor || "")} a ${esc(quando(u.arquivadoEm))} · ` : ""}Tratado por ${esc(u.tratadoPor || "")} a ${esc(quando(u.tratadoEm))} · adicionado por ${esc(u.criadoPor || "")} a ${esc(quando(u.criadoEm))}` : `Registado a ${esc(quando(u.criadoEm))}`;
+  const meta = feito && u.arqSuspenso ? `Arquivado (suspenso) por ${esc(u.arquivadoPor || "")} a ${esc(quando(u.arquivadoEm))} · registado por ${esc(u.criadoPor || "")} a ${esc(quando(u.criadoEm))}` : feito ? `${u.arquivado ? `Arquivado por ${esc(u.arquivadoPor || "")} a ${esc(quando(u.arquivadoEm))} · ` : ""}Tratado por ${esc(u.tratadoPor || "")} a ${esc(quando(u.tratadoEm))} · adicionado por ${esc(u.criadoPor || "")} a ${esc(quando(u.criadoEm))}` : `Registado a ${esc(quando(u.criadoEm))}`;
   const acts = feito
     ? (u.arquivado ? `<button class="btn small ghost" type="button" data-urg="desarquivar" data-id="${esc(u.id)}">Desarquivar</button>`
         : `<button class="btn small ghost" type="button" data-urg="arquivar" data-id="${esc(u.id)}">Arquivar</button>`) + (est.assina ? `<button class="btn small primary" type="button" data-urg="devolver" data-id="${esc(u.id)}">Devolver para corrigir</button>` : "") + (est.assina && !u.arquivado ? `<button class="btn small ghost" type="button" data-urg="desfazer" data-id="${esc(u.id)}">Desfazer</button>` : "")
-    : `${!feito && ehInformar(u) && podeFecharInformar(u) ? `<button class="btn small ok" type="button" data-urg="feito-arquivar" data-id="${esc(u.id)}">Feito · arquivar</button>` : ""}
+    : `${!feito && u.situacao === "Suspenso" ? `<button class="btn small" type="button" data-urg="arquivar-suspenso" data-id="${esc(u.id)}">Arquivar (suspenso)</button>` : ""}
+       ${!feito && ehInformar(u) && podeFecharInformar(u) ? `<button class="btn small ok" type="button" data-urg="feito-arquivar" data-id="${esc(u.id)}">Feito · arquivar</button>` : ""}
        ${est.assina && u.situacao !== DEVOLVIDO && !ehInformar(u) ? `<button class="btn small ${u.situacao === "Ofício por assinar" ? "primary" : "ghost"}" type="button" data-urg="devolver" data-id="${esc(u.id)}">Devolver</button>` : ""}
        ${u.situacao === DEVOLVIDO ? `<button class="btn small primary" type="button" data-urg="reenviar" data-id="${esc(u.id)}">Reenviar para assinatura</button>` : ""}
        ${ehInformar(u) ? "" : est.assina ? `<button class="btn small ok" type="button" data-urg="tratado" data-id="${esc(u.id)}">Marcar como tratado</button>` : `<span class="urg-aguarda">${u.situacao === "Ofício por assinar" ? `Aguarda ${esc(QUEM_ASSINA)}` : ""}</span>`}
@@ -897,7 +898,7 @@ function desenharUrgentes() {
     ["", "Muito urgentes", abertos.filter((u) => prioDe(u) === 1).length, "t-late"],
     ["", "Em atraso", nAtraso, nAtraso ? "t-late" : ""],
     ["Ofício por assinar", "Por assinar", cont["Ofício por assinar"] || 0, "t-sign"],
-    ["", "Tratados em 7 dias", feitos.filter((u) => String(u.tratadoEm || "") >= semana).length, "t-ok"],
+    ["", "Tratados em 7 dias", feitos.filter((u) => !u.arqSuspenso && String(u.tratadoEm || "") >= semana).length, "t-ok"],
   ];
   $("urgResumo").innerHTML = tiles.map(([f, t, n, c]) => `<${f ? `button type="button" data-filtro="${esc(f)}"` : "div"} class="ur-t ${c}${f && f === urgFiltro ? " on" : ""}"><span class="ur-n">${n}</span><span class="ur-l">${esc(t)}</span></${f ? "button" : "div"}>`).join("");
   const todosAbertos = est.urgentes.filter((u) => !u.tratado);
@@ -1237,9 +1238,17 @@ $("vDiario").addEventListener("click", async (e) => {
     catch { st.textContent = "Não consegui guardar. Verifique a internet."; st.className = "status err"; }
     return;
   }
+  if (acao === "arquivar-suspenso") {
+    // suspensos: qualquer pessoa da equipa arquiva; sai das colunas e fica em «Arquivados» (Desarquivar devolve-o aos por tratar)
+    const u = est.urgentes.find((x) => x.id === id); b.disabled = true; const p = euNome() || quem(), t = new Date().toISOString();
+    try { await fb.D.update(ref, { tratado: true, tratadoPor: p, tratadoEm: t, arquivado: true, arquivadoPor: p, arquivadoEm: t, arqSuspenso: true }); regHist(u, "Arquivado (suspenso)"); }
+    catch { st.textContent = "Não consegui guardar. Verifique a internet."; st.className = "status err"; b.disabled = false; }
+    return;
+  }
   if (acao === "arquivar" || acao === "desarquivar") {
     const u = est.urgentes.find((x) => x.id === id); b.disabled = true;
-    try { await fb.D.update(ref, acao === "arquivar" ? { arquivado: true, arquivadoPor: euNome() || quem(), arquivadoEm: new Date().toISOString() } : { arquivado: null, arquivadoPor: null, arquivadoEm: null });
+    const voltar = u && u.arqSuspenso ? { tratado: false, tratadoPor: null, tratadoEm: null, arqSuspenso: null } : {};
+    try { await fb.D.update(ref, acao === "arquivar" ? { arquivado: true, arquivadoPor: euNome() || quem(), arquivadoEm: new Date().toISOString() } : { arquivado: null, arquivadoPor: null, arquivadoEm: null, ...voltar });
       regHist(u, acao === "arquivar" ? "Arquivado" : "Desarquivado"); }
     catch { st.textContent = "Não consegui guardar. Verifique a internet."; st.className = "status err"; b.disabled = false; }
     return;

@@ -216,10 +216,10 @@ input[type=text],input[type=search],input[type=email],input[type=url],input[type
 .estado button{border:0;background:transparent;padding:6px 10px;min-height:36px;font-size:13px;font-weight:600;color:var(--muted)}
 .estado button+button{border-left:1px solid var(--line)}
 .estado button[aria-pressed="true"]{color:#fff}
-.estado button.e0[aria-pressed="true"]{background:var(--s0);color:#fff}
-.estado button.e1[aria-pressed="true"]{background:var(--s1);color:#fff}
-.estado button.e2[aria-pressed="true"]{background:var(--s2);color:#1a1a1a}
-.estado button.e3[aria-pressed="true"]{background:var(--s3);color:#0b0b0b}
+.estado button.e0[aria-pressed="true"]{background:var(--s1);color:#fff}
+.estado button.e1[aria-pressed="true"]{background:var(--s2);color:#1a1a1a}
+.estado button.e2[aria-pressed="true"]{background:var(--s3);color:#0b0b0b}
+.estado button.e3[aria-pressed="true"]{background:var(--s0);color:#fff}
 .card .estado{align-self:flex-start}
 .card .estado button{padding:5px 7px;font-size:12px;min-height:34px}
 .tarefa-row{display:flex;flex-wrap:wrap;gap:8px 14px;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--line)}

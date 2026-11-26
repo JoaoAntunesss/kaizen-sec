@@ -18,8 +18,12 @@ const COL_DOCS = "kaizen_docs"; // apresentações em PDF do Manual (só para qu
 let EQUIPA = EQUIPA_INICIAL.map((p) => ({ ...p }));
 
 const FB = "https://www.gstatic.com/firebasejs/10.12.2/";
-const COLS = ["A fazer", "Em curso", "Pendente", "Concluído"];
-const COL_CORES = ["var(--s0)", "var(--s1)", "var(--s2)", "var(--s3)"];
+// Colunas do quadro «Plano de ações» (Kaizen Institute). Reuniões antigas: «A fazer» → Planeado, «Pendente» → Necessário escalar.
+const COLS = ["Planeado", "Em curso", "Concluído", "Necessário escalar"];
+const COL_VAR = ["--s1", "--s2", "--s3", "--s0"];
+const COL_CORES = COL_VAR.map((v) => `var(${v})`);
+const COL_ANTIGA = { "A fazer": "Planeado", "Pendente": "Necessário escalar" };
+const colNorm = (c) => COL_ANTIGA[c] || (COLS.includes(c) ? c : "Planeado");
 const MODELOS_VISAO = ["qwen/qwen3.8-27b", "qwen/qwen3.6-27b", "meta-llama/llama-4-scout-17b-16e-instruct", "meta-llama/llama-4-maverick-17b-128e-instruct"];
 const EST_PRES = { P: "Presente", F: "Falta", J: "Justificada" };
 
@@ -30,7 +34,7 @@ const isoData = (s) => /^\d{4}-\d{2}-\d{2}$/.test(s || "");
 const fmt = (s) => { if (!isoData(s)) return s || ""; const [a, m, d] = s.split("-"); return `${d}/${m}/${a}`; };
 const fmtCurto = (s) => isoData(s) ? `${s.slice(8, 10)}/${s.slice(5, 7)}` : s || "";
 const semanaISO = (s) => { const d = new Date(s + "T12:00:00"); if (isNaN(d)) return ""; d.setDate(d.getDate() + 3 - ((d.getDay() + 6) % 7)); const w1 = new Date(d.getFullYear(), 0, 4); return 1 + Math.round(((d - w1) / 864e5 - 3 + ((w1.getDay() + 6) % 7)) / 7); };
-const colIdx = (c) => Math.max(0, COLS.indexOf(c));
+const colIdx = (c) => Math.max(0, COLS.indexOf(colNorm(c)));
 const emAtraso = (t, ref) => t.coluna !== "Concluído" && isoData(t.prazo) && t.prazo < ref;
 
 const est = { user: null, urgentes: [], mapas: [], reunioes: [], abertaId: null, tab: "presencas", editId: null, fotos: {}, linhas: [], pres: {}, stream: null };
@@ -162,7 +166,7 @@ function subscrever() {
   }, () => { $("urgStatus").textContent = "Não consegui ler os Edocs urgentes."; $("urgStatus").className = "status err"; });
   pararSub = D.onValue(D.ref(db, COL_REUNIOES), (snap) => {
     const v = snap.val() || {};
-    est.reunioes = Object.keys(v).map((id) => ({ id, ...v[id], tarefas: Object.entries(v[id].tarefas || {}).map(([k, t]) => ({ ...t, _k: k })), presencas: v[id].presencas || {} }))
+    est.reunioes = Object.keys(v).map((id) => ({ id, ...v[id], tarefas: Object.entries(v[id].tarefas || {}).map(([k, t]) => ({ ...t, coluna: colNorm(t && t.coluna), _k: k })), presencas: v[id].presencas || {} }))
       .sort((a, b) => String(b.data || "").localeCompare(String(a.data || "")));
     desenharPainel();
     if (!$("vReuniao").hidden) { if (reuniaoAberta()) desenharReuniao(); else mostrar("vPainel"); }
@@ -250,7 +254,7 @@ function desenharPainel() {
 const graficos = {};
 function cssVar(n) { return getComputedStyle(document.documentElement).getPropertyValue(n).trim(); }
 function tabelaHTML(cab, linhas) { return `<table><thead><tr>${cab.map((c, i) => `<th${i ? ' class="num"' : ""}>${esc(c)}</th>`).join("")}</tr></thead><tbody>${linhas.map((l) => `<tr>${l.map((v, i) => `<td${i ? ' class="num"' : ""}>${esc(v)}</td>`).join("")}</tr>`).join("")}</tbody></table>`; }
-function legendaEstados(id) { $(id).innerHTML = COLS.map((c, i) => `<span><i class="sw" style="background:var(--s${i})"></i>${esc(c)}</span>`).join(""); }
+function legendaEstados(id) { $(id).innerHTML = COLS.map((c, i) => `<span><i class="sw" style="background:${COL_CORES[i]}"></i>${esc(c)}</span>`).join(""); }
 function desenharGrafico(id, cfg) {
   if (!window.Chart) return;
   Chart.defaults.font.family = "'Public Sans', system-ui, -apple-system, 'Segoe UI', sans-serif";
@@ -272,7 +276,7 @@ function baseOpcoes(extra = {}) {
 }
 function desenharIndicadores() {
   const sur = cssVar("--surface");
-  const cores = [0, 1, 2, 3].map((i) => cssVar("--s" + i));
+  const cores = COL_VAR.map((v) => cssVar(v));
   const rs = [...doAno()].reverse().slice(-12);
   const ref = hoje();
   // 1. Estado das tarefas por reunião (barras empilhadas)
@@ -324,7 +328,7 @@ window.matchMedia("(prefers-color-scheme: dark)").addEventListener?.("change", (
 $("meetList").addEventListener("click", (e) => { const b = e.target.closest("[data-id]"); if (b) abrirReuniao(b.dataset.id); });
 
 /* ---------------- Mudar o estado de uma tarefa ---------------- */
-const CURTO = { "A fazer": "A fazer", "Em curso": "Em curso", "Pendente": "Pendente", "Concluído": "Feito" };
+const CURTO = { "Planeado": "Planeado", "Em curso": "Em curso", "Concluído": "Concluído", "Necessário escalar": "Escalar" };
 const botoesEstado = (r, t) => `<div class="estado" role="group" aria-label="Estado da tarefa">${COLS.map((c, i) =>
   `<button type="button" class="e${i}" data-r="${esc(r.id)}" data-k="${esc(t._k)}" data-col="${esc(c)}" aria-pressed="${t.coluna === c}">${esc(CURTO[c])}</button>`).join("")}</div>`;
 async function mudarEstado(rid, k, col, btn) {
@@ -420,7 +424,7 @@ function abrirImprimir() {
   for (let i = ord.length; i < Math.max(15, ord.length); i++) linhas.push(`<tr><td class="c">${i + 1}</td><td></td><td></td><td></td><td></td><td class="c"><span class="sh-box"></span></td></tr>`);
   $("folhaAcoes").innerHTML = CAB("Reunião Kaizen — Ações") + meta +
     `<table class="sh-table"><thead><tr><th class="c" style="width:9mm">N.º</th><th>O que fazer</th><th style="width:34mm">Responsável</th><th style="width:26mm">Prazo</th><th style="width:22mm">Estado</th><th class="c" style="width:13mm">Feito</th></tr></thead><tbody>${linhas.join("")}</tbody></table>`;
-  $("folhaQuadro").innerHTML = CAB("Quadro Kaizen") + meta + `<div class="sh-board">${COLS.map((c, ci) => {
+  $("folhaQuadro").innerHTML = CAB("Plano de ações") + meta + `<div class="sh-board">${COLS.map((c, ci) => {
     const l = ts.filter((t) => colIdx(t.coluna) === ci);
     return `<div class="sh-col"><div class="sh-col-h"><b>${esc(c)}</b><span>${l.length}</span></div><div class="sh-col-b">${l.map((t) => `<div class="sh-post${emAtraso(t, hj) ? " late" : ""}"><b>${esc(t.tarefa)}</b>${t.responsavel ? `<small>${esc(t.responsavel)}</small>` : ""}${t.prazo ? `<small>Até ${esc(fmt(t.prazo))}</small>` : ""}</div>`).join("")}</div></div>`;
   }).join("")}</div><div class="sh-foot"><span>Em cada post-it: o quê · quem · até quando</span><span>Registado a partir da foto do quadro</span></div>`;
@@ -494,7 +498,7 @@ function lerLinhas() {
   est.linhas = est.linhas.map((t, i) => ({ ...t, coluna: $("c" + i)?.value ?? t.coluna, tarefa: ($("t" + i)?.value ?? t.tarefa).trim(), responsavel: ($("r" + i)?.value ?? t.responsavel).trim(), prazo: $("p" + i)?.value ?? t.prazo }));
 }
 $("rows").addEventListener("click", (e) => { const b = e.target.closest("[data-del]"); if (b) { lerLinhas(); est.linhas.splice(+b.dataset.del, 1); desenharLinhas(); } });
-$("btnAddRow").addEventListener("click", () => { lerLinhas(); est.linhas.push({ coluna: "A fazer", tarefa: "", responsavel: "", prazo: "" }); desenharLinhas(); $("t" + (est.linhas.length - 1))?.focus(); });
+$("btnAddRow").addEventListener("click", () => { lerLinhas(); est.linhas.push({ coluna: "Planeado", tarefa: "", responsavel: "", prazo: "" }); desenharLinhas(); $("t" + (est.linhas.length - 1))?.focus(); });
 
 /* ---------------- Câmara ---------------- */
 async function abrirCamera() {
@@ -587,14 +591,14 @@ async function lerPostits(dataUrl) {
   const st = $("readStatus"); st.className = "status"; st.textContent = "A ler os post-its… (uns segundos)";
   const dataRef = $("fData").value || hoje();
   const prompt = `Transcreve um quadro Kaizen de post-its de uma equipa de secretaria de uma câmara municipal portuguesa.
-O quadro tem 4 colunas: "A fazer", "Em curso", "Pendente", "Concluído". Cada post-it é uma tarefa, normalmente com: o quê, quem (responsável) e até quando (prazo).
+O quadro chama-se "PLANO DE AÇÕES" e tem 4 colunas, da esquerda para a direita: "Planeado", "Em curso", "Concluído", "Necessário escalar". Cada post-it é uma tarefa. Formato habitual do post-it: na 1.ª linha o nome do responsável e a data em que a tarefa foi criada (ex.: "João 16/11"); a seguir o assunto da tarefa; no fundo "Resolução" com a data limite (ex.: "Resolução 23/11"), que é o prazo. Usa o ano da reunião nas datas.
 Transcreve TODOS os post-its legíveis e indica a coluna onde cada um está colado.
 A reunião foi a ${dataRef}. Converte prazos escritos à mão (ex.: "20/11", "sexta", "fim do mês") para AAAA-MM-DD a partir dessa data; sem prazo claro usa "".
 ${REGRAS}
-Formato: {"tarefas":[{"coluna":"A fazer|Em curso|Pendente|Concluído","tarefa":"texto","responsavel":"nome ou vazio","prazo":"AAAA-MM-DD ou vazio"}]}`;
+Formato: {"tarefas":[{"coluna":"Planeado|Em curso|Concluído|Necessário escalar","tarefa":"texto","responsavel":"nome ou vazio","prazo":"AAAA-MM-DD ou vazio"}]}`;
   try {
     const v = await groqVisao(dataUrl, prompt);
-    const novos = (Array.isArray(v.tarefas) ? v.tarefas : []).filter((t) => t && t.tarefa).map((t) => ({ coluna: COLS.includes(t.coluna) ? t.coluna : "A fazer", tarefa: String(t.tarefa).trim(), responsavel: String(t.responsavel || "").trim(), prazo: prazoOk(t.prazo) }));
+    const novos = (Array.isArray(v.tarefas) ? v.tarefas : []).filter((t) => t && t.tarefa).map((t) => ({ coluna: colNorm(t.coluna), tarefa: String(t.tarefa).trim(), responsavel: String(t.responsavel || "").trim(), prazo: prazoOk(t.prazo) }));
     const j = juntarTarefas(novos);
     st.textContent = novos.length ? `Li ${novos.length} post-its${j ? ` (${j} já estavam na lista e foram juntos)` : ""}. Confirme e corrija o que for preciso.` : "Não consegui ler post-its. Tire outra foto mais de frente e com mais luz, ou escreva à mão.";
     st.className = novos.length ? "status" : "status err";
@@ -636,7 +640,7 @@ A tabela tem colunas: N.º, O que fazer, Responsável, Prazo e Feito (um quadrad
 Transcreve todas as linhas preenchidas. A reunião foi a ${dataRef}: converte prazos para AAAA-MM-DD a partir dessa data; sem prazo usa "". "feito" é true se o quadrado estiver assinalado.
 ${REGRAS}
 Formato: {"tarefas":[{"tarefa":"texto","responsavel":"nome ou vazio","prazo":"AAAA-MM-DD ou vazio","feito":false}],"notas":"texto da caixa de notas ou vazio"}`);
-      const novas = (Array.isArray(v.tarefas) ? v.tarefas : []).filter((t) => t && t.tarefa).map((t) => ({ coluna: t.feito ? "Concluído" : "A fazer", tarefa: String(t.tarefa).trim(), responsavel: String(t.responsavel || "").trim(), prazo: prazoOk(t.prazo) }));
+      const novas = (Array.isArray(v.tarefas) ? v.tarefas : []).filter((t) => t && t.tarefa).map((t) => ({ coluna: t.feito ? "Concluído" : "Planeado", tarefa: String(t.tarefa).trim(), responsavel: String(t.responsavel || "").trim(), prazo: prazoOk(t.prazo) }));
       const j = juntarTarefas(novas);
       if (v.notas) juntarNotas(String(v.notas), "Notas da folha de ações");
       st.textContent = novas.length ? `Li ${novas.length} linhas${j ? ` (${j} já existiam e foram juntas)` : ""}${v.notas ? " e as notas" : ""}. Confirme na lista.` : "Não consegui ler linhas nesta folha. Preencha à mão.";

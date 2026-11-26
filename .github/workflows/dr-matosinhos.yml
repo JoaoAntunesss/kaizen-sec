@@ -3,9 +3,13 @@ on:
   schedule:
     - cron: "23 7,12,18 * * 1-5"
   workflow_dispatch:
+    inputs:
+      dias:
+        description: Quantos dias para trás percorrer
+        default: "3"
   push:
     branches: [main]
-    paths: [scripts/dr_matosinhos.py, .github/workflows/dr-matosinhos.yml]
+    paths: [scripts/dr_matosinhos.py, scripts/dr_dias.py, .github/workflows/dr-matosinhos.yml]
 permissions:
   contents: write
 concurrency: dr-matosinhos
@@ -15,6 +19,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: python3 scripts/dr_matosinhos.py
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - run: pip install playwright==1.* && python -m playwright install --with-deps chromium > /dev/null
+      - name: Percorrer os diários dos últimos dias
+        run: python scripts/dr_dias.py ${{ github.event.inputs.dias || (github.event_name == 'push' && '7') || '3' }}
+        continue-on-error: true
       - name: Guardar se houver atos novos
         run: |
           if [ -n "$(git status --porcelain dados)" ]; then

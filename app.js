@@ -834,6 +834,25 @@ function itemUrg(u, feito) {
       <div class="urg-chips">${sit}${chips}</div><span class="urg-meta">${meta}</span></div>
     <div class="urg-acts">${acts}</div></div>`;
 }
+// Largura das três colunas: cada pessoa ajusta arrastando a divisória; fica guardado neste computador
+let urgLarg = (() => { try { const v = JSON.parse(localStorage.getItem("kz-urg-larg") || "null"); return Array.isArray(v) && v.length === 3 ? v : [1, 1, 1]; } catch { return [1, 1, 1]; } })();
+const aplicarLarg = () => { $("urgLista").style.setProperty("--urg-cols", `minmax(220px,${urgLarg[0]}fr) 10px minmax(220px,${urgLarg[1]}fr) 10px minmax(220px,${urgLarg[2]}fr)`); };
+aplicarLarg();
+$("urgLista").addEventListener("pointerdown", (e) => {
+  const h = e.target.closest("[data-puxa]"); if (!h) return;
+  e.preventDefault(); const i = +h.dataset.puxa, cols = [...$("urgLista").querySelectorAll(".urg-col")];
+  const w = cols.map((c) => c.getBoundingClientRect().width), x0 = e.clientX, par = w[i] + w[i + 1];
+  h.setPointerCapture(e.pointerId); h.classList.add("on");
+  const mover = (ev) => {
+    const a = Math.min(par - 220, Math.max(220, w[i] + ev.clientX - x0)), b = par - a;
+    const tot = w.reduce((s, x) => s + x, 0), nw = [...w]; nw[i] = a; nw[i + 1] = b;
+    urgLarg = nw.map((x) => +(x / tot * 3).toFixed(3)); aplicarLarg();
+  };
+  const largar = () => { h.classList.remove("on"); h.removeEventListener("pointermove", mover); try { localStorage.setItem("kz-urg-larg", JSON.stringify(urgLarg)); } catch {} };
+  h.addEventListener("pointermove", mover); h.addEventListener("pointerup", largar, { once: true }); h.addEventListener("pointercancel", largar, { once: true });
+});
+$("urgLista").addEventListener("dblclick", (e) => { if (e.target.closest("[data-puxa]")) { urgLarg = [1, 1, 1]; aplicarLarg(); try { localStorage.removeItem("kz-urg-larg"); } catch {} } });
+
 // Edocs «de» uma pessoa: os que adicionou, os que tem como responsável e os que lhe foram devolvidos para corrigir
 const edocDe = (u, nome) => u.criadoPor === nome || u.resp === nome || (u.situacao === DEVOLVIDO && u.devolucao && u.devolucao.para === nome);
 function desenharUrgentes() {
@@ -854,9 +873,10 @@ function desenharUrgentes() {
   const colTrat = vis.filter((u) => !colEnv.includes(u) && !colEsp.includes(u)).sort((a, b) => (b.situacao === DEVOLVIDO) - (a.situacao === DEVOLVIDO));
   const coluna = (cls, titulo, sub, l, vazio) => `<section class="urg-col ${cls}"><header class="urg-col-h"><div><b>${esc(titulo)}</b><span>${esc(sub)}</span></div><span class="urg-col-n">${l.length}</span></header>
     <div class="urg-col-b">${l.length ? l.map((u) => itemUrg(u, false)).join("") : `<p class="empty">${esc(vazio)}</p>`}</div></section>`;
+  const puxa = (i) => `<div class="urg-puxa" data-puxa="${i}" role="separator" aria-orientation="vertical" title="Arraste para mudar a largura das colunas (duplo clique repõe)"></div>`;
   $("urgLista").innerHTML = coluna("c-tratar", "Por tratar", "Connosco: oficiar, corrigir, informar ou registar", colTrat, "Nada por tratar.")
-    + coluna("c-env", "Enviados para assinatura", `À espera de ${QUEM_ASSINA}`, colEnv, "Nenhum ofício à espera de assinatura.")
-    + coluna("c-esp", "Suspensos ou a aguardar informação", "Em prazo, à espera de resposta ou suspensos", colEsp, "Nada suspenso nem à espera de informação.");
+    + puxa(0) + coluna("c-env", "Enviados para assinatura", `À espera de ${QUEM_ASSINA}`, colEnv, "Nenhum ofício à espera de assinatura.")
+    + puxa(1) + coluna("c-esp", "Suspensos ou a aguardar informação", "Em prazo, à espera de resposta ou suspensos", colEsp, "Nada suspenso nem à espera de informação.");
   // tratados por arquivar ficam em «Tratados»; os arquivados passam para «Arquivados» (continuam no histórico)
   const porArq = feitos.filter((u) => !u.arquivado), arq = feitos.filter((u) => u.arquivado).sort((x, y) => String(y.arquivadoEm).localeCompare(String(x.arquivadoEm)));
   $("urgFeitos").innerHTML = (porArq.length > 1 ? `<div class="arq-barra"><span class="muted small">Arquive os que já viu ou deu seguimento: deixam de aparecer aqui.</span><button class="btn small ghost" type="button" data-urg="arquivar-todos">Arquivar todos (${porArq.length})</button></div>` : "")

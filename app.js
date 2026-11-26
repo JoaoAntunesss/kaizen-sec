@@ -774,8 +774,8 @@ const CONTAS = {
   "5d1d78f97ae5af3093ac5333e7c7ee2076272c7bfaea0a20e3829100f20aaaee": { nome: "Sandra Peixoto" },
   "2830d5b00080ae8887d317fa216ccd1ba3b0038e7eea257381e3079962807623": { nome: "Carlos Ribeiro" },
 };
-const POR_INFORMAR = "Por informar ou encaminhar";
-const SITUACOES = ["Por oficiar", POR_INFORMAR, "Ofício por assinar", DEVOLVIDO, "Aguarda execução", "Aguarda entidade externa", "Em análise técnica", "Outro"];
+const POR_INFORMAR = "Por informar ou encaminhar", POR_REGISTAR = "Por registar";
+const SITUACOES = ["Por oficiar", POR_INFORMAR, POR_REGISTAR, "Ofício por assinar", DEVOLVIDO, "Aguarda execução", "Aguarda entidade externa", "Em análise técnica", "Outro"];
 let urgFiltro = "";
 const diasDesde = (iso) => { const d = new Date(iso); return isNaN(d) ? null : Math.max(0, Math.floor((Date.now() - d) / 864e5)); };
 const quem = () => (est.user && (est.user.displayName || est.user.email)) || "";
@@ -801,7 +801,7 @@ function itemUrg(u, feito) {
   const prazoHoje = !feito && u.prazo === hoje();
   const dsit = diasDesde(u.situacaoEm || u.criadoEm);
   const chips = [
-    ehInformar(u) ? `<span class="chip inf">Para informar ou encaminhar</span>` : "",
+    ehInformar(u) ? `<span class="chip inf">${tipoSemOficio(u) === "registar" ? "Para registar" : "Para informar ou encaminhar"}</span>` : "",
     u.resp ? `<span class="chip">${esc(u.resp)}</span>` : "",
     isoData(u.prazo) ? `<span class="chip ${atraso ? "late" : prazoHoje ? "warn" : ""}">${atraso ? "Em atraso · " : prazoHoje ? "Hoje · " : "Prazo "}${esc(fmt(u.prazo))}</span>` : "",
     !feito && u.situacao === DEVOLVIDO && u.devolucao ? `<span class="chip late urg-dev">Devolvido${u.devolucao.para ? ` a ${esc(u.devolucao.para)}` : ""} por ${esc(u.devolucao.por || "")} a ${esc(quando(u.devolucao.em))}${u.devolucao.motivo ? ` · Corrigir: ${esc(u.devolucao.motivo)}` : ""}</span>` : "",
@@ -921,7 +921,7 @@ $("urgForm").addEventListener("submit", async (e) => {
     const novoRef = fb.D.push(fb.D.ref(fb.db, COL_URGENTES)), novo = {
       edoc, assunto: $("urgAssunto").value.trim(), prio: +$("urgPrio").value || 2,
       nota: $("urgNota").value.trim(), resp: $("urgResp").value, prazo: $("urgPrazo").value || "",
-      situacao: $("urgSit").value || "Outro", situacaoEm: new Date().toISOString(), tipo: $("urgTipo").value === "informar" ? "informar" : "oficiar",
+      situacao: $("urgSit").value || "Outro", situacaoEm: new Date().toISOString(), tipo: ["informar", "registar"].includes($("urgTipo").value) ? $("urgTipo").value : "oficiar",
       link: linkEdoc($("urgLink").value),
       tratado: false, criadoPor: $("urgPor").value, criadoEm: new Date().toISOString(),
     };
@@ -1039,17 +1039,19 @@ $("vDiario").addEventListener("click", async (e) => {
     else if (acao === "feito-arquivar") { const p = euNome() || quem(), t = new Date().toISOString(); await fb.D.update(ref, { tratado: true, tratadoPor: p, tratadoEm: t, arquivado: true, arquivadoPor: p, arquivadoEm: t }); }
     else if (acao === "desfazer") await fb.D.update(ref, { tratado: false, tratadoPor: null, tratadoEm: null, arquivado: null, arquivadoPor: null, arquivadoEm: null });
     else if (acao === "apagar") await fb.D.remove(ref);
-    regHist(uAntes, { tratado: "Tratado", "feito-arquivar": "Tratado (informado ou encaminhado) e arquivado", desfazer: "Tratado desfeito (voltou aos urgentes)", apagar: "Apagado" }[acao]);
+    regHist(uAntes, { tratado: "Tratado", "feito-arquivar": uAntes && tipoSemOficio(uAntes) === "registar" ? "Tratado (registado) e arquivado" : "Tratado (informado ou encaminhado) e arquivado", desfazer: "Tratado desfeito (voltou aos urgentes)", apagar: "Apagado" }[acao]);
   } catch { st.textContent = "Não consegui guardar. Verifique a internet."; st.className = "status err"; b.disabled = false; }
 });
 
 // Edocs só para informar ou encaminhar (sem ofício): a situação acompanha a escolha
+const SIT_DO_TIPO = { oficiar: "Por oficiar", informar: POR_INFORMAR, registar: POR_REGISTAR };
 $("urgTipo").addEventListener("change", () => {
-  const inf = $("urgTipo").value === "informar", sit = $("urgSit").value;
-  if (inf && (sit === "Por oficiar" || sit === "Ofício por assinar")) $("urgSit").value = POR_INFORMAR;
-  if (!inf && sit === POR_INFORMAR) $("urgSit").value = "Por oficiar";
+  const sit = $("urgSit").value;
+  if (["Por oficiar", "Ofício por assinar", POR_INFORMAR, POR_REGISTAR].includes(sit)) $("urgSit").value = SIT_DO_TIPO[$("urgTipo").value] || "Por oficiar";
 });
-const ehInformar = (u) => u.tipo === "informar" || u.situacao === POR_INFORMAR;
+// Edocs sem ofício (informar/encaminhar ou registar): quem fica com eles dá por feito e arquiva
+const tipoSemOficio = (u) => u.situacao === POR_REGISTAR || (u.tipo === "registar" && u.situacao !== POR_INFORMAR) ? "registar" : u.situacao === POR_INFORMAR || u.tipo === "informar" ? "informar" : "";
+const ehInformar = (u) => !!tipoSemOficio(u);
 // quem fica com o Edoc (o responsável; se não houver, quem o adicionou) pode dá-lo por feito e arquivá-lo; quem assina também
 const podeFecharInformar = (u) => est.assina || (euNome() && euNome() === (u.resp || u.criadoPor));
 

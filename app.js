@@ -143,7 +143,7 @@ function subscrever() {
   }, () => { $("regrasStatus").textContent = "Não consegui ler as regras."; $("regrasStatus").className = "status err"; });
   D.onValue(D.ref(db, COL_URGENTES), (snap) => {
     const v = snap.val() || {};
-    est.urgentes = Object.entries(v).map(([id, u]) => ({ id, ...u }));
+    est.urgentes = Object.entries(v).map(([id, u]) => ({ id, ...u, ...(u && u.situacao === DEVOLVIDO_ANTIGO ? { situacao: DEVOLVIDO } : {}) }));
     verificarAvisos(est.urgentes);
     desenharUrgentes();
     if (abrirPendente) { abrirPendente = false; abrirDiario("Ofício por assinar"); history.replaceState(null, "", location.pathname); }
@@ -717,7 +717,8 @@ const PRIO = { 1: "Muito urgente", 2: "Urgente", 3: "Normal" };
 const linkEdoc = (s) => { try { const u = new URL(String(s || "").trim()); return u.protocol === "https:" && u.hostname === "edoc.cm-matosinhos.pt" ? u.href : ""; } catch { return ""; } };
 const linkDe = (u) => linkEdoc(u.link);
 const prioDe = (u) => (u.prio >= 1 && u.prio <= 3 ? +u.prio : 2);
-const DEVOLVIDO = "Devolvido para correção";
+const DEVOLVIDO = "Por corrigir";
+const DEVOLVIDO_ANTIGO = "Devolvido para correção"; // nome antigo da mesma situação
 // Só quem assina os ofícios (a chefia) pode devolver e marcar como tratado. Reconhece-se pela conta Google com que entrou;
 // guarda-se só o resumo (SHA-256) do email, para o email não ficar à vista no código público.
 const QUEM_ASSINA = (EQUIPA_INICIAL[0] && EQUIPA_INICIAL[0].nome) || "a chefia";
@@ -768,7 +769,7 @@ function itemUrg(u, feito) {
   const chips = [
     u.resp ? `<span class="chip">${esc(u.resp)}</span>` : "",
     isoData(u.prazo) ? `<span class="chip ${atraso ? "late" : prazoHoje ? "warn" : ""}">${atraso ? "Em atraso · " : prazoHoje ? "Hoje · " : "Prazo "}${esc(fmt(u.prazo))}</span>` : "",
-    !feito && u.situacao === DEVOLVIDO && u.devolucao ? `<span class="chip late urg-dev">Devolvido por ${esc(u.devolucao.por || "")} a ${esc(quando(u.devolucao.em))}${u.devolucao.motivo ? ` · ${esc(u.devolucao.motivo)}` : ""}</span>` : "",
+    !feito && u.situacao === DEVOLVIDO && u.devolucao ? `<span class="chip late urg-dev">Devolvido${u.devolucao.para ? ` a ${esc(u.devolucao.para)}` : ""} por ${esc(u.devolucao.por || "")} a ${esc(quando(u.devolucao.em))}${u.devolucao.motivo ? ` · Corrigir: ${esc(u.devolucao.motivo)}` : ""}</span>` : "",
     !feito && u.devolucoes ? `<span class="chip none">${u.devolucoes} devoluç${u.devolucoes === 1 ? "ão" : "ões"}</span>` : "",
     !feito && dsit !== null ? `<span class="chip ${dsit > 7 ? "late" : "none"}">${dsit === 0 ? "nesta situação desde hoje" : `há ${dsit} dia${dsit === 1 ? "" : "s"} nesta situação`}</span>` : "",
   ].join("");
@@ -892,14 +893,15 @@ $("vDiario").addEventListener("submit", async (e) => {
   if (!est.assina) return;
   const u = est.urgentes.find((x) => x.id === f.dataset.id); if (!u) return;
   const st = $("urgStatus"), agora = new Date().toISOString(), por = euNome() || quem();
+  const para = (f.querySelector("select") && f.querySelector("select").value) || u.criadoPor || "", motivo = f.querySelector("textarea").value.trim().slice(0, 500);
   try {
     await fb.D.update(fb.D.ref(fb.db, `${COL_URGENTES}/${u.id}`), {
       situacao: DEVOLVIDO, situacaoEm: agora, situacaoPor: por,
       ...(u.tratado ? { tratado: false, tratadoPor: null, tratadoEm: null, arquivado: null, arquivadoPor: null, arquivadoEm: null } : {}),
-      devolucao: { por, em: agora, motivo: f.querySelector("textarea").value.trim().slice(0, 500) }, devolucoes: (u.devolucoes || 0) + 1,
+      devolucao: { por, em: agora, motivo, para }, devolucoes: (u.devolucoes || 0) + 1,
     });
-    regHist(u, u.tratado ? "Devolvido para correção (depois de tratado)" : "Devolvido para correção", { para: u.criadoPor || "", motivo: f.querySelector("textarea").value.trim().slice(0, 500) });
-    st.textContent = `${u.edoc} devolvido para correção.`; st.className = "status";
+    regHist(u, u.tratado ? "Devolvido para correção (depois de tratado)" : "Devolvido para correção", { para, motivo });
+    st.textContent = `${u.edoc} devolvido a ${para} para corrigir.`; st.className = "status";
   } catch { st.textContent = "Não consegui guardar. Verifique a internet."; st.className = "status err"; }
 });
 $("urgResumo").addEventListener("click", (e) => { const b = e.target.closest("[data-filtro]"); if (!b) return; urgFiltro = urgFiltro === b.dataset.filtro ? "" : b.dataset.filtro; desenharUrgentes(); });
@@ -936,7 +938,9 @@ $("vDiario").addEventListener("click", async (e) => {
   }
   if (acao === "devolver") {
     const item = b.closest(".urg-item"); if (!item || item.querySelector(".urg-devbox")) return;
-    item.insertAdjacentHTML("beforeend", `<form class="urg-devbox" data-id="${esc(id)}"><label class="f">Motivo da devolução<textarea rows="2" maxlength="500" required placeholder="Ex.: falta o n.º de submissão; o prazo indicado está errado"></textarea></label><button class="btn small ghost" type="button" data-cancel-dev>Cancelar</button><button class="btn small primary" type="submit">Devolver</button></form>`);
+    const uD = est.urgentes.find((x) => x.id === id) || {};
+    const opsD = [uD.criadoPor ? `<option value="${esc(uD.criadoPor)}">Quem enviou: ${esc(uD.criadoPor)}</option>` : "", ...EQUIPA.map((p) => p.nome).filter((n) => n !== uD.criadoPor).map((n) => `<option value="${esc(n)}">${esc(n)}</option>`)].join("");
+    item.insertAdjacentHTML("beforeend", `<form class="urg-devbox" data-id="${esc(id)}"><label class="f f-para">Devolver a<select>${opsD}</select></label><label class="f">Motivo da devolução (o que há a corrigir)<textarea rows="2" maxlength="500" required placeholder="Ex.: falta o n.º de submissão; o prazo indicado está errado"></textarea></label><button class="btn small ghost" type="button" data-cancel-dev>Cancelar</button><button class="btn small primary" type="submit">Devolver</button></form>`);
     item.querySelector(".urg-devbox textarea").focus(); return;
   }
   if (acao === "reenviar") {
@@ -991,7 +995,7 @@ function estadoAtual(uid) {
   if (!u) return { t: "Apagado da lista", c: "none" };
   if (u.tratado) return { t: `Tratado${u.tratadoPor ? " por " + u.tratadoPor : ""}`, c: "ok" };
   if (u.situacao === "Ofício por assinar") return { t: `Agora: por assinar (com ${QUEM_ASSINA})`, c: "warn" };
-  if (u.situacao === DEVOLVIDO) return { t: `Agora: devolvido a ${u.criadoPor || "quem o enviou"}, para corrigir`, c: "late" };
+  if (u.situacao === DEVOLVIDO) return { t: `Agora: por corrigir (com ${(u.devolucao && u.devolucao.para) || u.criadoPor || "quem o enviou"})`, c: "late" };
   return { t: `Agora: ${u.situacao || "Outro"}`, c: "none" };
 }
 let histModo = "data";
@@ -1137,8 +1141,9 @@ function verificarAvisos(lista) {
     if (u.situacao === sitAntes && (u.situacaoEm || "") === emAntes) return;
     if (fuiEu(u.situacaoPor)) return;
     if (u.situacao === DEVOLVIDO) {
-      if ((notifPref.meu && (meu(u) || fuiEu(u.resp))) || notifPref.muito)
-        enviar(u, "Ofício devolvido para correção", [u.devolucao && u.devolucao.por ? "por " + u.devolucao.por : "", u.devolucao && u.devolucao.motivo].filter(Boolean).join(": "));
+      const paraMim = fuiEu(u.devolucao && u.devolucao.para) || (!(u.devolucao && u.devolucao.para) && meu(u));
+      if ((notifPref.meu && (paraMim || meu(u))) || notifPref.muito || paraMim)
+        enviar(u, fuiEu(u.devolucao && u.devolucao.para) ? "Ofício devolvido para si corrigir" : "Ofício devolvido para correção", [u.devolucao && u.devolucao.por ? "por " + u.devolucao.por : "", u.devolucao && u.devolucao.motivo].filter(Boolean).join(": "));
     } else if (u.situacao === "Ofício por assinar" && notifPref.assinar)
       enviar(u, sitAntes === DEVOLVIDO ? "Ofício corrigido, reenviado para assinatura" : "Ofício por assinar", u.situacaoPor ? "por " + u.situacaoPor : "");
   });

@@ -813,3 +813,4 @@ button.ur-t.on{border-color:#c98a1a}
 .quem-sou{font-size:12px;font-weight:600;color:rgba(255,255,255,.85);margin-right:8px;white-space:nowrap;max-width:280px;overflow:hidden;text-overflow:ellipsis}
 .quem-sou.aviso{color:#ffd58a}
 @media (max-width:640px){.quem-sou{display:none}}
+.urg-devbox .f-para{flex:0 0 240px;min-width:200px}

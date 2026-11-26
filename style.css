@@ -874,3 +874,5 @@ button.ur-t.on{border-color:#c98a1a}
 .mpp .rel-h{break-after:avoid}
 .mpp-nota{break-after:avoid}
 body.p-mapa .mpp{box-shadow:none;border:0}
+.mp-uni{display:flex;align-items:center;gap:6px;font-size:13px;font-weight:600;color:var(--muted);margin-left:auto}
+.mp-uni select{font:inherit;font-weight:500;color:var(--ink);padding:5px 8px;border:1px solid var(--line);border-radius:8px;background:var(--surface)}

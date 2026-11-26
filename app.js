@@ -2229,7 +2229,7 @@ const corta = (t, n = 30) => { t = String(t || ""); return t.length > n ? t.slic
 const COR_EST = { exec: "--s1", conc: "--s3", susp: "--s2", canc: "--s0", outro: "--muted", "": "--grid" };
 
 function abrirPainelMapa(tipo) {
-  if (mp.tipo !== tipo) $("mpQ").value = "";
+  if (mp.tipo !== tipo) { $("mpQ").value = ""; mp.div = ""; }
   mp.tipo = tipo; mp.ano = "";
   $("mpTitulo").textContent = "Painel · " + NOME_PAINEL[tipo];
   $("mpStatus").textContent = "";
@@ -2243,6 +2243,7 @@ function abrirPainelMapa(tipo) {
   desenharPainelMapa();
 }
 $("btnVoltarMp").addEventListener("click", () => { desenharMapas(); mostrar("vMapas"); });
+$("mpDiv").addEventListener("change", (e) => { mp.div = e.target.value; desenharPainelMapa(); });
 $("mpAnos").addEventListener("click", (e) => { const b = e.target.closest("[data-mp-ano]"); if (b) { mp.ano = b.dataset.mpAno; desenharPainelMapa(); } });
 $("mpCarregar").addEventListener("click", () => $("mpFicheiro").click());
 let mpQT = 0;
@@ -2307,7 +2308,7 @@ function fichaMapa(t, x) {
 function desenharProcuraMapa() {
   const d = mp.dados[mp.tipo], q = $("mpQ").value, box = $("mpRes");
   if (!d || !Array.isArray(d.linhas) || q.trim().length < 2) { box.hidden = true; box.innerHTML = ""; return; }
-  const r = procurar(d.linhas, q);
+  const r = procurar(d.linhas, q).filter((x) => !mp.div || x.div === mp.div);
   box.hidden = false;
   const ab = r.length <= 3;
   box.innerHTML = `<div class="panel-head"><h2>Resultados <span class="muted">(${r.length})</span></h2><button class="btn small ghost" type="button" id="mpQLimpar">Limpar</button></div>` +
@@ -2325,9 +2326,14 @@ function desenharPainelMapa() {
   $("mpProcura").hidden = !tem;
   if (!tem) { $("mpAnos").innerHTML = ""; $("mpRes").hidden = true; $("mpPdf").hidden = true; return; }
   const q = $("mpQ").value.trim(), filtro = q.length >= 2;
-  const linhas = filtro ? procurar(d.linhas, q) : d.linhas, i = indicadores(t, linhas, { ano: mp.ano });
+  const divs = [...new Set(d.linhas.map((x) => x.div).filter(Boolean))].sort((a, b) => a.localeCompare(b, "pt"));
+  if (mp.div && !divs.includes(mp.div)) mp.div = "";
+  $("mpDiv").innerHTML = `<option value="">Todas</option>` + divs.map((v) => `<option${v === mp.div ? " selected" : ""}>${esc(v)}</option>`).join("");
+  let linhas = filtro ? procurar(d.linhas, q) : d.linhas;
+  if (mp.div) linhas = linhas.filter((x) => x.div === mp.div);
+  const i = indicadores(t, linhas, { ano: mp.ano });
   const anosTodos = [...new Set(d.linhas.map((x) => x.ano))].sort();
-  mp.ultimo = { i, q: filtro ? q : "", d };
+  mp.ultimo = { i, q: filtro ? q : "", d, div: mp.div };
   $("mpPdf").hidden = false;
   $("mpAnos").innerHTML = ["", ...anosTodos].map((a) => `<button type="button" class="ano" data-mp-ano="${a}" aria-pressed="${String(a) === String(mp.ano)}">${a || "Todos os anos"}</button>`).join("");
   const E = ESTADOS[t], n = (e) => (i.estados.find((x) => x[0] === e) || [0, 0])[1];
@@ -2364,7 +2370,10 @@ function desenharPainelMapa() {
     graficoBarrasH("mpCh" + k, pares, { euros, rotulo: cabV });
     $("mpTb" + k).innerHTML = tabelaHTML(["", cabV], pares.map(([a, v]) => [a, euros ? eurT(v) : v]));
   };
-  graf(2, "Valor contratado por divisão", emp ? "s/ IVA" : "acresce IVA", i.valorDiv, true, "Valor");
+  if (mp.div) {
+    const m = new Map(); for (const x of linhas.filter((x) => (!mp.ano || String(x.ano) === String(mp.ano)) && x.est !== "canc")) { const k = x.gestor || "Sem indicação"; m.set(k, (m.get(k) || 0) + (x.valor || 0)); }
+    graf(2, "Valor contratado por gestor do contrato", `${mp.div} · ${emp ? "s/ IVA" : "acresce IVA"}`, [...m].sort((a, b) => b[1] - a[1]).slice(0, 10), true, "Valor");
+  } else graf(2, "Valor contratado por divisão", emp ? "s/ IVA" : "acresce IVA", i.valorDiv, true, "Valor");
   if (emp) {
     graf(3, "Obras em execução por gestor do contrato", mp.ano ? "" : "todos os anos", i.execGestor, false, "Obras");
     graf(4, "Maiores adjudicatários", "por valor contratado", i.topAdj, true, "Valor");
@@ -2398,7 +2407,7 @@ function desenharPainelMapa() {
 
 // Relatório em PDF (impressão do navegador → «Guardar como PDF»), com a marca de água do autor
 function relatorioMapaHTML() {
-  const { i, q, d } = mp.ultimo, t = mp.tipo, emp = t === "empreitadas", E = ESTADOS[t], hj = hoje(), MAX = 60;
+  const { i, q, d, div } = mp.ultimo, t = mp.tipo, emp = t === "empreitadas", E = ESTADOS[t], hj = hoje(), MAX = 60;
   const n = (e) => (i.estados.find((x) => x[0] === e) || [0, 0])[1];
   const tab = (titulo, cab, linhas, nota = "") => `<h3 class="rel-h">${esc(titulo)} (${linhas.length})</h3>${nota ? `<p class="mpp-nota">${esc(nota)}</p>` : ""}` +
     (linhas.length ? `<table class="sh-table mpp-t"><thead><tr>${cab.map((c) => `<th>${esc(c)}</th>`).join("")}</tr></thead><tbody>${linhas.slice(0, MAX).map((l) => `<tr>${l.map((v) => `<td>${v}</td>`).join("")}</tr>`).join("")}</tbody></table>` +
@@ -2408,8 +2417,8 @@ function relatorioMapaHTML() {
   const img = (id, titulo) => { const c = $(id); let u = ""; try { u = c.toDataURL("image/png"); } catch {} return u ? `<figure class="mpp-g"><figcaption>${esc(titulo)}</figcaption><img src="${u}" alt=""></figure>` : ""; };
   const kpis = emp ? [["Obras", i.total], ["Concluídas", n("conc")], ["Em execução", i.exec.length], ["Canceladas", n("canc")], ["Valor contratado s/ IVA", eurT(i.valor)], ["Prazo ultrapassado", i.atrasados.length], ["Liberações de caução vencidas sem EDOC", i.liberacoes.filter((x) => x.atraso).length]]
     : [["Contratos", i.total], ["Em execução", n("exec")], ["Concluídos", n("conc")], ["Valor contratado (acresce IVA)", eurT(i.valor)], ["Faturado", `${eurT(i.faturado)}${i.valor ? ` (${Math.round((i.faturado / i.valor) * 100)}%)` : ""}`], ["Por faturar", eurT(i.porFaturar)], ["Prazo ultrapassado", i.atrasados.length]];
-  let h = `<div class="sh-head"><img src="icons/logo-matosinhos.png" alt="Câmara Municipal de Matosinhos"><div class="sh-title"><b>Relatório · ${esc(emp ? "Empreitadas" : "Fornecimentos e aquisições")}</b><span>Subunidade Orgânica da Conservação — Secretaria</span></div><img src="icons/logo-kaizen.png" alt="Kaizen Institute"></div>
-  <div class="sh-meta"><span>Ano: <b>${esc(mp.ano || "todos (" + i.anos.join(", ") + ")")}</b></span>${q ? `<span>Filtro: <b>«${esc(q)}»</b></span>` : ""}<span>Dados: <b>${esc(d.ficheiro || "Excel")}</b>, de ${esc(fmt(String(d.carregadoEm || "").slice(0, 10)))}</span><span>Gerado a <b>${esc(fmt(hj))}</b></span></div>
+  let h = `<div class="sh-head"><img src="icons/logo-matosinhos.png" alt="Câmara Municipal de Matosinhos"><div class="sh-title"><b>Relatório · ${esc(emp ? "Empreitadas" : "Fornecimentos e aquisições")}${div ? " · " + esc(div) : ""}</b><span>Subunidade Orgânica da Conservação — Secretaria</span></div><img src="icons/logo-kaizen.png" alt="Kaizen Institute"></div>
+  <div class="sh-meta"><span>Ano: <b>${esc(mp.ano || "todos (" + i.anos.join(", ") + ")")}</b></span>${div ? `<span>Unidade: <b>${esc(div)}</b></span>` : ""}${q ? `<span>Filtro: <b>«${esc(q)}»</b></span>` : ""}<span>Dados: <b>${esc(d.ficheiro || "Excel")}</b>, de ${esc(fmt(String(d.carregadoEm || "").slice(0, 10)))}</span><span>Gerado a <b>${esc(fmt(hj))}</b></span></div>
   <table class="sh-table mpp-k"><tbody>${kpis.map(([k, v]) => `<tr><th>${esc(k)}</th><td>${esc(String(v))}</td></tr>`).join("")}</tbody></table>
   <div class="mpp-gs">${[1, 2, 3, 4].map((k) => img("mpCh" + k, $("mpT" + k).textContent)).join("")}</div>`;
   h += tab("Prazo ultrapassado", [emp ? "Obra" : "Contrato", "Gestor", "Conclusão", "Valor"], i.atrasados.map((x) => [des(x), esc(x.gestor || ""), nw(fmt(x.concl)), nw(eurT(x.valor))]));
@@ -2428,7 +2437,7 @@ $("mpPdf").addEventListener("click", () => {
   if (!mp.ultimo) return;
   $("mpPrint").innerHTML = `<div class="sheet rel mpp">${relatorioMapaHTML()}</div>`;
   document.body.classList.add("p-mapa");
-  const t0 = document.title; document.title = `Relatório ${mp.tipo === "empreitadas" ? "Empreitadas" : "Fornecimentos"} ${hoje()}`;
+  const t0 = document.title; document.title = `Relatório ${mp.tipo === "empreitadas" ? "Empreitadas" : "Fornecimentos"}${mp.div ? " " + mp.div : ""} ${hoje()}`;
   setTimeout(() => { window.print(); document.title = t0; }, 150);
 });
 window.addEventListener("afterprint", () => { document.body.classList.remove("p-mapa"); $("mpPrint").innerHTML = ""; });

@@ -75,22 +75,31 @@ async function iniciarFirebase() {
   const app = appM.initializeApp(FIREBASE_CONFIG);
   fb = { auth: authM.getAuth(app), db: dbM.getDatabase(app), A: authM, D: dbM };
   fb.A.getRedirectResult(fb.auth).catch((e) => { $("loginStatus").textContent = msgErroLogin(e); $("loginStatus").className = "status err"; });
-  fb.A.onAuthStateChanged(fb.auth, (u) => {
-    est.user = u; est.assina = false; est.admin = false; est.conta = ""; mostrarQuemSou();
-    if (u && u.email && crypto.subtle) crypto.subtle.digest("SHA-256", new TextEncoder().encode(u.email.trim().toLowerCase())).then((h) => {
-      const c = CONTAS[[...new Uint8Array(h)].map((b) => b.toString(16).padStart(2, "0")).join("")];
-      if (!c || est.user !== u) return;
-      est.conta = c.nome; est.admin = !!c.admin; est.assina = !!(c.assina || c.admin);
-      mostrarQuemSou();
-      try { localStorage.setItem("kz-urg-por", c.nome); } catch {}
-      if ($("urgPor") && [...$("urgPor").options].some((o) => o.value === c.nome)) $("urgPor").value = c.nome;
-      if (est.urgentes) desenharUrgentes();
-      desenharHist();
-    }).catch(() => {});
-    $("btnMestreAbrir").hidden = !u; if (u) olaMestre();
+  // Só entram as contas Google da equipa (lista CONTAS, guardada como hash do email): as outras saem logo.
+  const hashEmail = async (e) => [...new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(String(e).trim().toLowerCase())))].map((b) => b.toString(16).padStart(2, "0")).join("");
+  fb.A.onAuthStateChanged(fb.auth, async (u) => {
+    est.user = null; est.assina = false; est.admin = false; est.conta = ""; mostrarQuemSou();
+    $("btnMestreAbrir").hidden = true;
     if (!u) { chatLimparUI(); fecharMestre(); mostrar("vLogin"); return; }
+    let c = null;
+    try { c = u.email ? CONTAS[await hashEmail(u.email)] : null; } catch {}
+    if (fb.auth.currentUser !== u) return;
+    if (!c) {
+      $("loginStatus").textContent = `A conta ${u.email || ""} não tem acesso a esta aplicação. Entre com a conta Google registada na equipa.`;
+      $("loginStatus").className = "status err";
+      try { await fb.A.signOut(fb.auth); } catch {}
+      mostrar("vLogin"); return;
+    }
+    $("loginStatus").textContent = "";
+    est.user = u; est.conta = c.nome; est.admin = !!c.admin; est.assina = !!(c.assina || c.admin);
+    mostrarQuemSou();
+    try { localStorage.setItem("kz-urg-por", c.nome); } catch {}
+    if ($("urgPor") && [...$("urgPor").options].some((o) => o.value === c.nome)) $("urgPor").value = c.nome;
+    $("btnMestreAbrir").hidden = false; olaMestre();
     if ($("vLogin").hidden === false || $("vConfig").hidden === false || VISTAS.every((v) => $(v).hidden)) abrirDiario();
     subscrever();
+    if (est.urgentes) desenharUrgentes();
+    desenharHist();
   });
 }
 function msgErroLogin(e) {

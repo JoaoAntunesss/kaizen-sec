@@ -779,7 +779,7 @@ function itemUrg(u, feito) {
   const acts = feito
     ? (u.arquivado ? `<button class="btn small ghost" type="button" data-urg="desarquivar" data-id="${esc(u.id)}">Desarquivar</button>`
         : `<button class="btn small ghost" type="button" data-urg="arquivar" data-id="${esc(u.id)}">Arquivar</button>`) + (est.assina ? `<button class="btn small primary" type="button" data-urg="devolver" data-id="${esc(u.id)}">Devolver para corrigir</button>` : "") + (est.assina && !u.arquivado ? `<button class="btn small ghost" type="button" data-urg="desfazer" data-id="${esc(u.id)}">Desfazer</button>` : "")
-    : `${est.assina && u.situacao === "Ofício por assinar" ? `<button class="btn small primary" type="button" data-urg="devolver" data-id="${esc(u.id)}">Devolver para corrigir</button>` : ""}
+    : `${est.assina && u.situacao !== DEVOLVIDO ? `<button class="btn small ${u.situacao === "Ofício por assinar" ? "primary" : "ghost"}" type="button" data-urg="devolver" data-id="${esc(u.id)}">Devolver</button>` : ""}
        ${u.situacao === DEVOLVIDO ? `<button class="btn small primary" type="button" data-urg="reenviar" data-id="${esc(u.id)}">Reenviar para assinatura</button>` : ""}
        ${est.assina ? `<button class="btn small ok" type="button" data-urg="tratado" data-id="${esc(u.id)}">Marcar como tratado</button>` : `<span class="urg-aguarda">${u.situacao === "Ofício por assinar" ? `Aguarda ${esc(QUEM_ASSINA)}` : ""}</span>`}
        <button class="btn small ghost" type="button" data-urg="link" data-id="${esc(u.id)}">${linkDe(u) ? "Alterar link" : "Juntar link"}</button>

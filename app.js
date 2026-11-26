@@ -775,7 +775,7 @@ const CONTAS = {
   "2830d5b00080ae8887d317fa216ccd1ba3b0038e7eea257381e3079962807623": { nome: "Carlos Ribeiro" },
 };
 const POR_INFORMAR = "Por informar ou encaminhar", POR_REGISTAR = "Por registar";
-const SITUACOES = ["Por oficiar", POR_INFORMAR, POR_REGISTAR, "Ofício por assinar", DEVOLVIDO, "Aguarda execução", "Aguarda entidade externa", "Em análise técnica", "Outro"];
+const SITUACOES = ["Por oficiar", POR_INFORMAR, POR_REGISTAR, "Ofício por assinar", DEVOLVIDO, "Aguarda informação (em prazo)", "Suspenso", "Aguarda execução", "Aguarda entidade externa", "Em análise técnica", "Outro"];
 let urgFiltro = "";
 const diasDesde = (iso) => { const d = new Date(iso); return isNaN(d) ? null : Math.max(0, Math.floor((Date.now() - d) / 864e5)); };
 const quem = () => (est.user && (est.user.displayName || est.user.email)) || "";
@@ -848,7 +848,7 @@ function desenharUrgentes() {
     .map(([v, t]) => `<button type="button" class="fchip${v === urgFiltro ? " on" : ""}" data-filtro="${esc(v)}" aria-pressed="${v === urgFiltro}">${esc(t)}</button>`).join("") : "";
   const vis = urgFiltro ? abertos.filter((u) => (u.situacao || "Outro") === urgFiltro) : abertos;
   // Três colunas: o que está connosco, o que foi enviado para assinatura e o que está à espera de outros
-  const ESPERA = ["Aguarda execução", "Aguarda entidade externa", "Em análise técnica"];
+  const ESPERA = ["Aguarda informação (em prazo)", "Suspenso", "Aguarda execução", "Aguarda entidade externa", "Em análise técnica"];
   const colEnv = vis.filter((u) => u.situacao === "Ofício por assinar");
   const colEsp = vis.filter((u) => ESPERA.includes(u.situacao));
   const colTrat = vis.filter((u) => !colEnv.includes(u) && !colEsp.includes(u)).sort((a, b) => (b.situacao === DEVOLVIDO) - (a.situacao === DEVOLVIDO));
@@ -856,7 +856,7 @@ function desenharUrgentes() {
     <div class="urg-col-b">${l.length ? l.map((u) => itemUrg(u, false)).join("") : `<p class="empty">${esc(vazio)}</p>`}</div></section>`;
   $("urgLista").innerHTML = coluna("c-tratar", "Por tratar", "Connosco: oficiar, corrigir, informar ou registar", colTrat, "Nada por tratar.")
     + coluna("c-env", "Enviados para assinatura", `À espera de ${QUEM_ASSINA}`, colEnv, "Nenhum ofício à espera de assinatura.")
-    + coluna("c-esp", "À espera de outros", "Execução, entidade externa ou análise técnica", colEsp, "Nada à espera de outros.");
+    + coluna("c-esp", "Suspensos ou a aguardar informação", "Em prazo, à espera de resposta ou suspensos", colEsp, "Nada suspenso nem à espera de informação.");
   // tratados por arquivar ficam em «Tratados»; os arquivados passam para «Arquivados» (continuam no histórico)
   const porArq = feitos.filter((u) => !u.arquivado), arq = feitos.filter((u) => u.arquivado).sort((x, y) => String(y.arquivadoEm).localeCompare(String(x.arquivadoEm)));
   $("urgFeitos").innerHTML = (porArq.length > 1 ? `<div class="arq-barra"><span class="muted small">Arquive os que já viu ou deu seguimento: deixam de aparecer aqui.</span><button class="btn small ghost" type="button" data-urg="arquivar-todos">Arquivar todos (${porArq.length})</button></div>` : "")

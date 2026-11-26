@@ -26,7 +26,7 @@ jobs:
       - name: Versão no service worker
         run: sed -i "s/kaizen-v1/kaizen-${GITHUB_SHA::7}/" sw.js
       - name: Preparar
-        run: mkdir _site && cp -r index.html style.css app.js config.js modelos-oficio.js extenso.js contactos-base.js manual-base.js mapas-dados.js cp-matosinhos.js manual-plataforma.pdf sw.js manifest.webmanifest modelo-kaizen.xlsx icons vendor _site/
+        run: mkdir _site && cp -r index.html style.css app.js config.js modelos-oficio.js extenso.js contactos-base.js manual-base.js mapas-dados.js cp manual-plataforma.pdf sw.js manifest.webmanifest modelo-kaizen.xlsx icons vendor _site/
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v4
         with: { path: _site }

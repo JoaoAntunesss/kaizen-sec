@@ -1310,8 +1310,18 @@ const isoD = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "
 const eqsOrd = () => Object.entries(est.horario.equipas).map(([id, e]) => ({ id, ...e })).sort((a, b) => (a.ordem ?? 99) - (b.ordem ?? 99) || String(a.nome).localeCompare(b.nome, "pt"));
 const corTexto = (hex) => { const h = String(hex || "#ffffff").replace("#", ""); const [r, g, b] = [0, 2, 4].map((i) => parseInt(h.slice(i, i + 2), 16) || 255); return (r * 299 + g * 587 + b * 114) / 1000 > 150 ? "#1b1b1b" : "#ffffff"; };
 const horMsg = (t, erro) => { $("horStatus").textContent = t; $("horStatus").className = "status" + (erro ? " err" : ""); };
-/* ---------------- Código postal de uma rua (Matosinhos, dados CTT carregados só quando se usa) ---------------- */
-let cpDados = null, cpT = 0;
+/* ---------------- Código postal de uma rua (dados CTT por concelho, carregados só quando se usa) ---------------- */
+const cpCache = {}; let cpT = 0, cpConcOk = false;
+async function cpPrepararConcelhos() {
+  if (cpConcOk) return; cpConcOk = true;
+  try {
+    const l = await (await fetch("cp/concelhos.json")).json(), sel = $("cpConc"), atual = sel.value || "1308";
+    const nomes = {}; l.forEach(([, n]) => { nomes[n] = (nomes[n] || 0) + 1; });
+    sel.innerHTML = l.map(([c, n, d]) => `<option value="${esc(c)}">${esc(n)}${nomes[n] > 1 || c === "1308" ? ` (${esc(d)})` : ""}</option>`).join("");
+    sel.value = (() => { try { return localStorage.getItem("kz-cp-conc") || atual; } catch { return atual; } })();
+    if (!sel.value) sel.value = "1308";
+  } catch { cpConcOk = false; }
+}
 const cpNorm = (t) => String(t || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/[^a-z0-9 ]+/g, " ").replace(/\s+/g, " ").trim();
 const CP_PALAVRAS_VAZIAS = new Set(["rua", "r", "av", "avenida", "travessa", "tv", "trav", "praca", "largo", "de", "da", "do", "das", "dos", "e"]);
 // «Pares de 40 a 258», «Impares de 1479 a 1583», «Impares de 7 a fim», «n.º 208» → serve para este número?
@@ -1326,11 +1336,14 @@ function cpServe(troco, n) {
 async function cpProcurar() {
   const q = cpNorm($("cpRua").value), box = $("cpRes");
   if (q.length < 3) { box.innerHTML = ""; return; }
-  if (!cpDados) {
-    box.innerHTML = `<p class="muted small">A carregar os códigos postais…</p>`;
-    try { cpDados = (await import("./cp-matosinhos.js")).CP_MATOSINHOS.map((r) => ({ r, k: cpNorm(`${r[0]} ${r[2]} ${r[3]} ${r[6]}`) })); }
+  const conc = $("cpConc").value || "1308";
+  if (!cpCache[conc]) {
+    box.innerHTML = `<p class="muted small">A carregar os códigos postais do concelho…</p>`;
+    try { cpCache[conc] = (await (await fetch(`cp/${conc}.json`)).json()).map((r) => ({ r, k: cpNorm(`${r[0]} ${r[2]} ${r[3]} ${r[6]}`) })); }
     catch { box.innerHTML = `<p class="status err">Não consegui carregar os códigos postais. Verifique a internet.</p>`; return; }
   }
+  if (q !== cpNorm($("cpRua").value) || conc !== $("cpConc").value) return;
+  const cpDados = cpCache[conc];
   const pal = q.split(" ").filter((w) => !CP_PALAVRAS_VAZIAS.has(w));
   const termos = pal.length ? pal : q.split(" ");
   const n = parseInt($("cpNum").value, 10) || 0;
@@ -1345,7 +1358,7 @@ async function cpProcurar() {
   // por rua; dentro de cada rua, sem troço primeiro e depois pela ordem dos números
   const num1 = (t) => { const m = String(t).match(/(\d+)/); return m ? +m[1] : -1; };
   res.sort((a, b) => a.r[0].localeCompare(b.r[0], "pt") || a.r[3].localeCompare(b.r[3], "pt") || (!!a.r[6] - !!b.r[6]) || num1(a.r[1]) - num1(b.r[1]));
-  if (!res.length) { box.innerHTML = `<p class="empty">${total && n ? `Nenhum troço da rua corresponde ao n.º ${n}. Experimente sem o número.` : "Não encontrei esta rua em Matosinhos. Experimente só uma parte do nome (ex.: «Brito Capelo»)."}</p>`; return; }
+  if (!res.length) { box.innerHTML = `<p class="empty">${total && n ? `Nenhum troço da rua corresponde ao n.º ${n}. Experimente sem o número.` : "Não encontrei esta rua neste concelho. Confirme o concelho, ou experimente só uma parte do nome (ex.: «Brito Capelo»)."}</p>`; return; }
   const cps = [...new Set(res.map((x) => x.r[4]))];
   box.innerHTML = (cps.length === 1 ? `<div class="cp-um"><span>Código postal</span><b>${esc(cps[0])} ${esc(res[0].r[5])}</b><button type="button" class="btn small" data-cp-copiar="${esc(cps[0] + " " + res[0].r[5])}">Copiar</button></div>` : "") +
     `<div class="scroll cp-tab"><table><thead><tr><th>Rua</th><th>Troço</th><th>Localidade</th><th>Código postal</th><th></th></tr></thead><tbody>${res.slice(0, 120).map((x) => {
@@ -1354,6 +1367,8 @@ async function cpProcurar() {
     }).join("")}</tbody></table></div>${res.length > 120 ? `<p class="muted small">A mostrar 120 de ${res.length}. Escreva mais do nome para afinar.</p>` : ""}`;
 }
 $("cpRua").addEventListener("input", () => { clearTimeout(cpT); cpT = setTimeout(cpProcurar, 200); });
+$("cpConc").addEventListener("change", () => { try { localStorage.setItem("kz-cp-conc", $("cpConc").value); } catch {} cpProcurar(); });
+$("cpBox").addEventListener("toggle", () => { if ($("cpBox").open) cpPrepararConcelhos(); });
 $("cpNum").addEventListener("input", () => { clearTimeout(cpT); cpT = setTimeout(cpProcurar, 200); });
 $("cpRes").addEventListener("click", async (e) => {
   const b = e.target.closest("[data-cp-copiar]"); if (!b) return;

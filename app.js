@@ -3,7 +3,7 @@ import { MODELOS_OFICIO, modelosRelevantes } from "./modelos-oficio.js";
 import { CONTACTOS_BASE } from "./contactos-base.js";
 import { MANUAL_BASE, AREAS_MANUAL, procedimentosRelevantes } from "./manual-base.js";
 import { lerValor, valorCompleto, fmtEuros, eurosPorExtenso } from "./extenso.js";
-import { lerMapa, tipoMapa, indicadores, ESTADOS, ANO_INICIO } from "./mapas-dados.js";
+import { lerMapa, tipoMapa, indicadores, ESTADOS, ANO_INICIO, procurar } from "./mapas-dados.js";
 const COL_EQUIPA = "kaizen_equipa";
 const COL_URGENTES = "kaizen_urgentes";
 const COL_MAPAS = "kaizen_mapas";
@@ -2229,6 +2229,7 @@ const corta = (t, n = 30) => { t = String(t || ""); return t.length > n ? t.slic
 const COR_EST = { exec: "--s1", conc: "--s3", susp: "--s2", canc: "--s0", outro: "--muted", "": "--grid" };
 
 function abrirPainelMapa(tipo) {
+  if (mp.tipo !== tipo) $("mpQ").value = "";
   mp.tipo = tipo; mp.ano = "";
   $("mpTitulo").textContent = "Painel · " + NOME_PAINEL[tipo];
   $("mpStatus").textContent = "";
@@ -2244,6 +2245,9 @@ function abrirPainelMapa(tipo) {
 $("btnVoltarMp").addEventListener("click", () => { desenharMapas(); mostrar("vMapas"); });
 $("mpAnos").addEventListener("click", (e) => { const b = e.target.closest("[data-mp-ano]"); if (b) { mp.ano = b.dataset.mpAno; desenharPainelMapa(); } });
 $("mpCarregar").addEventListener("click", () => $("mpFicheiro").click());
+$("mpQ").addEventListener("input", desenharProcuraMapa);
+$("mpRes").addEventListener("click", (e) => { if (e.target.closest("#mpQLimpar")) { $("mpQ").value = ""; desenharProcuraMapa(); $("mpQ").focus(); } });
+$("mpCorpo").addEventListener("click", (e) => { const b = e.target.closest("[data-mp-q]"); if (b) { $("mpQ").value = b.dataset.mpQ; desenharProcuraMapa(); $("mpQ").scrollIntoView({ block: "start", behavior: "smooth" }); } });
 $("mpFicheiro").addEventListener("change", async (e) => {
   const f = e.target.files[0]; e.target.value = ""; if (!f) return;
   const st = $("mpStatus"); st.className = "status"; st.textContent = "A ler o Excel…";
@@ -2279,7 +2283,35 @@ function listaMapa(titulo, sub, cab, linhas, vazio, cls = "") {
   return `<div class="panel mp-lista ${cls}"><div class="panel-head"><h2>${esc(titulo)} <span class="muted">(${linhas.length})</span></h2>${sub ? `<span class="sub">${esc(sub)}</span>` : ""}</div>
     ${linhas.length ? `<div class="scroll"><table><thead><tr>${cab.map((c) => `<th>${esc(c)}</th>`).join("")}</tr></thead><tbody>${linhas.map((l) => `<tr>${l.map((v, i) => `<td${i === 0 ? ' class="des"' : ""}>${v}</td>`).join("")}</tr>`).join("")}</tbody></table></div>` : `<p class="empty">${esc(vazio)}</p>`}</div>`;
 }
-const celDes = (x) => `${esc(x.des)}${x.edoc ? `<br><span class="muted small">${esc(x.edoc)}${x.div ? " · " + esc(x.div) : ""}</span>` : ""}`;
+const celDes = (x) => `${esc(x.des)}${x.edoc ? `<br><span class="muted small"><button type="button" class="lnk" data-mp-q="${esc(x.edoc)}" title="Ver a ficha">${esc(x.edoc)}</button>${x.div ? " · " + esc(x.div) : ""}</span>` : ""}`;
+function fichaMapa(t, x) {
+  const E = ESTADOS[t], d = (v) => v ? fmt(v) : "", e = (v) => v || v === 0 ? eurT(v) : "";
+  const campos = t === "empreitadas" ? [
+    ["Ano (folha)", x.ano], ["EDOC", x.edoc], ["N.º de obra", x.obra], ["Divisão", x.div], ["Gestor do contrato", x.gestor], ["Diretor de fiscalização", x.fisc],
+    ["Adjudicatário", x.adj], ["Data da contratualização", d(x.dCont)], ["Valor s/ IVA", e(x.valor)], ["Valor c/ IVA", e(x.valorIva)], ["Prazo", x.prazo ? x.prazo + " dias" : ""],
+    ["Consignação", d(x.cons)], ["Conclusão", d(x.concl)], ["Estado", x.estado || E[x.est]], ["Observações", x.obs],
+    ["Auto de receção provisória", x.rp ? `${d(x.rp)}${x.eRp ? " · " + x.eRp : ""}` : x.eRp || ""],
+    ...[1, 2, 3, 4, 5].map((k) => [`Liberação ${k}.º ano`, x.rp && x["a" + k] ? `${d(x["a" + k])} · ${x["e" + k] ? x["e" + k] : "EDOC por registar"}` : ""]),
+    ["Auto de receção definitiva", x.rp && x.rd ? `${d(x.rd)}${x.eRd ? " · " + x.eRd : ""}` : ""],
+  ] : [
+    ["Ano (folha)", x.ano], ["Processo", x.nproc], ["EDOC", x.edoc], ["Divisão", x.div], ["Gestor do contrato", x.gestor], ["Adjudicatário", x.adj],
+    ["Tipo de procedimento", x.proc], ["Data da contratualização", d(x.dCont)], ["Valor (acresce IVA)", e(x.valor)], ["Faturado", e(x.fat)],
+    ["Por faturar", x.porFat || x.porFat === 0 ? `${eurT(x.porFat)}${x.valor ? ` (${Math.round(((x.fat || 0) / x.valor) * 100)}% faturado)` : ""}` : ""],
+    ["Prazo", x.prazo ? x.prazo + " dias" : ""], ["Início", d(x.ini)], ["Conclusão", d(x.concl)], ["Estado", x.estado || E[x.est]], ["Ponto de situação", x.ponto],
+  ];
+  const atraso = x.est === "exec" && x.concl && x.concl < hoje();
+  return `<div class="mp-ficha"><h3>${esc(x.des)}</h3>${atraso ? `<p class="tag-late">Prazo ultrapassado: a conclusão estava prevista para ${fmt(x.concl)}.</p>` : ""}
+    <dl>${campos.filter(([, v]) => v !== "" && v !== undefined && v !== null).map(([k, v]) => `<div><dt>${esc(k)}</dt><dd>${esc(String(v))}</dd></div>`).join("")}</dl></div>`;
+}
+function desenharProcuraMapa() {
+  const d = mp.dados[mp.tipo], q = $("mpQ").value, box = $("mpRes");
+  if (!d || !Array.isArray(d.linhas) || q.trim().length < 2) { box.hidden = true; box.innerHTML = ""; return; }
+  const r = procurar(d.linhas, q);
+  box.hidden = false;
+  box.innerHTML = `<div class="panel-head"><h2>Resultados <span class="muted">(${r.length})</span></h2><button class="btn small ghost" type="button" id="mpQLimpar">Limpar</button></div>` +
+    (r.length ? r.slice(0, 20).map((x) => fichaMapa(mp.tipo, x)).join("") + (r.length > 20 ? `<p class="muted small">A mostrar 20 de ${r.length}. Escreva mais para afinar a procura.</p>` : "")
+      : `<p class="empty">Nada encontrado com «${esc(q.trim())}».</p>`);
+}
 
 function desenharPainelMapa() {
   const t = mp.tipo, d = mp.dados[t];
@@ -2287,7 +2319,8 @@ function desenharPainelMapa() {
   $("mpVazio").hidden = !!tem || !mp.ouvidos[t] || d === undefined;
   $("mpCorpo").hidden = !tem;
   $("mpMeta").textContent = tem ? `Dados de «${d.ficheiro || "Excel"}», carregados em ${fmt(String(d.carregadoEm || "").slice(0, 10))}${d.carregadoPor ? " por " + d.carregadoPor : ""}. Folhas lidas: ${(d.folhas || []).join(", ")}.` : d === undefined && fb ? "A carregar…" : "";
-  if (!tem) { $("mpAnos").innerHTML = ""; return; }
+  $("mpProcura").hidden = !tem;
+  if (!tem) { $("mpAnos").innerHTML = ""; $("mpRes").hidden = true; return; }
   const linhas = d.linhas, i = indicadores(t, linhas, { ano: mp.ano });
   $("mpAnos").innerHTML = ["", ...i.anos].map((a) => `<button type="button" class="ano" data-mp-ano="${a}" aria-pressed="${String(a) === String(mp.ano)}">${a || "Todos os anos"}</button>`).join("");
   const E = ESTADOS[t], n = (e) => (i.estados.find((x) => x[0] === e) || [0, 0])[1];
@@ -2353,6 +2386,7 @@ function desenharPainelMapa() {
     L.push(listaMapa("Em execução por gestor do contrato", "", ["Gestor", "Contratos"], i.execGestor.map(([g, v]) => [esc(g), v]), "Nenhum contrato em execução."));
   }
   $("mpListas").innerHTML = L.join("");
+  desenharProcuraMapa();
 }
 
 /* ---------------- Reclamações (Power BI) ---------------- */

@@ -52,11 +52,11 @@ const COLS = {
   empreitadas: {
     edoc: /^edoc$/, div: /^divisao/, obra: /^n\.o de obra/, des: /^designacao/, gestor: /^gestor/, fisc: /fiscalizacao/, adj: /^adjudicatario/,
     dCont: /data da contratualizacao/, valor: /valor s\/ ?iva/, valorIva: /valor c\/ ?iva/, prazo: /^prazo/, cons: /^consignacao/, concl: /^conclusao/,
-    estado: /ponto de situacao/, obs: /^observac/, rp: /auto de rp/, a1: /auto do 1/, e1: /edoc da 1/, a2: /auto do 2/, e2: /edoc da 2/, a3: /auto do 3/, e3: /edoc da 3/,
+    estado: /ponto de situacao/, obs: /^observac/, eRp: /edoc da rp/, rp: /auto de rp/, a1: /auto do 1/, e1: /edoc da 1/, a2: /auto do 2/, e2: /edoc da 2/, a3: /auto do 3/, e3: /edoc da 3/,
     a4: /auto do 4/, e4: /edoc da 4/, a5: /auto do 5/, e5: /edoc da 5/, rd: /auto de rd/, eRd: /edoc da rd/,
   },
   fornecimentos: {
-    edoc: /^edoc$/, div: /^divisao/, des: /^designacao/, gestor: /^gestor/, adj: /^adjudicatario/, proc: /tipo de procedimento/, dCont: /data da contratualizacao/,
+    edoc: /^edoc$/, nproc: /^proc\.?$/, div: /^divisao/, des: /^designacao/, gestor: /^gestor/, adj: /^adjudicatario/, proc: /tipo de procedimento/, dCont: /data da contratualizacao/,
     valor: /^valor/, prazo: /^prazo/, ini: /^inicio/, concl: /^conclusao/, estado: /^estado$/, ponto: /ponto de situacao/, fat: /total faturado/, porFat: /por faturar/,
   },
 };
@@ -170,4 +170,12 @@ export function indicadores(tipo, linhas, { ano = "", hoje = hojeIso(), dias = 6
     base.concluidosPorFaturar = l.filter((x) => x.est === "conc" && x.porFat > 0.5).sort((a, b) => b.porFat - a.porFat);
   }
   return base;
+}
+
+// Procura por EDOC, n.º de processo, n.º de obra, designação, adjudicatário ou gestor (todos os anos, canceladas incluídas)
+export function procurar(linhas, q) {
+  const t = norm(q); if (t.length < 2) return [];
+  const p = t.split(" ").filter(Boolean);
+  return linhas.filter((x) => { const h = norm([x.edoc, x.nproc, x.obra, x.des, x.adj, x.gestor, x.fisc, x.eRp, x.e1, x.e2, x.e3, x.e4, x.e5, x.eRd].join(" ")); return p.every((w) => h.includes(w)); })
+    .sort((a, b) => b.ano - a.ano);
 }

@@ -832,3 +832,11 @@ button.ur-t.on{border-color:#c98a1a}
 .mp-lista .nw{white-space:nowrap}
 .mp-lista.mp-larga{grid-column:1/-1}
 .mp-larga .scroll{max-height:480px}
+.mp-res{margin-top:12px;display:flex;flex-direction:column;gap:12px}
+.mp-ficha{border:1px solid var(--line);border-left:4px solid var(--s1);border-radius:10px;padding:12px 14px;background:var(--surface)}
+.mp-ficha h3{margin:0 0 8px;font-size:15px}
+.mp-ficha dl{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:8px 16px;margin:0}
+.mp-ficha dt{font-size:12px;color:var(--muted);font-weight:600}
+.mp-ficha dd{margin:0;font-size:14px}
+.mp-ficha .tag-late{margin:0 0 8px}
+.lnk{background:none;border:0;padding:0;font:inherit;color:var(--accent,#1a4f8a);text-decoration:underline;cursor:pointer}

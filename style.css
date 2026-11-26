@@ -851,7 +851,7 @@ button.ur-t.on{border-color:#c98a1a}
 .mp-print{display:none}
 @media print{
   body.p-mapa > *:not(#mpPrint){display:none!important}
-  @page mpa4{size:A4 portrait;margin:11mm 11mm 13mm}
+  @page mpa4{size:A4 portrait;margin:11mm 11mm 13mm;@bottom-center{content:"Relatório elaborado por João Antunes · Secretaria da Conservação · Câmara Municipal de Matosinhos · pág. " counter(page) " de " counter(pages);font-family:system-ui,sans-serif;font-size:7pt;color:#888}}
   body.p-mapa{page:mpa4}
   body.p-mapa .mpp{width:auto;padding:0}
   body.p-mapa #mpPrint{display:block}
@@ -871,9 +871,6 @@ button.ur-t.on{border-color:#c98a1a}
 .mpp-g img{width:100%;height:auto;display:block}
 .mpp-t tr{break-inside:avoid}
 .mpp .mp-ficha{break-inside:avoid;margin-bottom:3mm;font-size:9pt}
-.mpp-rodape{margin-top:8mm;font-size:8.5pt;color:#555;text-align:center;border-top:.3mm solid #ccc;padding-top:2mm}
-.mpp-marca{position:fixed;inset:0;display:flex;flex-direction:column;justify-content:space-around;align-items:center;pointer-events:none;z-index:5}
-.mpp-marca span{transform:rotate(-30deg);font-size:46pt;font-weight:800;color:rgba(31,78,121,.07);white-space:nowrap;letter-spacing:.06em}
 .mpp .rel-h{break-after:avoid}
 .mpp-nota{break-after:avoid}
 body.p-mapa .mpp{box-shadow:none;border:0}

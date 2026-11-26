@@ -2397,7 +2397,6 @@ function desenharPainelMapa() {
 }
 
 // Relatório em PDF (impressão do navegador → «Guardar como PDF»), com a marca de água do autor
-const AUTOR_RELATORIOS = "João Antunes";
 function relatorioMapaHTML() {
   const { i, q, d } = mp.ultimo, t = mp.tipo, emp = t === "empreitadas", E = ESTADOS[t], hj = hoje(), MAX = 60;
   const n = (e) => (i.estados.find((x) => x[0] === e) || [0, 0])[1];
@@ -2409,8 +2408,7 @@ function relatorioMapaHTML() {
   const img = (id, titulo) => { const c = $(id); let u = ""; try { u = c.toDataURL("image/png"); } catch {} return u ? `<figure class="mpp-g"><figcaption>${esc(titulo)}</figcaption><img src="${u}" alt=""></figure>` : ""; };
   const kpis = emp ? [["Obras", i.total], ["Concluídas", n("conc")], ["Em execução", i.exec.length], ["Canceladas", n("canc")], ["Valor contratado s/ IVA", eurT(i.valor)], ["Prazo ultrapassado", i.atrasados.length], ["Liberações de caução vencidas sem EDOC", i.liberacoes.filter((x) => x.atraso).length]]
     : [["Contratos", i.total], ["Em execução", n("exec")], ["Concluídos", n("conc")], ["Valor contratado (acresce IVA)", eurT(i.valor)], ["Faturado", `${eurT(i.faturado)}${i.valor ? ` (${Math.round((i.faturado / i.valor) * 100)}%)` : ""}`], ["Por faturar", eurT(i.porFaturar)], ["Prazo ultrapassado", i.atrasados.length]];
-  let h = `<div class="mpp-marca" aria-hidden="true">${Array.from({ length: 6 }, () => `<span>${esc(AUTOR_RELATORIOS)}</span>`).join("")}</div>
-  <div class="sh-head"><img src="icons/logo-matosinhos.png" alt="Câmara Municipal de Matosinhos"><div class="sh-title"><b>Relatório · ${esc(emp ? "Empreitadas" : "Fornecimentos e aquisições")}</b><span>Subunidade Orgânica da Conservação — Secretaria</span></div><img src="icons/logo-kaizen.png" alt="Kaizen Institute"></div>
+  let h = `<div class="sh-head"><img src="icons/logo-matosinhos.png" alt="Câmara Municipal de Matosinhos"><div class="sh-title"><b>Relatório · ${esc(emp ? "Empreitadas" : "Fornecimentos e aquisições")}</b><span>Subunidade Orgânica da Conservação — Secretaria</span></div><img src="icons/logo-kaizen.png" alt="Kaizen Institute"></div>
   <div class="sh-meta"><span>Ano: <b>${esc(mp.ano || "todos (" + i.anos.join(", ") + ")")}</b></span>${q ? `<span>Filtro: <b>«${esc(q)}»</b></span>` : ""}<span>Dados: <b>${esc(d.ficheiro || "Excel")}</b>, de ${esc(fmt(String(d.carregadoEm || "").slice(0, 10)))}</span><span>Gerado a <b>${esc(fmt(hj))}</b></span></div>
   <table class="sh-table mpp-k"><tbody>${kpis.map(([k, v]) => `<tr><th>${esc(k)}</th><td>${esc(String(v))}</td></tr>`).join("")}</tbody></table>
   <div class="mpp-gs">${[1, 2, 3, 4].map((k) => img("mpCh" + k, $("mpT" + k).textContent)).join("")}</div>`;
@@ -2424,7 +2422,6 @@ function relatorioMapaHTML() {
     h += tab("Concluídos com valor por faturar", ["Contrato", "Adjudicatário", "Valor", "Por faturar"], i.concluidosPorFaturar.map((x) => [des(x), esc(corta(x.adj, 50)), nw(eurT(x.valor)), nw(eurT(x.porFat))]));
   }
   if (q) { const r = procurar(d.linhas, q); if (r.length && r.length <= 5) h += `<h3 class="rel-h">Ficha${r.length > 1 ? "s" : ""}</h3>` + r.map((x) => fichaMapa(t, x)).join(""); }
-  h += `<p class="mpp-rodape">Relatório elaborado por ${esc(AUTOR_RELATORIOS)} · Secretaria da Conservação · Câmara Municipal de Matosinhos</p>`;
   return h;
 }
 $("mpPdf").addEventListener("click", () => {

@@ -3,6 +3,7 @@ import { MODELOS_OFICIO, modelosRelevantes } from "./modelos-oficio.js";
 import { CONTACTOS_BASE } from "./contactos-base.js";
 import { MANUAL_BASE, AREAS_MANUAL, procedimentosRelevantes } from "./manual-base.js";
 import { lerValor, valorCompleto, fmtEuros, eurosPorExtenso } from "./extenso.js";
+import { lerMapa, tipoMapa, indicadores, ESTADOS, ANO_INICIO } from "./mapas-dados.js";
 const COL_EQUIPA = "kaizen_equipa";
 const COL_URGENTES = "kaizen_urgentes";
 const COL_MAPAS = "kaizen_mapas";
@@ -38,14 +39,14 @@ const temFotoDe = (r, k) => !!((r.fotos && r.fotos[k]) || (k === "postits" && r.
 let fb = null;
 
 /* ---------------- Vistas ---------------- */
-const VISTAS = ["vLogin", "vConfig", "vPainel", "vReuniao", "vRegistar", "vImprimir", "vEquipa", "vRelatorio", "vPowerBI", "vDiario", "vMapas", "vOficios", "vRegras", "vManual", "vContactos", "vHorario"];
+const VISTAS = ["vLogin", "vConfig", "vPainel", "vReuniao", "vRegistar", "vImprimir", "vEquipa", "vRelatorio", "vPowerBI", "vDiario", "vMapas", "vOficios", "vRegras", "vManual", "vContactos", "vHorario", "vMapaPainel"];
 function mostrar(v) {
   for (const id of VISTAS) $(id).hidden = id !== v;
   $("fab").hidden = v !== "vPainel";
   $("btnNovaTop").hidden = v !== "vPainel";
   $("btnSair").hidden = !est.user;
   $("mainNav").hidden = !est.user || v === "vLogin" || v === "vConfig";
-  const sec = { vEquipa: "vPainel", vRelatorio: "vPainel", vReuniao: "vPainel", vRegistar: "vPainel", vImprimir: "vPainel" }[v] || v;
+  const sec = { vEquipa: "vPainel", vRelatorio: "vPainel", vReuniao: "vPainel", vRegistar: "vPainel", vImprimir: "vPainel", vMapaPainel: "vMapas" }[v] || v;
   document.querySelectorAll("#mainNav .nav-b").forEach((b) => b.classList.toggle("on", b.dataset.v === sec));
   if (v !== "vRegistar") pararCamera();
   window.scrollTo(0, 0);
@@ -2191,6 +2192,7 @@ function desenharMapas() {
   $("mapasLista").innerHTML = l.length ? l.map((m) => `<div class="mapa">
       <div class="mapa-main"><strong>${esc(m.nome)}</strong>${m.desc ? `<span>${esc(m.desc)}</span>` : ""}<span class="muted small">${esc(origemMapa(m.link))}</span></div>
       <div class="mapa-acts">${linkMapa(m.link) ? `<a class="btn small primary" href="${esc(linkMapa(m.link))}" target="_blank" rel="noopener">Abrir</a>` : ""}
+        ${tipoDoMapa(m) ? `<button class="btn small" type="button" data-mapa-painel="${tipoDoMapa(m)}">Painel</button>` : ""}
         ${m.fixo ? "" : `<button class="btn small ghost danger" type="button" data-mapa-rm="${esc(m.id)}" aria-label="Retirar ${esc(m.nome)}">Retirar</button>`}</div></div>`).join("")
     : `<p class="empty">Ainda não há mapas. Use «Adicionar mapa» para juntar os links dos Excel partilhados.</p>`;
   if (!l.length) $("mapasAddBox").open = true;
@@ -2208,11 +2210,147 @@ $("mapaForm").addEventListener("submit", async (e) => {
   } catch { st.textContent = "Não consegui guardar. Verifique a internet."; st.className = "status err"; }
 });
 $("mapasLista").addEventListener("click", async (e) => {
+  const pn = e.target.closest("[data-mapa-painel]"); if (pn) { abrirPainelMapa(pn.dataset.mapaPainel); return; }
   const b = e.target.closest("[data-mapa-rm]"); if (!b) return;
   if (b.dataset.ok !== "1") { b.dataset.ok = "1"; b.textContent = "Confirmar retirar"; setTimeout(() => { b.dataset.ok = ""; b.textContent = "Retirar"; }, 4000); return; }
   try { await fb.D.remove(fb.D.ref(fb.db, `${COL_MAPAS}/${b.dataset.mapaRm}`)); }
   catch { $("mapasStatus").textContent = "Não consegui retirar. Verifique a internet."; $("mapasStatus").className = "status err"; }
 });
+
+/* ---------------- Painéis dos mapas (Empreitadas / Fornecimentos) ---------------- */
+// Os dados só existem na base de dados: quem tem o Excel carrega uma cópia e o painel fica igual para todos.
+const COL_MAPAS_DADOS = "kaizen_mapas_dados";
+const NOME_PAINEL = { empreitadas: "Empreitadas", fornecimentos: "Fornecimentos e aquisição de bens e serviços" };
+const tipoDoMapa = (m) => /empreitada/i.test(m.nome || "") ? "empreitadas" : /fornecimento|aquisi/i.test(m.nome || "") ? "fornecimentos" : "";
+const mp = { tipo: "", ano: "", dados: {}, ouvidos: {} };
+const eurC = (v) => { const a = Math.abs(v || 0); return a >= 1e6 ? `${(v / 1e6).toLocaleString("pt-PT", { maximumFractionDigits: 1 })} M€` : a >= 1e3 ? `${Math.round(v / 1e3).toLocaleString("pt-PT")} mil €` : `${fmtEuros(v || 0)} €`; };
+const eurT = (v) => `${fmtEuros(v || 0)} €`;
+const corta = (t, n = 30) => { t = String(t || ""); return t.length > n ? t.slice(0, n - 1) + "…" : t; };
+const COR_EST = { exec: "--s1", conc: "--s3", susp: "--s2", canc: "--s0", outro: "--muted", "": "--grid" };
+
+function abrirPainelMapa(tipo) {
+  mp.tipo = tipo; mp.ano = "";
+  $("mpTitulo").textContent = "Painel · " + NOME_PAINEL[tipo];
+  $("mpStatus").textContent = "";
+  if (!mp.ouvidos[tipo] && fb) {
+    mp.ouvidos[tipo] = true;
+    $("mpMeta").textContent = "A carregar…";
+    fb.D.onValue(fb.D.ref(fb.db, `${COL_MAPAS_DADOS}/${tipo}`), (snap) => { mp.dados[tipo] = snap.val(); if (mp.tipo === tipo && !$("vMapaPainel").hidden) desenharPainelMapa(); },
+      () => { $("mpMeta").textContent = ""; $("mpStatus").textContent = "Não consegui ler os dados do mapa."; $("mpStatus").className = "status err"; });
+  }
+  mostrar("vMapaPainel");
+  desenharPainelMapa();
+}
+$("btnVoltarMp").addEventListener("click", () => { desenharMapas(); mostrar("vMapas"); });
+$("mpAnos").addEventListener("click", (e) => { const b = e.target.closest("[data-mp-ano]"); if (b) { mp.ano = b.dataset.mpAno; desenharPainelMapa(); } });
+$("mpCarregar").addEventListener("click", () => $("mpFicheiro").click());
+$("mpFicheiro").addEventListener("change", async (e) => {
+  const f = e.target.files[0]; e.target.value = ""; if (!f) return;
+  const st = $("mpStatus"); st.className = "status"; st.textContent = "A ler o Excel…";
+  try {
+    if (!window.JSZip) throw new Error("zip");
+    const folhas = await folhasXlsx(await f.arrayBuffer());
+    const t = tipoMapa(folhas);
+    if (t !== mp.tipo) { st.textContent = t ? `Este ficheiro parece ser o mapa de ${NOME_PAINEL[t]}, não o de ${NOME_PAINEL[mp.tipo]}.` : "Não reconheci as colunas deste Excel. Confirme que é uma cópia do mapa."; st.className = "status err"; return; }
+    const r = lerMapa(folhas, t);
+    if (!r.linhas.length) { st.textContent = `Não encontrei folhas de ${ANO_INICIO} em diante com linhas preenchidas.`; st.className = "status err"; return; }
+    const reg = { linhas: r.linhas, folhas: r.folhas, ficheiro: f.name.slice(0, 120), carregadoPor: euNome() || quem(), carregadoEm: new Date().toISOString() };
+    if (!fb) throw new Error("fb");
+    await fb.D.set(fb.D.ref(fb.db, `${COL_MAPAS_DADOS}/${t}`), reg);
+    mp.dados[t] = reg; mp.ano = "";
+    st.textContent = `Carregadas ${r.linhas.length} linhas (${r.folhas.join(", ")}).`;
+    desenharPainelMapa();
+  } catch { st.textContent = "Não consegui ler ou guardar o ficheiro. Confirme que é .xlsx e que tem internet."; st.className = "status err"; }
+});
+
+function graficoBarrasH(id, pares, { euros = false, rotulo = "" } = {}) {
+  const base = baseOpcoes();
+  desenharGrafico(id, {
+    type: "bar",
+    data: { labels: pares.map(([k]) => corta(k, 28)), datasets: [{ label: rotulo, data: pares.map(([, v]) => Math.round(v)), backgroundColor: cssVar("--s1"), borderRadius: 4, borderSkipped: "start", maxBarThickness: 22 }] },
+    options: baseOpcoes({
+      indexAxis: "y",
+      plugins: { ...base.plugins, tooltip: { ...base.plugins.tooltip, callbacks: { title: (it) => pares[it[0].dataIndex][0], label: (c) => euros ? eurT(c.raw) : `${c.raw}` } } },
+      scales: { x: { ...base.scales.y, ticks: { ...base.scales.y.ticks, maxRotation: 0, maxTicksLimit: 6, callback: (v) => euros ? eurC(v) : v } }, y: { ...base.scales.x, ticks: { ...base.scales.x.ticks, autoSkip: false } } },
+    }),
+  });
+}
+function listaMapa(titulo, sub, cab, linhas, vazio) {
+  return `<div class="panel mp-lista"><div class="panel-head"><h2>${esc(titulo)} <span class="muted">(${linhas.length})</span></h2>${sub ? `<span class="sub">${esc(sub)}</span>` : ""}</div>
+    ${linhas.length ? `<div class="scroll"><table><thead><tr>${cab.map((c) => `<th>${esc(c)}</th>`).join("")}</tr></thead><tbody>${linhas.map((l) => `<tr>${l.map((v, i) => `<td${i === 0 ? ' class="des"' : ""}>${v}</td>`).join("")}</tr>`).join("")}</tbody></table></div>` : `<p class="empty">${esc(vazio)}</p>`}</div>`;
+}
+const celDes = (x) => `${esc(x.des)}${x.edoc ? `<br><span class="muted small">${esc(x.edoc)}${x.div ? " · " + esc(x.div) : ""}</span>` : ""}`;
+
+function desenharPainelMapa() {
+  const t = mp.tipo, d = mp.dados[t];
+  const tem = d && Array.isArray(d.linhas) && d.linhas.length;
+  $("mpVazio").hidden = !!tem || !mp.ouvidos[t] || d === undefined;
+  $("mpCorpo").hidden = !tem;
+  $("mpMeta").textContent = tem ? `Dados de «${d.ficheiro || "Excel"}», carregados em ${fmt(String(d.carregadoEm || "").slice(0, 10))}${d.carregadoPor ? " por " + d.carregadoPor : ""}. Folhas lidas: ${(d.folhas || []).join(", ")}.` : d === undefined && fb ? "A carregar…" : "";
+  if (!tem) { $("mpAnos").innerHTML = ""; return; }
+  const linhas = d.linhas, i = indicadores(t, linhas, { ano: mp.ano });
+  $("mpAnos").innerHTML = ["", ...i.anos].map((a) => `<button type="button" class="ano" data-mp-ano="${a}" aria-pressed="${String(a) === String(mp.ano)}">${a || "Todos os anos"}</button>`).join("");
+  const E = ESTADOS[t], n = (e) => (i.estados.find((x) => x[0] === e) || [0, 0])[1];
+  const emp = t === "empreitadas";
+  const tiles = emp ? [
+    [i.total, "Obras" + (mp.ano ? " de " + mp.ano : ""), `${n("conc")} concluídas · ${n("canc")} canceladas`],
+    [eurC(i.valor), "Valor contratado s/ IVA", "sem as canceladas", true],
+    [i.exec.length, "Em execução", `${i.aTerminar.length} terminam nos próximos 60 dias`],
+    [i.atrasados.length, "Prazo ultrapassado", "em execução com conclusão já passada", false, "late"],
+    [i.liberacoes.filter((x) => x.atraso).length, "Liberações de caução", `vencidas sem EDOC · ${i.liberacoes.filter((x) => !x.atraso).length} nos próximos 60 dias`, false, "late"],
+  ] : [
+    [i.total, "Contratos" + (mp.ano ? " de " + mp.ano : ""), `${n("exec")} em execução · ${n("conc")} concluídos`],
+    [eurC(i.valor), "Valor contratado", "acresce IVA · sem os cancelados", true],
+    [eurC(i.faturado), "Faturado", i.valor ? `${Math.round((i.faturado / i.valor) * 100)}% do valor contratado` : "", true],
+    [eurC(i.porFaturar), "Por faturar", `${i.concluidosPorFaturar.length} concluídos ainda com valor por faturar`, true],
+    [i.atrasados.length, "Prazo ultrapassado", "em execução com conclusão já passada", false, "late"],
+  ];
+  $("mpTiles").className = "tiles t5";
+  $("mpTiles").innerHTML = tiles.map(([v, l, sub, eur, cls]) => `<div class="tile${cls ? " " + cls : ""}"><span class="n${eur ? " eur" : ""}">${esc(String(v))}</span><span class="l">${esc(l)}</span>${sub ? `<span class="d">${esc(sub)}</span>` : ""}</div>`).join("");
+
+  // 1. Por ano e estado (sempre todos os anos, para comparar)
+  const ests = ["exec", "conc", "susp", "canc", ""].filter((e) => i.porAnoEstado.some((a) => a[e]));
+  $("mpT1").textContent = (emp ? "Obras" : "Contratos") + " por ano e estado"; $("mpS1").textContent = "todas as folhas";
+  $("mpLg1").innerHTML = ests.map((e) => `<span><i class="sw" style="background:var(${COR_EST[e]})"></i>${esc(E[e])}</span>`).join("");
+  const b1 = baseOpcoes();
+  desenharGrafico("mpCh1", { type: "bar",
+    data: { labels: i.porAnoEstado.map((a) => String(a.ano)), datasets: ests.map((e) => ({ label: E[e], data: i.porAnoEstado.map((a) => a[e]), backgroundColor: cssVar(COR_EST[e]), borderColor: cssVar("--surface"), borderWidth: { top: 2 }, borderRadius: 4, borderSkipped: "start", maxBarThickness: 56 })) },
+    options: baseOpcoes({ scales: { x: { ...b1.scales.x, stacked: true }, y: { ...b1.scales.y, stacked: true } } }) });
+  $("mpCh1").setAttribute("aria-label", $("mpT1").textContent);
+  $("mpTb1").innerHTML = tabelaHTML(["Ano", ...ests.map((e) => E[e]), "Total"], i.porAnoEstado.map((a) => [a.ano, ...ests.map((e) => a[e]), ests.reduce((s, e) => s + a[e], 0) + (a.outro || 0)]));
+
+  const graf = (k, titulo, sub, pares, euros, cabV) => {
+    $("mpT" + k).textContent = titulo; $("mpS" + k).textContent = sub; $("mpCh" + k).setAttribute("aria-label", titulo);
+    graficoBarrasH("mpCh" + k, pares, { euros, rotulo: cabV });
+    $("mpTb" + k).innerHTML = tabelaHTML(["", cabV], pares.map(([a, v]) => [a, euros ? eurT(v) : v]));
+  };
+  graf(2, "Valor contratado por divisão", emp ? "s/ IVA" : "acresce IVA", i.valorDiv, true, "Valor");
+  if (emp) {
+    graf(3, "Obras em execução por gestor do contrato", mp.ano ? "" : "todos os anos", i.execGestor, false, "Obras");
+    graf(4, "Maiores adjudicatários", "por valor contratado", i.topAdj, true, "Valor");
+  } else {
+    graf(3, "Valor por tipo de procedimento", "", i.valorProc, true, "Valor");
+    graf(4, "Maiores adjudicatários", "por valor contratado", i.topAdj, true, "Valor");
+  }
+
+  const hj = hoje();
+  const L = [];
+  L.push(listaMapa("Prazo ultrapassado", "em execução, com a data de conclusão já passada", [emp ? "Obra" : "Contrato", "Gestor", "Conclusão", "Valor"],
+    i.atrasados.map((x) => [celDes(x), esc(x.gestor || ""), `<span class="tag-late nw">${fmt(x.concl)}</span>`, `<span class="nw">${eurT(x.valor)}</span>`]), "Nenhum contrato em execução com o prazo ultrapassado."));
+  L.push(listaMapa("Terminam nos próximos 60 dias", "", [emp ? "Obra" : "Contrato", "Gestor", "Conclusão", "Valor"],
+    i.aTerminar.map((x) => [celDes(x), esc(x.gestor || ""), `<span class="nw">${fmt(x.concl)}</span>`, `<span class="nw">${eurT(x.valor)}</span>`]), "Nenhum termina nos próximos 60 dias."));
+  if (emp) {
+    L.push(listaMapa("Liberações de caução", "auto do ano já vencido ou nos próximos 60 dias, sem EDOC registado", ["Obra", "Liberação", "Data", "Adjudicatário"],
+      i.liberacoes.map((x) => [celDes(x), esc(x.fase), `<span class="nw${x.quando < hj ? " tag-late" : ""}">${fmt(x.quando)}</span>`, esc(x.adj || "")]), "Sem liberações pendentes."));
+    L.push(listaMapa("Concluídas sem auto de receção provisória", "a data do auto de RP não está preenchida", ["Obra", "Conclusão", "Adjudicatário"],
+      i.semRp.map((x) => [celDes(x), `<span class="nw">${fmt(x.concl || "")}</span>`, esc(x.adj || "")]), "Todas as concluídas têm o auto de RP."));
+  } else {
+    L.push(listaMapa("Concluídos com valor por faturar", "", ["Contrato", "Adjudicatário", "Valor", "Por faturar"],
+      i.concluidosPorFaturar.map((x) => [celDes(x), esc(corta(x.adj, 60)), `<span class="nw">${eurT(x.valor)}</span>`, `<span class="tag-late nw">${eurT(x.porFat)}</span>`]), "Todos os concluídos estão faturados."));
+    L.push(listaMapa("Em execução por gestor do contrato", "", ["Gestor", "Contratos"], i.execGestor.map(([g, v]) => [esc(g), v]), "Nenhum contrato em execução."));
+  }
+  $("mpListas").innerHTML = L.join("");
+}
 
 /* ---------------- Reclamações (Power BI) ---------------- */
 // O painel só é carregado quando se abre esta aba, para não pesar no arranque da app.

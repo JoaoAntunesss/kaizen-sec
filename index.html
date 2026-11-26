@@ -574,6 +574,33 @@
     </div>
   </section>
 
+  <!-- Painel de um mapa (Empreitadas / Fornecimentos) -->
+  <section id="vMapaPainel" class="view" hidden>
+    <div class="panel">
+      <div class="panel-head"><h2 id="mpTitulo">Painel</h2><button class="btn small ghost" id="btnVoltarMp" type="button">Voltar aos mapas</button></div>
+      <div class="toolbar mp-bar">
+        <div class="anos" id="mpAnos" role="group" aria-label="Ano em consulta"></div>
+        <button class="btn small primary" id="mpCarregar" type="button">Carregar Excel</button>
+        <input type="file" id="mpFicheiro" accept=".xlsx" hidden>
+      </div>
+      <p class="muted small" id="mpMeta"></p>
+      <p class="status" id="mpStatus"></p>
+    </div>
+    <div class="panel" id="mpVazio" hidden>
+      <p class="empty">Ainda não há dados deste mapa. Descarregue uma cópia do Excel do SharePoint (Ficheiro &gt; Guardar como &gt; Transferir uma cópia) e use «Carregar Excel». São lidas as folhas de 2024 em diante.</p>
+    </div>
+    <div id="mpCorpo" class="mp-corpo" hidden>
+      <div class="tiles" id="mpTiles"></div>
+      <div class="charts">
+        <div class="panel chart-card"><div class="panel-head"><h2 id="mpT1"></h2><span class="sub" id="mpS1"></span></div><div class="legend" id="mpLg1"></div><div class="cv"><canvas id="mpCh1" role="img"></canvas></div><details><summary>Ver tabela</summary><div class="scroll" id="mpTb1"></div></details></div>
+        <div class="panel chart-card"><div class="panel-head"><h2 id="mpT2"></h2><span class="sub" id="mpS2"></span></div><div class="cv tall"><canvas id="mpCh2" role="img"></canvas></div><details><summary>Ver tabela</summary><div class="scroll" id="mpTb2"></div></details></div>
+        <div class="panel chart-card"><div class="panel-head"><h2 id="mpT3"></h2><span class="sub" id="mpS3"></span></div><div class="cv tall"><canvas id="mpCh3" role="img"></canvas></div><details><summary>Ver tabela</summary><div class="scroll" id="mpTb3"></div></details></div>
+        <div class="panel chart-card"><div class="panel-head"><h2 id="mpT4"></h2><span class="sub" id="mpS4"></span></div><div class="cv tall"><canvas id="mpCh4" role="img"></canvas></div><details><summary>Ver tabela</summary><div class="scroll" id="mpTb4"></div></details></div>
+      </div>
+      <div class="mp-listas" id="mpListas"></div>
+    </div>
+  </section>
+
   <!-- Reclamações (Power BI) -->
   <section id="vPowerBI" class="view" hidden>
     <div class="panel">

@@ -814,3 +814,19 @@ button.ur-t.on{border-color:#c98a1a}
 .quem-sou.aviso{color:#ffd58a}
 @media (max-width:640px){.quem-sou{display:none}}
 .urg-devbox .f-para{flex:0 0 240px;min-width:200px}
+
+/* Painéis dos mapas */
+.mp-bar{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.mp-corpo{display:flex;flex-direction:column;gap:16px}
+.tiles.t5{grid-template-columns:repeat(5,minmax(0,1fr))}
+@media (max-width:900px){.tiles.t5{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.tile .d{color:var(--muted);font-size:12px;margin-top:2px}
+.tile .n.eur{font-size:24px}
+.mp-listas{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
+@media (max-width:900px){.mp-listas{grid-template-columns:minmax(0,1fr)}}
+.mp-lista .scroll{max-height:340px;overflow:auto}
+.mp-lista table{font-size:13px}
+.mp-lista td.des{min-width:220px}
+.mp-lista .tag-late{color:var(--late);font-weight:700}
+.mapa-acts .btn + .btn{margin-left:6px}
+.mp-lista .nw{white-space:nowrap}

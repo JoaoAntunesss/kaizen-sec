@@ -906,3 +906,5 @@ body.com-fundo .panel{box-shadow:0 4px 18px rgba(0,0,0,.18)}
 .hor-d .tempo{position:absolute;top:8px;right:8px;color:var(--ink);opacity:.8}
 .hor-d.fora .tempo{display:none}
 #horHoje .tempo{margin:0 4px}
+/* Menu: quando não cabe numa linha passa para duas (no telemóvel continua a deslizar) */
+@media (min-width:700px){.mainnav{flex-wrap:wrap;overflow-x:visible;row-gap:0}}

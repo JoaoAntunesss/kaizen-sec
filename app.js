@@ -999,7 +999,8 @@ function spDesenhar(msg = "") {
   el.innerHTML = `<div class="sp-topo"><span class="muted small">${sp.eu ? `Ligado como <b>${esc(sp.eu.display_name || sp.eu.id)}</b>` : ""}${sp.pronto ? " · a tocar nesta plataforma" : ""}</span><button class="btn small ghost" type="button" data-sp="sair">Sair do Spotify</button></div>
     ${msg ? `<p class="status${/Não|terminou|precisa|autorizada/.test(msg) ? " err" : ""}">${esc(msg)}</p>` : ""}
     <div class="sp-agora" id="spAgora"></div>
-    <form class="sp-bar" id="spUriForm" autocomplete="off"><input type="url" id="spUri" placeholder="Ou cole o link de uma playlist, álbum ou música do Spotify" aria-label="Link do Spotify"><button class="btn small" type="submit">Tocar</button></form>
+    <form class="sp-bar" id="spUriForm" autocomplete="off"><input type="search" id="spUri" placeholder="Pesquisar músicas, artistas, álbuns ou playlists, ou colar um link do Spotify" aria-label="Pesquisar no Spotify"><button class="btn small primary" type="submit">Pesquisar</button></form>
+    <div class="sp-res" id="spRes"></div>
     ${sp.listas.length ? `<div class="sp-listas">${sp.listas.filter(Boolean).map((l) => `<button type="button" class="sp-lista" data-sp-uri="${esc(l.uri)}"><span class="spl-capa">${l.images && l.images[0] ? `<img src="${esc(l.images[l.images.length - 1].url)}" alt="" loading="lazy">` : ""}</span><span>${esc(l.name)}</span></button>`).join("")}</div>` : ""}`;
   spDesenharAgora();
 }
@@ -1008,6 +1009,7 @@ $("spPlayer").addEventListener("click", async (e) => {
   if (l) { spTocar(l.dataset.spUri); return; }
   if (!b) return;
   const a = b.dataset.sp;
+  if (a === "limpar") { $("spRes").innerHTML = ""; $("spUri").value = ""; return; }
   if (a === "entrar") spEntrar(); else if (a === "sair") spSair();
   else if (sp.player) { if (a === "play") sp.player.togglePlay(); if (a === "ant") sp.player.previousTrack(); if (a === "seg") sp.player.nextTrack(); }
 });
@@ -1016,9 +1018,28 @@ $("spPlayer").addEventListener("input", (e) => {
 });
 $("spPlayer").addEventListener("change", (e) => { if (e.target.id === "spSeek" && sp.player) sp.player.seek(+e.target.value); });
 $("spPlayer").addEventListener("submit", (e) => {
-  if (e.target.id !== "spUriForm") return; e.preventDefault(); const x = spEmbed($("spUri").value);
-  if (x) { spTocar(`spotify:${x.tipo}:${x.id}`); $("spUri").value = ""; } else spDesenhar("Não reconheci este link do Spotify.");
+  if (e.target.id !== "spUriForm") return; e.preventDefault(); const q = $("spUri").value.trim(); if (!q) return;
+  const x = spEmbed(q);
+  if (x) { spTocar(`spotify:${x.tipo}:${x.id}`); $("spUri").value = ""; return; }
+  spPesquisar(q);
 });
+// Pesquisa no Spotify (o modo de desenvolvimento só devolve até 10 resultados por tipo)
+async function spPesquisar(q) {
+  const box = $("spRes"); if (!box) return;
+  box.innerHTML = `<p class="muted small">A pesquisar…</p>`;
+  try {
+    const r = await spApi(`/search?${new URLSearchParams({ q, type: "track,artist,album,playlist", limit: "10" })}`);
+    const img = (o) => { const i = o && o.images && o.images.length ? o.images[o.images.length - 1].url : ""; return i ? `<img src="${esc(i)}" alt="" loading="lazy">` : ""; };
+    const grupo = (titulo, itens, linha) => itens.length ? `<div class="spr-g"><h4>${esc(titulo)}</h4>${itens.map(linha).join("")}</div>` : "";
+    const faixas = ((r.tracks && r.tracks.items) || []).filter(Boolean), art = ((r.artists && r.artists.items) || []).filter(Boolean);
+    const alb = ((r.albums && r.albums.items) || []).filter(Boolean), pls = ((r.playlists && r.playlists.items) || []).filter(Boolean);
+    const html = grupo("Músicas", faixas, (t) => `<button type="button" class="spr" data-sp-uri="${esc(t.uri)}"><span class="spl-capa">${img(t.album)}</span><span><b>${esc(t.name)}</b><small>${esc((t.artists || []).map((a) => a.name).join(", "))} · ${spFmt(t.duration_ms)}</small></span></button>`)
+      + grupo("Artistas", art, (a) => `<button type="button" class="spr" data-sp-uri="${esc(a.uri)}"><span class="spl-capa redonda">${img(a)}</span><span><b>${esc(a.name)}</b><small>Artista</small></span></button>`)
+      + grupo("Álbuns", alb, (a) => `<button type="button" class="spr" data-sp-uri="${esc(a.uri)}"><span class="spl-capa">${img(a)}</span><span><b>${esc(a.name)}</b><small>${esc((a.artists || []).map((x) => x.name).join(", "))}</small></span></button>`)
+      + grupo("Playlists", pls, (p) => `<button type="button" class="spr" data-sp-uri="${esc(p.uri)}"><span class="spl-capa">${img(p)}</span><span><b>${esc(p.name)}</b><small>${esc((p.owner && p.owner.display_name) || "Playlist")}</small></span></button>`);
+    box.innerHTML = html ? `<div class="spr-topo"><span class="muted small">Resultados para «${esc(q)}»</span><button type="button" class="btn small ghost" data-sp="limpar">Limpar</button></div><div class="spr-grelha">${html}</div>` : `<p class="empty">Nada encontrado para «${esc(q)}».</p>`;
+  } catch { box.innerHTML = `<p class="status err">Não consegui pesquisar. Tente outra vez.</p>`; }
+}
 // barra de progresso a andar
 setInterval(() => { if (sp.estado && !sp.estado.paused && sp.player) sp.player.getCurrentState().then((s) => { if (!s) return; sp.estado = s; const r = $("spSeek"); if (r && document.activeElement !== r) { r.value = s.position; $("spPos").textContent = spFmt(s.position); } }).catch(() => {}); }, 1000);
 $("spBox").addEventListener("toggle", () => { if ($("spBox").open) spIniciar(); });

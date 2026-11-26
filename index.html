@@ -246,6 +246,11 @@
           <label class="f">Quem<select id="histPor"><option value="">Todos</option></select></label>
           <label class="f">Procurar<input type="search" id="histQ" placeholder="N.º do Edoc, assunto, motivo…"></label>
         </div>
+        <div class="hist-barra">
+          <div class="hist-modo" id="histModo" role="group" aria-label="Ver histórico"><button type="button" class="fchip on" data-modo="data">Por data</button><button type="button" class="fchip" data-modo="edoc">Por Edoc</button></div>
+          <button class="btn small ghost" id="btnHistCsv" type="button">Exportar para Excel</button>
+        </div>
+        <p class="hist-rel small" id="histRel"></p>
         <div class="hist-lista" id="histLista"></div>
       </details>
       <details class="urg-notif" id="notifBox">

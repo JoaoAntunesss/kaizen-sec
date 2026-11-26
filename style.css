@@ -780,3 +780,13 @@ button.ur-t.on{border-color:#c98a1a}
 .hist-p{font-size:13px;color:var(--muted);text-align:right}
 @media (max-width:720px){.hist-l{grid-template-columns:48px 1fr}.hist-e,.hist-p{grid-column:2}.hist-p{text-align:left}}
 .urg-devbox textarea{width:100%;resize:vertical;font:inherit}
+.hist-barra{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}
+.hist-modo{display:flex;gap:6px}
+.hist-rel{margin:8px 0 0}.hist-rel:empty{display:none}
+.hist-para{font-weight:600}
+.hist-agora{display:inline-block;margin-top:4px;font-size:12px}
+.hist-g{border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin-bottom:8px;background:var(--surface)}
+.hist-gh{display:flex;flex-wrap:wrap;gap:6px 10px;align-items:center}
+.hist-tl{margin:8px 0 0;padding-left:18px;display:flex;flex-direction:column;gap:4px;font-size:14px}
+.hist-tl li.t-dev strong{color:var(--late)}.hist-tl li.t-trat strong{color:var(--ok)}
+.hist-tl .hist-m{display:block}

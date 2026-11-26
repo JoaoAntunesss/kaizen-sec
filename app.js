@@ -842,6 +842,16 @@ $("urgForm").addEventListener("submit", async (e) => {
   $("btnUrgAdd").disabled = false;
 });
 ["histTipo", "histPor"].forEach((id) => $(id).addEventListener("change", desenharHist));
+let histFiltrados = [];
+$("histModo").addEventListener("click", (e) => { const b = e.target.closest("[data-modo]"); if (!b) return; histModo = b.dataset.modo; $("histModo").querySelectorAll("[data-modo]").forEach((x) => x.classList.toggle("on", x === b)); desenharHist(); });
+// exportar para relatórios (abre no Excel)
+$("btnHistCsv").addEventListener("click", () => {
+  const c = (v) => `"${String(v ?? "").replace(/"/g, '""')}"`;
+  const linhas = [["Data", "Hora", "Ação", "Para", "Edoc", "Assunto", "Urgência", "Quem", "Motivo", "Situação atual"].map(c).join(";"),
+    ...histFiltrados.map((h) => [fmt(String(h.em).slice(0, 10)), new Date(h.em).toLocaleTimeString("pt-PT", { hour: "2-digit", minute: "2-digit" }), h.acao, h.para || "", h.edoc, h.assunto || "", PRIO[h.prio] || "", h.por || "", h.motivo || "", estadoAtual(h.uid).t].map(c).join(";"))];
+  const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob(["\ufeff" + linhas.join("\r\n")], { type: "text/csv;charset=utf-8" }));
+  a.download = `historico-edocs-${hoje()}.csv`; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+});
 $("histQ").addEventListener("input", desenharHist);
 $("urgVerDe").addEventListener("change", () => {
   try { localStorage.setItem("kz-urg-ver", $("urgVerDe").value); } catch {}
@@ -869,7 +879,7 @@ $("urgLista").addEventListener("submit", async (e) => {
       situacao: DEVOLVIDO, situacaoEm: agora, situacaoPor: por,
       devolucao: { por, em: agora, motivo: f.querySelector("textarea").value.trim().slice(0, 500) }, devolucoes: (u.devolucoes || 0) + 1,
     });
-    regHist(u, "Devolvido para correção", { motivo: f.querySelector("textarea").value.trim().slice(0, 500) });
+    regHist(u, "Devolvido para correção", { para: u.criadoPor || "", motivo: f.querySelector("textarea").value.trim().slice(0, 500) });
     st.textContent = `${u.edoc} devolvido para correção.`; st.className = "status";
   } catch { st.textContent = "Não consegui guardar. Verifique a internet."; st.className = "status err"; }
 });
@@ -940,6 +950,16 @@ function eventosHist() {
   });
   return ev.filter((h) => h.em).sort((x, y) => String(y.em).localeCompare(String(x.em)));
 }
+// onde está agora cada Edoc (o histórico nunca se apaga; isto só mostra o ponto atual)
+function estadoAtual(uid) {
+  const u = est.urgentes.find((x) => x.id === uid);
+  if (!u) return { t: "Apagado da lista", c: "none" };
+  if (u.tratado) return { t: `Tratado${u.tratadoPor ? " por " + u.tratadoPor : ""}`, c: "ok" };
+  if (u.situacao === "Ofício por assinar") return { t: `Agora: por assinar (com ${QUEM_ASSINA})`, c: "warn" };
+  if (u.situacao === DEVOLVIDO) return { t: `Agora: devolvido a ${u.criadoPor || "quem o enviou"}, para corrigir`, c: "late" };
+  return { t: `Agora: ${u.situacao || "Outro"}`, c: "none" };
+}
+let histModo = "data";
 function desenharHist() {
   const box = $("histBox"); if (!box) return;
   box.hidden = !est.assina; if (!est.assina) return;
@@ -953,13 +973,28 @@ function desenharHist() {
   const n = (t) => doMes.filter((h) => TIPO_HIST(h.acao) === t).length;
   const pl = (k, s, p) => `${k} ${k === 1 ? s : p}`;
   $("histRes").textContent = `Este mês: ${pl(n("env"), "enviado", "enviados")} para assinatura · ${pl(n("dev"), "devolvido", "devolvidos")} · ${pl(n("trat"), "tratado", "tratados")}`;
+  // para relatórios: devoluções do mês por pessoa (quem enviou o ofício) e motivos mais comuns
+  const devMes = doMes.filter((h) => TIPO_HIST(h.acao) === "dev");
+  const porP = {}; devMes.forEach((h) => { const p = h.para || (est.urgentes.find((u) => u.id === h.uid) || {}).criadoPor || "—"; porP[p] = (porP[p] || 0) + 1; });
+  $("histRel").innerHTML = devMes.length ? `<strong>Devoluções este mês, por quem enviou:</strong> ${Object.entries(porP).sort((x, y) => y[1] - x[1]).map(([p, k]) => `${esc(p)} (${k})`).join(" · ")}` : "";
+  histFiltrados = l;
+  if (histModo === "edoc") {
+    const grupos = new Map(); l.forEach((h) => { const k = h.uid || h.edoc; if (!grupos.has(k)) grupos.set(k, []); grupos.get(k).push(h); });
+    $("histLista").innerHTML = grupos.size ? [...grupos.values()].slice(0, 150).map((g) => {
+      const h0 = g[0], e = estadoAtual(h0.uid), ndev = g.filter((h) => TIPO_HIST(h.acao) === "dev").length;
+      const ed = h0.link ? `<a class="urg-a" href="${esc(h0.link)}" target="_blank" rel="noopener">${esc(h0.edoc)}</a>` : esc(h0.edoc);
+      return `<div class="hist-g"><div class="hist-gh"><strong>${ed}</strong>${h0.assunto ? ` — ${esc(h0.assunto)}` : ""}<span class="chip ${e.c}">${esc(e.t)}</span>${ndev ? `<span class="chip late">${ndev} devoluç${ndev === 1 ? "ão" : "ões"}</span>` : ""}</div>
+        <ol class="hist-tl">${[...g].reverse().map((h) => `<li class="t-${TIPO_HIST(h.acao)}"><span class="hist-h">${esc(fmt(String(h.em).slice(0, 10)))} ${esc(new Date(h.em).toLocaleTimeString("pt-PT", { hour: "2-digit", minute: "2-digit" }))}</span> <strong>${esc(h.acao)}</strong>${h.para ? ` a ${esc(h.para)}` : ""} · ${esc(h.por || "")}${h.motivo ? `<span class="hist-m">${esc(h.motivo)}</span>` : ""}</li>`).join("")}</ol></div>`;
+    }).join("") : `<p class="empty">Sem registos com estes filtros.</p>`;
+    return;
+  }
   let dia = "";
   $("histLista").innerHTML = l.length ? l.slice(0, 400).map((h) => {
     const d = String(h.em).slice(0, 10);
     const cab = d !== dia ? `<h4 class="hist-dia">${esc(fmt((dia = d)))}</h4>` : "";
     const ed = h.link ? `<a class="urg-a" href="${esc(h.link)}" target="_blank" rel="noopener">${esc(h.edoc)}</a>` : esc(h.edoc);
     return `${cab}<div class="hist-l t-${TIPO_HIST(h.acao)}"><span class="hist-h">${esc(new Date(h.em).toLocaleTimeString("pt-PT", { hour: "2-digit", minute: "2-digit" }))}</span>
-      <span class="hist-a">${esc(h.acao)}</span><span class="hist-e">${ed}${h.assunto ? ` — ${esc(h.assunto)}` : ""}${h.motivo ? `<span class="hist-m">${esc(h.motivo)}</span>` : ""}</span>
+      <span class="hist-a">${esc(h.acao)}${h.para ? `<span class="hist-para"> a ${esc(h.para)}</span>` : ""}</span><span class="hist-e">${ed}${h.assunto ? ` — ${esc(h.assunto)}` : ""}${h.motivo ? `<span class="hist-m">Motivo: ${esc(h.motivo)}</span>` : ""}${(() => { const e = estadoAtual(h.uid); return `<span class="hist-agora chip ${e.c}">${esc(e.t)}</span>`; })()}</span>
       <span class="hist-p">${esc(h.por || "")}${h.antigo ? " · registo anterior" : ""}</span></div>`;
   }).join("") : `<p class="empty">Sem registos com estes filtros.</p>`;
 }

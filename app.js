@@ -2498,8 +2498,12 @@ let fundoTransp = (() => { try { return +localStorage.getItem("kz-fundo-transp")
 const temaEscuro = () => matchMedia("(prefers-color-scheme: dark)").matches;
 function aplicarTransp() {
   const contraste = temaEscuro() ? fundoLuz > 0.55 : fundoLuz < 0.45; // foto «contra» o texto do tema
-  const minimo = contraste ? 0.78 : 0.52, a = 1 - (fundoTransp / 100) * (1 - minimo);
-  document.body.style.setProperty("--painel-a", `${Math.round(a * 100)}%`);
+  const t = fundoTransp / 100, minimo = contraste ? 0.22 : 0.06, a = 1 - t * (1 - minimo);
+  const st = document.body.style;
+  st.setProperty("--painel-a", `${Math.round(a * 100)}%`);
+  st.setProperty("--painel-blur", `${Math.round(16 - t * 12)}px`);
+  st.setProperty("--fundo-veu", `${Math.round(35 - t * 25)}%`);
+  document.body.classList.toggle("transp-alta", t >= 0.55);
   document.body.classList.toggle("transp", document.body.classList.contains("com-fundo") && fundoTransp > 0);
   if ($("fundoTranspV")) $("fundoTranspV").textContent = fundoTransp ? `${fundoTransp}%` : "desligada";
 }

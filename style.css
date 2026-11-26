@@ -889,3 +889,6 @@ body.com-fundo .panel{box-shadow:0 4px 18px rgba(0,0,0,.18)}
 .fundo-prev{height:150px;border-radius:10px;background:center/cover no-repeat;border:1px solid var(--line)}
 .dlg-acts{display:flex;flex-wrap:wrap;gap:8px;justify-content:flex-end}
 @media print{body.com-fundo{background:none}body.com-fundo::before{display:none}}
+.man-guia{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;background:color-mix(in srgb,var(--s1) 10%,var(--surface));border:1px solid color-mix(in srgb,var(--s1) 30%,var(--line));border-radius:10px;padding:12px 14px}
+.man-guia b{display:block;font-size:15px}
+.man-guia span{color:var(--muted);font-size:13px}

@@ -42,6 +42,22 @@ const TIPOS_FOTO = { postits: "quadro de post-its", presencas: "folha de presen√
 const temFotoDe = (r, k) => !!((r.fotos && r.fotos[k]) || (k === "postits" && r.temFoto));
 let fb = null;
 
+/* ---------------- Menu: setas para deslizar quando n√£o cabe ---------------- */
+function navSetas() {
+  const n = $("mainNav"), w = $("navWrap"); if (!n || !w) return;
+  const cabe = n.scrollWidth <= n.clientWidth + 4;
+  if (cabe && n.scrollLeft) n.scrollLeft = 0;
+  w.classList.toggle("pode-esq", !cabe && n.scrollLeft > 4);
+  w.classList.toggle("pode-dir", n.scrollLeft + n.clientWidth < n.scrollWidth - 4);
+}
+$("navEsq").addEventListener("click", () => { $("mainNav").scrollBy({ left: -$("mainNav").clientWidth * 0.7 }); });
+$("navDir").addEventListener("click", () => { $("mainNav").scrollBy({ left: $("mainNav").clientWidth * 0.7 }); });
+$("mainNav").addEventListener("scroll", navSetas, { passive: true });
+// roda do rato por cima do menu: desliza para o lado
+$("mainNav").addEventListener("wheel", (e) => { const n = $("mainNav"); if (n.scrollWidth > n.clientWidth && Math.abs(e.deltaY) > Math.abs(e.deltaX)) { e.preventDefault(); n.scrollLeft += e.deltaY; } }, { passive: false });
+window.addEventListener("resize", navSetas);
+new MutationObserver(navSetas).observe($("mainNav"), { attributes: true, attributeFilter: ["hidden"] });
+
 /* ---------------- Vistas ---------------- */
 const VISTAS = ["vLogin", "vConfig", "vPainel", "vReuniao", "vRegistar", "vImprimir", "vEquipa", "vRelatorio", "vPowerBI", "vDiario", "vMapas", "vOficios", "vRegras", "vManual", "vContactos", "vHorario", "vMapaPainel"];
 function mostrar(v) {
@@ -53,6 +69,7 @@ function mostrar(v) {
   $("mainNav").hidden = !est.user || v === "vLogin" || v === "vConfig";
   const sec = { vEquipa: "vPainel", vRelatorio: "vPainel", vReuniao: "vPainel", vRegistar: "vPainel", vImprimir: "vPainel", vMapaPainel: "vMapas" }[v] || v;
   document.querySelectorAll("#mainNav .nav-b").forEach((b) => b.classList.toggle("on", b.dataset.v === sec));
+  { const on = document.querySelector("#mainNav .nav-b.on"); if (on) on.scrollIntoView({ block: "nearest", inline: "nearest" }); setTimeout(navSetas, 300); }
   if (v !== "vRegistar") pararCamera();
   window.scrollTo(0, 0);
 }

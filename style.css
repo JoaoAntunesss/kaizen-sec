@@ -906,5 +906,19 @@ body.com-fundo .panel{box-shadow:0 4px 18px rgba(0,0,0,.18)}
 .hor-d .tempo{position:absolute;top:8px;right:8px;color:var(--ink);opacity:.8}
 .hor-d.fora .tempo{display:none}
 #horHoje .tempo{margin:0 4px}
-/* Menu: quando não cabe numa linha passa para duas (no telemóvel continua a deslizar) */
-@media (min-width:700px){.mainnav{flex-wrap:wrap;overflow-x:visible;row-gap:0}}
+/* Cabeçalho fixo no topo (logótipos + menu) e menu que desliza para o lado em janelas estreitas */
+.cabeca{position:sticky;top:0;z-index:6}
+.cabeca .topbar{position:relative;top:auto}
+.nav-wrap{position:relative}
+.nav-wrap:has(> #mainNav[hidden]){display:none}
+.nav-seta{position:absolute;top:0;bottom:1px;width:44px;border:0;padding:0;display:none;align-items:center;cursor:pointer;z-index:5;color:var(--accent,#1F4E79)}
+.nav-seta svg{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:2.4;stroke-linecap:round;stroke-linejoin:round}
+.nav-seta.esq{left:0;justify-content:flex-start;padding-left:6px;background:linear-gradient(to right,var(--surface) 55%,transparent)}
+.nav-seta.dir{right:0;justify-content:flex-end;padding-right:6px;background:linear-gradient(to left,var(--surface) 55%,transparent)}
+.nav-wrap.pode-esq .nav-seta.esq,.nav-wrap.pode-dir .nav-seta.dir{display:flex}
+.nav-seta:hover{color:var(--ink)}
+.mainnav{scroll-behavior:smooth}
+@media print{.cabeca{position:static}.nav-wrap{display:none}}
+.mainnav{padding-left:8px;padding-right:8px}
+.mainnav > .nav-b:first-child{margin-left:auto}
+.mainnav > .nav-b:last-child{margin-right:auto}

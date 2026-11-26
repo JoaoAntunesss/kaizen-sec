@@ -12,6 +12,7 @@ const COL_RECADOS = "kaizen_recados";
 const COL_HORARIO = "kaizen_horario";
 const COL_HIST = "kaizen_historico";
 const COL_MANUAL = "kaizen_manual";
+const COL_DOCS = "kaizen_docs"; // apresentações em PDF do Manual (só para quem tem sessão iniciada)
 // Equipa: vem da base de dados (editável na app); enquanto não houver, usa a lista do config.js
 let EQUIPA = EQUIPA_INICIAL.map((p) => ({ ...p }));
 
@@ -2401,7 +2402,8 @@ function desenharManual() {
       ${m.prazos ? `<h4>Prazos</h4><p>${esc(m.prazos)}</p>` : ""}
       ${m.legislacao ? `<h4>Legislação</h4><p>${esc(m.legislacao)}</p>` : ""}
       ${m.notas ? `<h4>Notas</h4><p>${esc(m.notas)}</p>` : ""}
-      ${docUrl(m.doc) ? `<h4>Apresentação / documento</h4><div class="man-doc"><a class="btn small primary" href="${esc(docUrl(m.doc))}" target="_blank" rel="noopener">Abrir${/sharepoint\.com|onedrive|1drv\.ms/i.test(m.doc) ? " no PowerPoint" : ""}</a>${embedUrl(m.doc) ? `<button type="button" class="btn small ghost" data-man-ver="${esc(m.id)}">Ver aqui</button>` : ""}<span class="muted small">Precisa de ter sessão iniciada com a conta da Câmara.</span></div><div class="man-embed" data-man-embed="${esc(m.id)}"></div>` : ""}
+      ${m.pdf ? `<h4>Apresentação</h4><div class="man-doc"><button type="button" class="btn small primary" data-man-pdf="${esc(m.id)}">Ver apresentação</button><span class="muted small">${esc(m.pdf.nome || "")}${m.pdf.paginas ? ` · ${m.pdf.paginas} diapositivos` : ""}</span></div><div class="man-embed" data-man-pv="${esc(m.id)}"></div>` : ""}
+      ${docUrl(m.doc) ? `<h4>${m.pdf ? "Original" : "Apresentação / documento"}</h4><div class="man-doc"><a class="btn small primary" href="${esc(docUrl(m.doc))}" target="_blank" rel="noopener">Abrir${/sharepoint\.com|onedrive|1drv\.ms/i.test(m.doc) ? " no PowerPoint" : ""}</a>${embedUrl(m.doc) ? `<button type="button" class="btn small ghost" data-man-ver="${esc(m.id)}">Ver aqui</button>` : ""}<span class="muted small">Precisa de ter sessão iniciada com a conta da Câmara.</span></div><div class="man-embed" data-man-embed="${esc(m.id)}"></div>` : ""}
       ${(m.modelos || []).length ? `<h4>Modelos de ofício</h4><div class="man-mods">${m.modelos.map((t) => `<button type="button" class="ct-b" data-man-mod="${esc(t)}" title="Abrir em Do Edoc ao ofício">${esc(t)}</button>`).join("")}</div>` : ""}
       <div class="man-acoes">
         <span class="muted small">${m.editadoEm ? `Atualizado por ${esc(m.editadoPor || "?")} em ${esc(quando(m.editadoEm))}` : "Versão inicial do manual"}</span>
@@ -2414,6 +2416,38 @@ function desenharManual() {
 }
 $("manQ").addEventListener("input", desenharManual);
 $("manAreas").addEventListener("click", (e) => { const b = e.target.closest("[data-area]"); if (!b) return; manArea = b.dataset.area; desenharManual(); });
+// Visualizador de apresentações (PDF guardado na base de dados): diapositivo a diapositivo, com ecrã inteiro
+const pdfCache = {};
+async function verApresentacao(m, b) {
+  const box = m && $("manLista").querySelector(`[data-man-pv="${CSS.escape(m.id)}"]`); if (!box) return;
+  if (box.innerHTML) { box.innerHTML = ""; b.textContent = "Ver apresentação"; return; }
+  b.textContent = "A abrir…"; b.disabled = true;
+  try {
+    if (!pdfCache[m.pdf.chave]) {
+      const s = await fb.D.get(fb.D.ref(fb.db, `${COL_DOCS}/${m.pdf.chave}/b64`));
+      if (!s.exists()) throw new Error("sem ficheiro");
+      const bin = atob(s.val()), u8 = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i);
+      pdfCache[m.pdf.chave] = await (await carregarPdfjs()).getDocument({ data: u8 }).promise;
+    }
+    const pdf = pdfCache[m.pdf.chave]; let pag = 1;
+    box.innerHTML = `<div class="pv" tabindex="0" aria-label="Apresentação ${esc(m.titulo)}"><div class="pv-palco"><canvas></canvas></div>
+      <div class="pv-barra"><button type="button" class="btn small ghost" data-pv="ant" aria-label="Diapositivo anterior">‹</button><span class="pv-n"></span><button type="button" class="btn small ghost" data-pv="seg" aria-label="Diapositivo seguinte">›</button><span class="pv-esp"></span><button type="button" class="btn small ghost" data-pv="ecra">Ecrã inteiro</button></div></div>`;
+    const pv = box.querySelector(".pv"), cv = pv.querySelector("canvas");
+    const desenhar = async () => {
+      const p = await pdf.getPage(pag), w = pv.querySelector(".pv-palco").clientWidth || 800;
+      const v1 = p.getViewport({ scale: 1 }), esc2 = Math.min(3, (w * (window.devicePixelRatio || 1)) / v1.width), vp = p.getViewport({ scale: esc2 });
+      cv.width = vp.width; cv.height = vp.height; await p.render({ canvasContext: cv.getContext("2d"), viewport: vp }).promise;
+      pv.querySelector(".pv-n").textContent = `${pag} / ${pdf.numPages}`;
+    };
+    const ir = (d) => { const n = Math.min(pdf.numPages, Math.max(1, pag + d)); if (n !== pag) { pag = n; desenhar(); } };
+    pv.addEventListener("click", (e) => { const a = e.target.closest("[data-pv]"); if (!a) { if (e.target === cv) ir(1); return; }
+      if (a.dataset.pv === "ant") ir(-1); else if (a.dataset.pv === "seg") ir(1); else if (document.fullscreenElement) document.exitFullscreen(); else pv.requestFullscreen?.().catch(() => {}); });
+    pv.addEventListener("keydown", (e) => { if (["ArrowRight", "PageDown", " "].includes(e.key)) { e.preventDefault(); ir(1); } if (["ArrowLeft", "PageUp"].includes(e.key)) { e.preventDefault(); ir(-1); } });
+    pv.addEventListener("fullscreenchange", () => setTimeout(desenhar, 100));
+    await desenhar(); pv.focus(); b.textContent = "Fechar apresentação";
+  } catch { box.innerHTML = `<p class="status err">Não consegui abrir a apresentação. Verifique a internet.</p>`; b.textContent = "Ver apresentação"; }
+  b.disabled = false;
+}
 // link de um documento (SharePoint/OneDrive da Câmara): só se aceita https; fica guardado na base de dados, não no código
 const docUrl = (u) => { try { const x = new URL(String(u || "").trim()); return x.protocol === "https:" ? x.href : ""; } catch { return ""; } };
 const embedUrl = (u) => { const h = docUrl(u); if (!/\.sharepoint\.com\//i.test(h)) return ""; const x = new URL(h); x.searchParams.set("action", "embedview"); return x.href; };
@@ -2424,6 +2458,7 @@ function abrirManForm(m) {
   $("mfTitulo").value = m ? m.titulo : ""; $("mfQuando").value = m ? m.quando || "" : "";
   $("mfPassos").value = m ? (m.passos || []).join("\n") : ""; $("mfPrazos").value = m ? m.prazos || "" : "";
   $("mfLeg").value = m ? m.legislacao || "" : ""; $("mfNotas").value = m ? m.notas || "" : ""; $("mfDoc").value = m ? m.doc || "" : "";
+  $("mfPdf").value = ""; $("mfPdfInfo").textContent = m && m.pdf ? `Atual: ${m.pdf.nome || "apresentação"}. Escolha outro ficheiro para substituir.` : "";
   const sel = new Set(m ? m.modelos || [] : []);
   $("mfMods").innerHTML = MODELOS_OFICIO.map((x) => `<label class="mf-chk"><input type="checkbox" value="${esc(x.t)}"${sel.has(x.t) ? " checked" : ""}> ${esc(x.t)}</label>`).join("");
   $("manForm").hidden = false; $("manForm").scrollIntoView({ behavior: "smooth", block: "start" }); $("mfTitulo").focus({ preventScroll: true });
@@ -2440,6 +2475,20 @@ $("manForm").addEventListener("submit", async (e) => {
     prazos: $("mfPrazos").value.trim().slice(0, 800), legislacao: $("mfLeg").value.trim().slice(0, 800), notas: $("mfNotas").value.trim().slice(0, 2500), doc: docUrl($("mfDoc").value),
     modelos: [...$("mfMods").querySelectorAll("input:checked")].map((i) => i.value), p: atual ? atual.p || [] : [],
     editadoPor: euNome() || quem(), editadoEm: new Date().toISOString() };
+  if (atual && atual.pdf) dados.pdf = atual.pdf;
+  const fPdf = $("mfPdf").files[0];
+  if (fPdf) {
+    if (!/\.pdf$/i.test(fPdf.name) && fPdf.type !== "application/pdf") { manMsg("A apresentação tem de estar em PDF (no PowerPoint: Ficheiro → Exportar → PDF).", true); return; }
+    if (fPdf.size > 6e6) { manMsg("O PDF tem mais de 6 MB. Exporte-o com qualidade «mínima» ou «para a Web».", true); return; }
+    try {
+      const buf = new Uint8Array(await fPdf.arrayBuffer());
+      const paginas = (await (await carregarPdfjs()).getDocument({ data: buf.slice() }).promise).numPages;
+      let bin = ""; for (let i = 0; i < buf.length; i += 0x8000) bin += String.fromCharCode.apply(null, buf.subarray(i, i + 0x8000));
+      const docId = manEditar || ("novo-" + Date.now());
+      await fb.D.set(fb.D.ref(fb.db, `${COL_DOCS}/${docId.replace(/[.#$\[\]\/]/g, "_")}`), { b64: btoa(bin), nome: fPdf.name.slice(0, 120), por: dados.editadoPor, em: dados.editadoEm });
+      dados.pdf = { chave: docId.replace(/[.#$\[\]\/]/g, "_"), nome: fPdf.name.slice(0, 120), paginas };
+    } catch { manMsg("Não consegui ler ou guardar o PDF.", true); return; }
+  }
   try {
     if (manEditar) await fb.D.set(fb.D.ref(fb.db, `${COL_MANUAL}/${manEditar}`), dados);
     else await fb.D.set(fb.D.push(fb.D.ref(fb.db, COL_MANUAL)), { ...dados, criadoPor: dados.editadoPor, criadoEm: dados.editadoEm });
@@ -2451,6 +2500,7 @@ $("manLista").addEventListener("click", async (e) => {
   const lista = manualLista();
   if (b.dataset.manMod) return abrirEdocOficio(b.dataset.manMod);
   if (b.dataset.manEdit) return abrirManForm(lista.find((m) => m.id === b.dataset.manEdit));
+  if (b.dataset.manPdf) return verApresentacao(lista.find((x) => x.id === b.dataset.manPdf), b);
   if (b.dataset.manVer) {
     const m = lista.find((x) => x.id === b.dataset.manVer), box = $("manLista").querySelector(`[data-man-embed="${CSS.escape(b.dataset.manVer)}"]`);
     if (!m || !box) return;

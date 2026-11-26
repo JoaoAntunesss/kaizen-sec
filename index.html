@@ -514,7 +514,8 @@
         <label class="f">Prazos<textarea id="mfPrazos" rows="2" maxlength="800"></textarea></label>
         <label class="f">Legislação<textarea id="mfLeg" rows="2" maxlength="800"></textarea></label>
         <label class="f">Notas<textarea id="mfNotas" rows="3" maxlength="2500"></textarea></label>
-        <label class="f">Apresentação ou documento (link do SharePoint/OneDrive da Câmara)<input type="url" id="mfDoc" maxlength="600" placeholder="https://cmmat-my.sharepoint.com/..."></label>
+        <label class="f">Apresentação em PDF (fica guardada na app e vê-se diapositivo a diapositivo)<input type="file" id="mfPdf" accept="application/pdf,.pdf"><span class="muted small" id="mfPdfInfo"></span></label>
+        <label class="f">Link do original (SharePoint/OneDrive da Câmara, opcional)<input type="url" id="mfDoc" maxlength="600" placeholder="https://cmmat-my.sharepoint.com/..."></label>
         <fieldset class="f"><legend>Modelos de ofício usados</legend><div class="mf-mods" id="mfMods"></div></fieldset>
         <div class="actions"><button class="btn ghost" id="btnManCancelar" type="button">Cancelar</button><button class="btn primary" type="submit">Guardar</button></div>
       </form>

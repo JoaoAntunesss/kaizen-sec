@@ -903,6 +903,38 @@ function desenharUrgentes() {
 }
 $("btnDiario").addEventListener("click", () => abrirDiario());
 $("btnOficios").addEventListener("click", () => mostrar("vOficios"));
+// Spotify: leitor oficial do Spotify (embed) com o link que cada pessoa cola; os últimos ficam guardados neste computador
+const spEmbed = (link) => {
+  const m = String(link || "").trim().match(/(?:open\.spotify\.com\/(?:intl-[a-z-]+\/)?(?:embed\/)?|spotify:)(track|album|playlist|episode|show|artist)[/:]([A-Za-z0-9]{10,})/);
+  return m ? { tipo: m[1], id: m[2], url: `https://open.spotify.com/embed/${m[1]}/${m[2]}?utm_source=generator` } : null;
+};
+const SP_TIPO = { track: "Música", album: "Álbum", playlist: "Playlist", episode: "Episódio", show: "Podcast", artist: "Artista" };
+let spLista = (() => { try { return JSON.parse(localStorage.getItem("kz-sp") || "[]"); } catch { return []; } })();
+function spDesenharRecentes() {
+  $("spRecentes").innerHTML = spLista.length ? `<span class="muted small">Recentes:</span>` + spLista.map((x, i) => `<span class="sp-chip"><button type="button" data-sp-abrir="${i}">${esc(x.nome || SP_TIPO[x.tipo] || "Spotify")}</button><button type="button" class="sp-x" data-sp-rm="${i}" aria-label="Tirar dos recentes">×</button></span>`).join("") : "";
+}
+function spAbrir(e) {
+  $("spMoldura").innerHTML = `<iframe src="${e.url}" title="Spotify" allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture" loading="lazy"></iframe>`;
+  $("spMoldura").classList.toggle("alto", ["playlist", "album", "show", "artist"].includes(e.tipo));
+}
+$("spForm").addEventListener("submit", (ev) => {
+  ev.preventDefault(); const e = spEmbed($("spLink").value), st = $("spStatus");
+  if (!e) { st.textContent = "Não reconheci este link. Copie-o no Spotify em Partilhar › Copiar link."; st.className = "status err"; return; }
+  st.textContent = ""; spAbrir(e);
+  spLista = [{ ...e, nome: SP_TIPO[e.tipo] }, ...spLista.filter((x) => x.id !== e.id)].slice(0, 8);
+  const guardar = () => { try { localStorage.setItem("kz-sp", JSON.stringify(spLista)); } catch {} spDesenharRecentes(); };
+  guardar(); $("spLink").value = "";
+  // nome da playlist/álbum para os recentes (oEmbed público do Spotify); se falhar, fica o tipo
+  fetch(`https://open.spotify.com/oembed?url=${encodeURIComponent(`https://open.spotify.com/${e.tipo}/${e.id}`)}`).then((r) => r.ok ? r.json() : null)
+    .then((o) => { const x = spLista.find((y) => y.id === e.id); if (o && o.title && x) { x.nome = String(o.title).slice(0, 40); guardar(); } }).catch(() => {});
+});
+$("spRecentes").addEventListener("click", (ev) => {
+  const a = ev.target.closest("[data-sp-abrir]"), r = ev.target.closest("[data-sp-rm]");
+  if (a) spAbrir(spLista[+a.dataset.spAbrir]);
+  if (r) { spLista.splice(+r.dataset.spRm, 1); try { localStorage.setItem("kz-sp", JSON.stringify(spLista)); } catch {} spDesenharRecentes(); }
+});
+$("spBox").addEventListener("toggle", () => { if ($("spBox").open) { spDesenharRecentes(); if (!$("spMoldura").firstChild && spLista[0]) spAbrir(spLista[0]); } });
+
 // Rádio Secretaria: só carrega quando se abre a caixa; ao fechar a caixa, a rádio para
 const RADIO_URL = "https://joaoantunesss.github.io/Radio/";
 $("radioBox").addEventListener("toggle", () => {

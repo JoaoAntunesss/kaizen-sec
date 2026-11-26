@@ -599,6 +599,18 @@
         <p class="small"><a href="https://joaoantunesss.github.io/Radio/" target="_blank" rel="noopener">Abrir a rádio numa janela à parte</a></p>
       </details>
 
+      <details class="leg-sec" id="spBox">
+        <summary>Spotify</summary>
+        <p class="muted small radio-nota">Cole o link de uma playlist, álbum, música ou podcast do Spotify (no Spotify: Partilhar › Copiar link). Para ouvir as músicas inteiras, entre na sua conta Spotify Premium neste navegador, em open.spotify.com; sem isso, o Spotify só deixa ouvir 30 segundos de cada música.</p>
+        <form class="sp-bar" id="spForm" autocomplete="off">
+          <input type="url" id="spLink" placeholder="https://open.spotify.com/playlist/..." aria-label="Link do Spotify">
+          <button class="btn small primary" type="submit">Abrir</button>
+        </form>
+        <p class="status" id="spStatus"></p>
+        <div class="sp-recentes" id="spRecentes"></div>
+        <div class="sp-moldura" id="spMoldura"></div>
+      </details>
+
       <details class="leg-sec" id="cpBox" open>
         <summary>Código postal de uma rua</summary>
         <div class="cp-bar">

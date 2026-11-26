@@ -982,3 +982,11 @@ body.com-fundo .panel{box-shadow:0 4px 18px rgba(0,0,0,.18)}
 .urg-puxa::after{content:"";position:absolute;left:50%;top:0;bottom:0;width:2px;transform:translateX(-50%);background:var(--line);border-radius:2px;transition:background .15s}
 .urg-puxa:hover::after,.urg-puxa.on::after{background:var(--accent);width:4px}
 .urg-col select{max-width:100%}.urg-col .urg-item{overflow:hidden}
+.sp-bar{display:flex;gap:8px}
+.sp-bar input{flex:1;min-width:0;font:inherit;padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink)}
+.sp-recentes{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:8px 0}
+.sp-chip{display:inline-flex;align-items:center;border:1px solid var(--line);border-radius:999px;background:var(--surface);overflow:hidden}
+.sp-chip button{border:0;background:none;font:inherit;font-size:13px;padding:4px 10px;cursor:pointer;color:var(--ink)}
+.sp-chip .sp-x{padding:4px 8px;color:var(--muted)}
+.sp-moldura iframe{width:100%;height:152px;border:0;border-radius:12px;display:block}
+.sp-moldura.alto iframe{height:420px}

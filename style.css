@@ -982,3 +982,8 @@ body.com-fundo .panel{box-shadow:0 4px 18px rgba(0,0,0,.18)}
 .urg-puxa::after{content:"";position:absolute;left:50%;top:0;bottom:0;width:2px;transform:translateX(-50%);background:var(--line);border-radius:2px;transition:background .15s}
 .urg-puxa:hover::after,.urg-puxa.on::after{background:var(--accent);width:4px}
 .urg-col select{max-width:100%}.urg-col .urg-item{overflow:hidden}
+/* Caixas transparentes sobre o fundo (desfocado por trás) */
+body.com-fundo.transp .panel{background:color-mix(in srgb,var(--surface) var(--painel-a,100%),transparent);-webkit-backdrop-filter:blur(16px) saturate(1.25);backdrop-filter:blur(16px) saturate(1.25);border-color:color-mix(in srgb,var(--line) 70%,transparent)}
+body.com-fundo.transp .urg-col{background:color-mix(in srgb,var(--bg) var(--painel-a,100%),transparent)}
+body.com-fundo.transp .urg-col-h{background:color-mix(in srgb,var(--surface) var(--painel-a,100%),transparent)}
+.fundo-transp input{width:100%}

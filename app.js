@@ -2470,11 +2470,32 @@ $("mapasLista").addEventListener("click", async (e) => {
 // Guardado em kaizen_fundos/<nome> (imagem reduzida, JPEG) e em cache local para aparecer logo ao abrir.
 const COL_FUNDOS = "kaizen_fundos";
 const chaveFundo = () => (est.conta || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+// Transparência das caixas (0 = opacas): o mínimo de opacidade depende de a foto ser clara ou escura e do tema, para o texto continuar legível
+let fundoTransp = (() => { try { return +localStorage.getItem("kz-fundo-transp") || 0; } catch { return 0; } })(), fundoLuz = 0.5;
+const temaEscuro = () => matchMedia("(prefers-color-scheme: dark)").matches;
+function aplicarTransp() {
+  const contraste = temaEscuro() ? fundoLuz > 0.55 : fundoLuz < 0.45; // foto «contra» o texto do tema
+  const minimo = contraste ? 0.78 : 0.52, a = 1 - (fundoTransp / 100) * (1 - minimo);
+  document.body.style.setProperty("--painel-a", `${Math.round(a * 100)}%`);
+  document.body.classList.toggle("transp", document.body.classList.contains("com-fundo") && fundoTransp > 0);
+  if ($("fundoTranspV")) $("fundoTranspV").textContent = fundoTransp ? `${fundoTransp}%` : "desligada";
+}
+function medirLuz(img) {
+  const im = new Image();
+  im.onload = () => { try { const c = document.createElement("canvas"); c.width = c.height = 24; const g = c.getContext("2d"); g.drawImage(im, 0, 0, 24, 24);
+    const d = g.getImageData(0, 0, 24, 24).data; let s = 0; for (let i = 0; i < d.length; i += 4) s += (0.2126 * d[i] + 0.7152 * d[i + 1] + 0.0722 * d[i + 2]) / 255;
+    fundoLuz = s / (d.length / 4); aplicarTransp(); } catch {} };
+  im.src = img;
+}
+matchMedia("(prefers-color-scheme: dark)").addEventListener("change", aplicarTransp);
 function aplicarFundo(img) {
   document.body.classList.toggle("com-fundo", !!img);
   document.body.style.setProperty("--fundo-img", img ? `url("${img}")` : "none");
   const pv = $("fundoPrev"); if (pv) { pv.hidden = !img; pv.style.backgroundImage = img ? `url("${img}")` : ""; }
   $("fundoRemover").hidden = !img;
+  $("fundoTranspBox").hidden = $("fundoTranspAj").hidden = !img; $("fundoTransp").value = fundoTransp;
+  if (img) medirLuz(img);
+  aplicarTransp();
 }
 try { const c = JSON.parse(localStorage.getItem("kz-fundo") || "null"); if (c && c.img) aplicarFundo(c.img); } catch {}
 async function carregarFundo() {
@@ -2482,6 +2503,7 @@ async function carregarFundo() {
   try {
     const snap = await fb.D.get(fb.D.ref(fb.db, `${COL_FUNDOS}/${k}`)); const v = snap.val();
     if (chaveFundo() !== k) return;
+    if (v && typeof v.transp === "number") { fundoTransp = v.transp; try { localStorage.setItem("kz-fundo-transp", String(fundoTransp)); } catch {} }
     aplicarFundo(v && v.img ? v.img : "");
     try { localStorage.setItem("kz-fundo", JSON.stringify(v && v.img ? { k, img: v.img } : null)); } catch {}
     let viuManual = true;
@@ -2534,13 +2556,19 @@ function reduzirFundo(f, max = 1600, q = 0.72) {
   });
 }
 $("btnFundo").addEventListener("click", () => abrirFundo(false));
+let transpT = 0;
+$("fundoTransp").addEventListener("input", (e) => {
+  fundoTransp = +e.target.value; aplicarTransp();
+  try { localStorage.setItem("kz-fundo-transp", String(fundoTransp)); } catch {}
+  clearTimeout(transpT); transpT = setTimeout(() => { const k = chaveFundo(); if (k && fb) fb.D.update(fb.D.ref(fb.db, `${COL_FUNDOS}/${k}`), { transp: fundoTransp }).catch(() => {}); }, 600);
+});
 $("fundoEscolher").addEventListener("click", () => $("fundoFicheiro").click());
 $("fundoFicheiro").addEventListener("change", async (e) => {
   const f = e.target.files[0]; e.target.value = ""; if (!f) return;
   const st = $("fundoStatus"); st.className = "status"; st.textContent = "A preparar a fotografia…";
   try {
     const img = await reduzirFundo(f);
-    await guardarFundo({ img, em: new Date().toISOString() });
+    await guardarFundo({ img, em: new Date().toISOString(), transp: fundoTransp });
     aplicarFundo(img); $("dlgFundo").dataset.pergunta = "";
     st.textContent = "Fundo guardado."; $("fundoFechar").textContent = "Fechar";
   } catch { st.textContent = "Não consegui usar esta imagem. Experimente outra (JPG ou PNG)."; st.className = "status err"; }

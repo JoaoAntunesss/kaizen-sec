@@ -716,6 +716,9 @@
       <a class="btn small primary" id="fundoManAbrir" href="manual-plataforma.pdf" target="_blank" rel="noopener">Ler o manual</a>
     </div>
     <div class="fundo-prev" id="fundoPrev" hidden></div>
+    <label class="f fundo-transp" id="fundoTranspBox" hidden>Transparência das caixas <span id="fundoTranspV" class="muted small"></span>
+      <input type="range" id="fundoTransp" min="0" max="100" step="5" value="0" aria-describedby="fundoTranspAj"></label>
+    <p class="muted small" id="fundoTranspAj" hidden>As caixas deixam ver a fotografia por trás, desfocada. Conforme a fotografia seja clara ou escura, a plataforma limita a transparência para o texto continuar a ler-se bem.</p>
     <p class="status" id="fundoStatus"></p>
     <input type="file" id="fundoFicheiro" accept="image/*" hidden>
     <div class="dlg-acts">

@@ -876,3 +876,16 @@ button.ur-t.on{border-color:#c98a1a}
 body.p-mapa .mpp{box-shadow:none;border:0}
 .mp-uni{display:flex;align-items:center;gap:6px;font-size:13px;font-weight:600;color:var(--muted);margin-left:auto}
 .mp-uni select{font:inherit;font-weight:500;color:var(--ink);padding:5px 8px;border:1px solid var(--line);border-radius:8px;background:var(--surface)}
+
+/* Fundo personalizado */
+body.com-fundo{background:var(--bg) var(--fundo-img) center/cover fixed no-repeat}
+body.com-fundo::before{content:"";position:fixed;inset:0;background:color-mix(in srgb,var(--bg) 35%,transparent);pointer-events:none;z-index:-1}
+body.com-fundo .panel{box-shadow:0 4px 18px rgba(0,0,0,.18)}
+.dlg-fundo{border:0;border-radius:14px;padding:0;max-width:440px;width:calc(100% - 32px);background:var(--surface);color:var(--ink);box-shadow:0 20px 60px rgba(0,0,0,.35)}
+.dlg-fundo::backdrop{background:rgba(10,20,35,.45)}
+.dlg-in{padding:20px;display:flex;flex-direction:column;gap:12px}
+.dlg-in h2{margin:0;font-size:18px}
+.dlg-in p{margin:0}
+.fundo-prev{height:150px;border-radius:10px;background:center/cover no-repeat;border:1px solid var(--line)}
+.dlg-acts{display:flex;flex-wrap:wrap;gap:8px;justify-content:flex-end}
+@media print{body.com-fundo{background:none}body.com-fundo::before{display:none}}

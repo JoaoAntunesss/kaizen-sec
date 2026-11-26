@@ -24,6 +24,7 @@
   <div class="top-actions">
     <button class="btn small primary desk" id="btnNovaTop" type="button" hidden>Registar reunião</button>
     <span class="quem-sou" id="quemSou" hidden></span>
+    <button class="btn small ghost" id="btnFundo" type="button" hidden>Fundo</button>
     <button class="btn small" id="btnInstalar" type="button" hidden>Instalar app</button>
     <button class="btn small ghost" id="btnSair" type="button" hidden>Sair</button>
   </div>
@@ -658,6 +659,20 @@
     </div>
   </section>
 </main>
+<dialog id="dlgFundo" class="dlg-fundo" aria-labelledby="dlgFundoT">
+  <form method="dialog" class="dlg-in">
+    <h2 id="dlgFundoT">Imagem de fundo</h2>
+    <p class="muted" id="dlgFundoTxt">Pode escolher uma fotografia para o fundo da aplicação. Fica só na sua conta e aparece em todos os aparelhos onde entrar.</p>
+    <div class="fundo-prev" id="fundoPrev" hidden></div>
+    <p class="status" id="fundoStatus"></p>
+    <input type="file" id="fundoFicheiro" accept="image/*" hidden>
+    <div class="dlg-acts">
+      <button class="btn small primary" id="fundoEscolher" type="button">Escolher fotografia</button>
+      <button class="btn small ghost danger" id="fundoRemover" type="button" hidden>Remover fundo</button>
+      <button class="btn small ghost" id="fundoFechar" value="fechar">Agora não</button>
+    </div>
+  </form>
+</dialog>
 <div id="mpPrint" class="mp-print" aria-hidden="true"></div>
 
 <button class="fab" id="fab" type="button" hidden aria-label="Registar reunião">

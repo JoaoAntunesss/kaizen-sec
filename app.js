@@ -45,6 +45,7 @@ function mostrar(v) {
   $("fab").hidden = v !== "vPainel";
   $("btnNovaTop").hidden = v !== "vPainel";
   $("btnSair").hidden = !est.user;
+  $("btnFundo").hidden = !est.user;
   $("mainNav").hidden = !est.user || v === "vLogin" || v === "vConfig";
   const sec = { vEquipa: "vPainel", vRelatorio: "vPainel", vReuniao: "vPainel", vRegistar: "vPainel", vImprimir: "vPainel", vMapaPainel: "vMapas" }[v] || v;
   document.querySelectorAll("#mainNav .nav-b").forEach((b) => b.classList.toggle("on", b.dataset.v === sec));
@@ -80,7 +81,7 @@ async function iniciarFirebase() {
   fb.A.onAuthStateChanged(fb.auth, async (u) => {
     est.user = null; est.assina = false; est.admin = false; est.conta = ""; mostrarQuemSou();
     $("btnMestreAbrir").hidden = true;
-    if (!u) { chatLimparUI(); fecharMestre(); mostrar("vLogin"); return; }
+    if (!u) { chatLimparUI(); fecharMestre(); aplicarFundo(""); mostrar("vLogin"); return; }
     let c = null;
     try { c = u.email ? CONTAS[await hashEmail(u.email)] : null; } catch {}
     if (fb.auth.currentUser !== u) return;
@@ -100,6 +101,7 @@ async function iniciarFirebase() {
     subscrever();
     if (est.urgentes) desenharUrgentes();
     desenharHist();
+    carregarFundo();
   });
 }
 function msgErroLogin(e) {
@@ -2225,6 +2227,75 @@ $("mapasLista").addEventListener("click", async (e) => {
   try { await fb.D.remove(fb.D.ref(fb.db, `${COL_MAPAS}/${b.dataset.mapaRm}`)); }
   catch { $("mapasStatus").textContent = "Não consegui retirar. Verifique a internet."; $("mapasStatus").className = "status err"; }
 });
+
+/* ---------------- Fundo personalizado (por conta) ---------------- */
+// Guardado em kaizen_fundos/<nome> (imagem reduzida, JPEG) e em cache local para aparecer logo ao abrir.
+const COL_FUNDOS = "kaizen_fundos";
+const chaveFundo = () => (est.conta || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+function aplicarFundo(img) {
+  document.body.classList.toggle("com-fundo", !!img);
+  document.body.style.setProperty("--fundo-img", img ? `url("${img}")` : "none");
+  const pv = $("fundoPrev"); if (pv) { pv.hidden = !img; pv.style.backgroundImage = img ? `url("${img}")` : ""; }
+  $("fundoRemover").hidden = !img;
+}
+try { const c = JSON.parse(localStorage.getItem("kz-fundo") || "null"); if (c && c.img) aplicarFundo(c.img); } catch {}
+async function carregarFundo() {
+  const k = chaveFundo(); if (!k || !fb) return;
+  try {
+    const snap = await fb.D.get(fb.D.ref(fb.db, `${COL_FUNDOS}/${k}`)); const v = snap.val();
+    if (chaveFundo() !== k) return;
+    aplicarFundo(v && v.img ? v.img : "");
+    try { localStorage.setItem("kz-fundo", JSON.stringify(v && v.img ? { k, img: v.img } : null)); } catch {}
+    if (!v) abrirFundo(true); // ainda nunca respondeu: pergunta uma vez
+  } catch {}
+}
+function abrirFundo(pergunta = false) {
+  $("dlgFundoTxt").textContent = pergunta
+    ? `Olá ${est.conta.split(" ")[0]}. Agora pode escolher uma fotografia para o fundo da aplicação. Fica só na sua conta e aparece em todos os aparelhos onde entrar. Pode mudar mais tarde no botão «Fundo».`
+    : "Escolha uma fotografia para o fundo da aplicação. Fica só na sua conta e aparece em todos os aparelhos onde entrar.";
+  $("fundoFechar").textContent = pergunta ? "Agora não" : "Fechar";
+  $("fundoStatus").textContent = "";
+  const d = $("dlgFundo"); if (!d.open) d.showModal();
+  d.dataset.pergunta = pergunta ? "1" : "";
+}
+async function guardarFundo(v) {
+  const k = chaveFundo(); if (!k || !fb) throw new Error("sem conta");
+  await fb.D.set(fb.D.ref(fb.db, `${COL_FUNDOS}/${k}`), v);
+  try { localStorage.setItem("kz-fundo", JSON.stringify(v.img ? { k, img: v.img } : null)); } catch {}
+}
+// Reduz a fotografia (lado maior 1600 px, JPEG) para caber bem na base de dados
+function reduzirFundo(f, max = 1600, q = 0.72) {
+  return new Promise((ok, falha) => {
+    const url = URL.createObjectURL(f), im = new Image();
+    im.onload = () => {
+      const r = Math.min(1, max / Math.max(im.naturalWidth, im.naturalHeight));
+      const c = document.createElement("canvas"); c.width = Math.round(im.naturalWidth * r); c.height = Math.round(im.naturalHeight * r);
+      c.getContext("2d").drawImage(im, 0, 0, c.width, c.height); URL.revokeObjectURL(url);
+      let d = c.toDataURL("image/jpeg", q); if (d.length > 600000) d = c.toDataURL("image/jpeg", 0.5);
+      ok(d);
+    };
+    im.onerror = () => { URL.revokeObjectURL(url); falha(new Error("img")); };
+    im.src = url;
+  });
+}
+$("btnFundo").addEventListener("click", () => abrirFundo(false));
+$("fundoEscolher").addEventListener("click", () => $("fundoFicheiro").click());
+$("fundoFicheiro").addEventListener("change", async (e) => {
+  const f = e.target.files[0]; e.target.value = ""; if (!f) return;
+  const st = $("fundoStatus"); st.className = "status"; st.textContent = "A preparar a fotografia…";
+  try {
+    const img = await reduzirFundo(f);
+    await guardarFundo({ img, em: new Date().toISOString() });
+    aplicarFundo(img); $("dlgFundo").dataset.pergunta = "";
+    st.textContent = "Fundo guardado."; $("fundoFechar").textContent = "Fechar";
+  } catch { st.textContent = "Não consegui usar esta imagem. Experimente outra (JPG ou PNG)."; st.className = "status err"; }
+});
+$("fundoRemover").addEventListener("click", async () => {
+  try { await guardarFundo({ recusado: true, em: new Date().toISOString() }); aplicarFundo(""); $("fundoStatus").textContent = "Fundo removido."; $("fundoStatus").className = "status"; }
+  catch { $("fundoStatus").textContent = "Não consegui remover. Tente outra vez."; $("fundoStatus").className = "status err"; }
+});
+// «Agora não» na primeira pergunta: não volta a perguntar
+$("dlgFundo").addEventListener("close", () => { if ($("dlgFundo").dataset.pergunta === "1") { $("dlgFundo").dataset.pergunta = ""; guardarFundo({ recusado: true, em: new Date().toISOString() }).catch(() => {}); } });
 
 /* ---------------- Painéis dos mapas (Empreitadas / Fornecimentos) ---------------- */
 // Os dados só existem na base de dados: quem tem o Excel carrega uma cópia e o painel fica igual para todos.

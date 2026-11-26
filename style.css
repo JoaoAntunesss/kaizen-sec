@@ -1000,3 +1000,11 @@ body.com-fundo.transp.transp-alta .urg-col{border:1px solid color-mix(in srgb,va
 body.com-fundo.transp.transp-alta :is(.panel,.equipa-hoje) :is(h1,h2,h3,h4,p,label,span,small,strong,.muted,.chip):not(.urg-item *){text-shadow:0 1px 2px color-mix(in srgb,var(--bg) 85%,transparent),0 0 8px color-mix(in srgb,var(--bg) 60%,transparent)}
 body.com-fundo.transp.transp-alta .ur-t{background:color-mix(in srgb,var(--accent-soft) 45%,transparent);-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px)}
 body.com-fundo.transp.transp-alta :is(.panel,.equipa-hoje) :is(.card,.tile,.ct,.hor-d,.leg-sec,.man-item,.regra,.dr-ato,.mapa,.mp-ficha,.mestre,.hist-g){background:color-mix(in srgb,var(--surface) 40%,transparent);border-color:color-mix(in srgb,var(--ink) 16%,transparent)}
+.dr-tabs{margin-top:10px;display:inline-flex}
+.dr-item{position:relative}
+.dr-item .dr-ato{padding-right:46px}
+.dr-fav{position:absolute;top:8px;right:8px;width:34px;height:34px;border-radius:50%;border:0;background:transparent;color:var(--muted);display:inline-flex;align-items:center;justify-content:center;cursor:pointer}
+.dr-fav svg{fill:none}
+.dr-fav:hover{color:#d9a400;background:color-mix(in srgb,#d9a400 12%,transparent)}
+.dr-fav.on{color:#d9a400}.dr-fav.on svg{fill:currentColor}
+.dr-tabs button[aria-pressed="true"]{background:var(--accent-soft);color:var(--accent);font-weight:700}

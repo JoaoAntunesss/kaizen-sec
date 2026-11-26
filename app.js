@@ -927,19 +927,51 @@ async function drCarregar() {
   catch { if (!drAtos) { st.textContent = "Não consegui carregar a lista. Verifique a internet."; st.className = "status err"; } }
   drDesenhar();
 }
-function drDesenhar() {
-  if (!drAtos) return;
-  const q = cpNorm($("drQ").value), l = q ? drAtos.filter((a) => cpNorm(`${a.titulo} ${a.sumario}`).includes(q)) : drAtos;
-  $("drLista").innerHTML = l.length ? `<p class="muted small">${l.length} ato${l.length === 1 ? "" : "s"}${q ? ` com «${esc($("drQ").value.trim())}»` : ""}</p>` + l.slice(0, 200).map((a) => `<a class="dr-ato" href="${esc(a.link)}" target="_blank" rel="noopener">
-      <span class="dr-top"><b>${esc(a.ato)}</b><span class="dr-meta">Série ${esc(a.serie)} · ${a.data ? esc(fmt(a.data)) : ""}</span></span><span class="dr-sum">${esc(a.sumario)}</span></a>`).join("")
-    : `<p class="empty">${drAtos.length ? "Nenhum ato na lista com esse texto. Carregue em «Pesquisar no DR» para procurar em todo o Diário da República." : "Ainda não foi publicado nenhum ato de Matosinhos desde que a recolha começou. Os novos aparecem aqui sozinhos."}</p>`;
+// Favoritos do DR: guardados na conta de cada pessoa (ficam mesmo depois de saírem da semana)
+const COL_DR_FAV = "kaizen_dr_fav";
+let drFav = {}, drVista = "semana";
+const drId = (a) => (a.link || a.titulo || "").replace(/^https?:\/\//, "").replace(/[^A-Za-z0-9]+/g, "_").slice(-120);
+async function drCarregarFav() {
+  const k = chaveFundo(); if (!k || !fb) return;
+  try { const v = (await fb.D.get(fb.D.ref(fb.db, `${COL_DR_FAV}/${k}`))).val(); drFav = v || {}; } catch {}
+  drDesenhar();
 }
+function drAlternarFav(id) {
+  const k = chaveFundo(); if (!k || !fb) return;
+  const a = drFav[id] || (drAtos || []).find((x) => drId(x) === id); if (!a) return;
+  const ref = fb.D.ref(fb.db, `${COL_DR_FAV}/${k}/${id}`);
+  if (drFav[id]) { delete drFav[id]; fb.D.remove(ref).catch(() => {}); }
+  else { const g = { data: a.data || "", serie: a.serie || "", ato: a.ato || "", titulo: a.titulo || "", sumario: a.sumario || "", link: a.link || "", guardadoEm: new Date().toISOString() };
+    drFav[id] = g; fb.D.set(ref, g).catch(() => {}); }
+  drDesenhar();
+}
+function drDesenhar() {
+  const favs = Object.values(drFav).sort((x, y) => String(y.data).localeCompare(String(x.data)));
+  $("drTabFav").textContent = `Favoritos (${favs.length})`;
+  $("drTabSem").classList.toggle("on", drVista === "semana"); $("drTabFav").classList.toggle("on", drVista === "fav");
+  $("drTabSem").setAttribute("aria-pressed", drVista === "semana"); $("drTabFav").setAttribute("aria-pressed", drVista === "fav");
+  if (drVista === "semana" && !drAtos) return;
+  const limite = new Date(Date.now() - 7 * 864e5).toISOString().slice(0, 10);
+  const base = drVista === "fav" ? favs : drAtos.filter((a) => !a.data || a.data >= limite);
+  const q = cpNorm($("drQ").value), l = q ? base.filter((a) => cpNorm(`${a.ato} ${a.titulo} ${a.sumario}`).includes(q)) : base;
+  const vazio = q ? "Nenhum ato com esse texto. Carregue em «Pesquisar no DR» para procurar em todo o Diário da República."
+    : drVista === "fav" ? "Ainda não tem favoritos. Carregue na estrela de um ato para o guardar aqui."
+    : "Nenhum ato de Matosinhos nos últimos 7 dias. Os novos aparecem aqui sozinhos.";
+  $("drLista").innerHTML = l.length ? `<p class="muted small">${l.length} ato${l.length === 1 ? "" : "s"}${drVista === "semana" ? " nos últimos 7 dias" : " guardados"}${q ? ` com «${esc($("drQ").value.trim())}»` : ""}</p>` + l.slice(0, 200).map((a) => { const id = drId(a), f = !!drFav[id];
+      return `<div class="dr-item"><a class="dr-ato" href="${esc(a.link)}" target="_blank" rel="noopener">
+      <span class="dr-top"><b>${esc(a.ato)}</b><span class="dr-meta">Série ${esc(a.serie)} · ${a.data ? esc(fmt(a.data)) : ""}</span></span><span class="dr-sum">${esc(a.sumario)}</span></a>
+      <button class="dr-fav${f ? " on" : ""}" type="button" data-drfav="${esc(id)}" aria-pressed="${f}" title="${f ? "Tirar dos favoritos" : "Guardar nos favoritos"}" aria-label="${f ? "Tirar dos favoritos" : "Guardar nos favoritos"}"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M12 3.5l2.6 5.3 5.9.9-4.3 4.1 1 5.8L12 16.9l-5.2 2.7 1-5.8-4.3-4.1 5.9-.9z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></svg></button></div>`; }).join("")
+    : `<p class="empty">${vazio}</p>`;
+}
+$("drLista").addEventListener("click", (e) => { const b = e.target.closest("[data-drfav]"); if (b) drAlternarFav(b.dataset.drfav); });
+$("drTabSem").addEventListener("click", () => { drVista = "semana"; drDesenhar(); });
+$("drTabFav").addEventListener("click", () => { drVista = "fav"; drDesenhar(); });
 $("drQ").addEventListener("input", drDesenhar);
 $("drForm").addEventListener("submit", (e) => {
   e.preventDefault(); const q = $("drQ").value.trim() || "Matosinhos";
   window.open(`https://www.google.com/search?q=${encodeURIComponent(`site:diariodarepublica.pt ${/matosinhos/i.test(q) ? q : q + " Matosinhos"}`)}`, "_blank", "noopener");
 });
-$("drBox").addEventListener("toggle", () => { if ($("drBox").open) drCarregar(); });
+$("drBox").addEventListener("toggle", () => { if ($("drBox").open) { drCarregar(); drCarregarFav(); } });
 
 // Rádio Secretaria: só carrega quando se abre a caixa; ao fechar a caixa, a rádio para
 const RADIO_URL = "https://joaoantunesss.github.io/Radio/";

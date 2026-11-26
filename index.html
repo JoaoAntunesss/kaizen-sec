@@ -601,11 +601,12 @@
 
       <details class="leg-sec" id="drBox">
         <summary>Diário da República · Matosinhos</summary>
-        <p class="muted small radio-nota">Atos publicados no Diário da República que referem Matosinhos (avisos, editais, regulamentos, despachos, concursos…). A lista é atualizada sozinha três vezes por dia, nos dias úteis, a partir das publicações diárias do DR, e cresce a partir de 26/11/2026.</p>
+        <p class="muted small radio-nota">Atos publicados no Diário da República que referem Matosinhos (avisos, editais, regulamentos, despachos, concursos…). A lista é atualizada sozinha três vezes por dia, nos dias úteis, a partir das publicações diárias do DR. Mostra os atos dos últimos 7 dias; carregue na estrela para guardar um ato nos seus favoritos, onde fica sempre.</p>
         <form class="sp-bar" id="drForm" autocomplete="off">
           <input type="search" id="drQ" placeholder="Filtrar a lista (ex.: regulamento, edital, Leça) ou pesquisar no DR" aria-label="Filtrar ou pesquisar no Diário da República">
           <button class="btn small" type="submit">Pesquisar no DR</button>
         </form>
+        <div class="seg dr-tabs" role="group" aria-label="Ver"><button type="button" id="drTabSem" class="on" aria-pressed="true">Esta semana</button><button type="button" id="drTabFav" aria-pressed="false">Favoritos (0)</button></div>
         <p class="status" id="drStatus"></p>
         <div class="dr-lista" id="drLista"></div>
       </details>

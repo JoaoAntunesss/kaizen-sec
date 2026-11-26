@@ -765,9 +765,10 @@ function itemUrg(u, feito) {
   ].join("");
   const sit = feito ? (u.situacao ? `<span class="chip">${esc(u.situacao)}</span>` : "")
     : `<select class="urg-sit" data-urg="sit" data-id="${esc(u.id)}" aria-label="Situação do ${esc(u.edoc)}">${SITUACOES.map((s) => `<option${s === (u.situacao || "Outro") ? " selected" : ""}>${esc(s)}</option>`).join("")}</select>`;
-  const meta = feito ? `Tratado por ${esc(u.tratadoPor || "")} a ${esc(quando(u.tratadoEm))} · adicionado por ${esc(u.criadoPor || "")} a ${esc(quando(u.criadoEm))}` : `Adicionado por ${esc(u.criadoPor || "")} a ${esc(quando(u.criadoEm))}`;
+  const meta = feito ? `${u.arquivado ? `Arquivado por ${esc(u.arquivadoPor || "")} a ${esc(quando(u.arquivadoEm))} · ` : ""}Tratado por ${esc(u.tratadoPor || "")} a ${esc(quando(u.tratadoEm))} · adicionado por ${esc(u.criadoPor || "")} a ${esc(quando(u.criadoEm))}` : `Adicionado por ${esc(u.criadoPor || "")} a ${esc(quando(u.criadoEm))}`;
   const acts = feito
-    ? (est.assina ? `<button class="btn small ghost" type="button" data-urg="desfazer" data-id="${esc(u.id)}">Desfazer</button>` : "")
+    ? (u.arquivado ? `<button class="btn small ghost" type="button" data-urg="desarquivar" data-id="${esc(u.id)}">Desarquivar</button>`
+        : `<button class="btn small ghost" type="button" data-urg="arquivar" data-id="${esc(u.id)}">Arquivar</button>`) + (est.assina && !u.arquivado ? `<button class="btn small ghost" type="button" data-urg="desfazer" data-id="${esc(u.id)}">Desfazer</button>` : "")
     : `${est.assina && u.situacao === "Ofício por assinar" ? `<button class="btn small primary" type="button" data-urg="devolver" data-id="${esc(u.id)}">Devolver para corrigir</button>` : ""}
        ${u.situacao === DEVOLVIDO ? `<button class="btn small primary" type="button" data-urg="reenviar" data-id="${esc(u.id)}">Reenviar para assinatura</button>` : ""}
        ${est.assina ? `<button class="btn small ok" type="button" data-urg="tratado" data-id="${esc(u.id)}">Marcar como tratado</button>` : `<span class="urg-aguarda">${u.situacao === "Ofício por assinar" ? `Aguarda ${esc(QUEM_ASSINA)}` : ""}</span>`}
@@ -792,8 +793,13 @@ function desenharUrgentes() {
     .map(([v, t]) => `<button type="button" class="fchip${v === urgFiltro ? " on" : ""}" data-filtro="${esc(v)}" aria-pressed="${v === urgFiltro}">${esc(t)}</button>`).join("") : "";
   const vis = urgFiltro ? abertos.filter((u) => (u.situacao || "Outro") === urgFiltro) : abertos;
   $("urgLista").innerHTML = vis.length ? vis.map((u) => itemUrg(u, false)).join("") : `<p class="empty">Sem Edocs urgentes por tratar.</p>`;
-  $("urgFeitos").innerHTML = feitos.length ? feitos.slice(0, 100).map((u) => itemUrg(u, true)).join("") : `<p class="empty">Ainda nenhum tratado.</p>`;
-  $("urgFeitosN").textContent = `(${feitos.length})`;
+  // tratados por arquivar ficam em «Tratados»; os arquivados passam para «Arquivados» (continuam no histórico)
+  const porArq = feitos.filter((u) => !u.arquivado), arq = feitos.filter((u) => u.arquivado).sort((x, y) => String(y.arquivadoEm).localeCompare(String(x.arquivadoEm)));
+  $("urgFeitos").innerHTML = (porArq.length > 1 ? `<div class="arq-barra"><span class="muted small">Arquive os que já viu ou deu seguimento: deixam de aparecer aqui.</span><button class="btn small ghost" type="button" data-urg="arquivar-todos">Arquivar todos (${porArq.length})</button></div>` : "")
+    + (porArq.length ? porArq.slice(0, 150).map((u) => itemUrg(u, true)).join("") : `<p class="empty">Nenhum tratado por arquivar.</p>`);
+  $("urgFeitosN").textContent = `(${porArq.length})`;
+  $("urgArqN").textContent = `(${arq.length})`;
+  $("urgArq").innerHTML = arq.length ? arq.slice(0, 200).map((u) => itemUrg(u, true)).join("") : `<p class="empty">Ainda nada arquivado.</p>`;
   desenharHist();
   $("urgVerRes").textContent = verDe ? `${verDe}: ${abertos.length} por tratar · ${feitos.length} já tratado${feitos.length === 1 ? "" : "s"}` : "";
   const semana = new Date(Date.now() - 7 * 864e5).toISOString();
@@ -900,6 +906,22 @@ $("vDiario").addEventListener("click", async (e) => {
   const id = b.dataset.id, acao = b.dataset.urg, ref = fb.D.ref(fb.db, `${COL_URGENTES}/${id}`);
   const st = $("urgStatus");
   if (["devolver", "tratado", "desfazer"].includes(acao) && !est.assina) { st.textContent = `Só ${QUEM_ASSINA} pode devolver ou marcar como tratado.`; st.className = "status err"; return; }
+  if (acao === "arquivar-todos") {
+    const l = est.urgentes.filter((u) => u.tratado && !u.arquivado && (!$("urgVerDe").value || u.criadoPor === $("urgVerDe").value));
+    if (!l.length || !confirm(`Arquivar ${l.length} Edoc${l.length === 1 ? "" : "s"} tratado${l.length === 1 ? "" : "s"}?`)) return;
+    const upd = {}, em = new Date().toISOString(), por = euNome() || quem();
+    l.forEach((u) => { upd[`${u.id}/arquivado`] = true; upd[`${u.id}/arquivadoPor`] = por; upd[`${u.id}/arquivadoEm`] = em; });
+    try { await fb.D.update(fb.D.ref(fb.db, COL_URGENTES), upd); l.forEach((u) => regHist(u, "Arquivado")); st.textContent = `${l.length} arquivado${l.length === 1 ? "" : "s"}.`; st.className = "status"; }
+    catch { st.textContent = "Não consegui guardar. Verifique a internet."; st.className = "status err"; }
+    return;
+  }
+  if (acao === "arquivar" || acao === "desarquivar") {
+    const u = est.urgentes.find((x) => x.id === id); b.disabled = true;
+    try { await fb.D.update(ref, acao === "arquivar" ? { arquivado: true, arquivadoPor: euNome() || quem(), arquivadoEm: new Date().toISOString() } : { arquivado: null, arquivadoPor: null, arquivadoEm: null });
+      regHist(u, acao === "arquivar" ? "Arquivado" : "Desarquivado"); }
+    catch { st.textContent = "Não consegui guardar. Verifique a internet."; st.className = "status err"; b.disabled = false; }
+    return;
+  }
   if (acao === "devolver") {
     const item = b.closest(".urg-item"); if (!item || item.querySelector(".urg-devbox")) return;
     item.insertAdjacentHTML("beforeend", `<form class="urg-devbox" data-id="${esc(id)}"><label class="f">Motivo da devolução<textarea rows="2" maxlength="500" required placeholder="Ex.: falta o n.º de submissão; o prazo indicado está errado"></textarea></label><button class="btn small ghost" type="button" data-cancel-dev>Cancelar</button><button class="btn small primary" type="submit">Devolver</button></form>`);
@@ -925,7 +947,7 @@ $("vDiario").addEventListener("click", async (e) => {
   try {
     const uAntes = est.urgentes.find((x) => x.id === id);
     if (acao === "tratado") await fb.D.update(ref, { tratado: true, tratadoPor: euNome() || quem(), tratadoEm: new Date().toISOString() });
-    else if (acao === "desfazer") await fb.D.update(ref, { tratado: false, tratadoPor: null, tratadoEm: null });
+    else if (acao === "desfazer") await fb.D.update(ref, { tratado: false, tratadoPor: null, tratadoEm: null, arquivado: null, arquivadoPor: null, arquivadoEm: null });
     else if (acao === "apagar") await fb.D.remove(ref);
     regHist(uAntes, { tratado: "Tratado", desfazer: "Tratado desfeito (voltou aos urgentes)", apagar: "Apagado" }[acao]);
   } catch { st.textContent = "Não consegui guardar. Verifique a internet."; st.className = "status err"; b.disabled = false; }

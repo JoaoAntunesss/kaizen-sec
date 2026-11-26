@@ -802,3 +802,4 @@ button.ur-t.on{border-color:#c98a1a}
 .pv-barra{display:flex;align-items:center;gap:8px;padding:8px 10px;background:var(--surface)}
 .pv-n{font-variant-numeric:tabular-nums;font-weight:700;min-width:64px;text-align:center}
 .pv-esp{flex:1}
+.arq-barra{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin:6px 0 10px}

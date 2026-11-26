@@ -1,0 +1,24 @@
+name: Diário da República (Matosinhos)
+on:
+  schedule:
+    - cron: "23 7,12,18 * * 1-5"
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: [scripts/dr_matosinhos.py, .github/workflows/dr-matosinhos.yml]
+permissions:
+  contents: write
+concurrency: dr-matosinhos
+jobs:
+  recolher:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: python3 scripts/dr_matosinhos.py
+      - name: Guardar se houver atos novos
+        run: |
+          if [ -n "$(git status --porcelain dados)" ]; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add dados && git commit -m "Diário da República: novos atos de Matosinhos" && git push
+          fi

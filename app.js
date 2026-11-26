@@ -918,6 +918,29 @@ async function spLimpar() {
   } catch {}
 }
 
+// Diário da República · Matosinhos: lista recolhida pelo GitHub (dados/dr-matosinhos.json), lida diretamente do repositório
+const DR_URL = "https://raw.githubusercontent.com/JoaoAntunesss/kaizen-sec/main/dados/dr-matosinhos.json";
+let drAtos = null;
+async function drCarregar() {
+  const st = $("drStatus"); st.className = "status"; st.textContent = drAtos ? "" : "A carregar…";
+  try { const r = await fetch(`${DR_URL}?h=${Math.floor(Date.now() / 6e5)}`, { cache: "no-store" }); if (!r.ok) throw 0; drAtos = await r.json(); st.textContent = ""; }
+  catch { if (!drAtos) { st.textContent = "Não consegui carregar a lista. Verifique a internet."; st.className = "status err"; } }
+  drDesenhar();
+}
+function drDesenhar() {
+  if (!drAtos) return;
+  const q = cpNorm($("drQ").value), l = q ? drAtos.filter((a) => cpNorm(`${a.titulo} ${a.sumario}`).includes(q)) : drAtos;
+  $("drLista").innerHTML = l.length ? `<p class="muted small">${l.length} ato${l.length === 1 ? "" : "s"}${q ? ` com «${esc($("drQ").value.trim())}»` : ""}</p>` + l.slice(0, 200).map((a) => `<a class="dr-ato" href="${esc(a.link)}" target="_blank" rel="noopener">
+      <span class="dr-top"><b>${esc(a.ato)}</b><span class="dr-meta">Série ${esc(a.serie)} · ${a.data ? esc(fmt(a.data)) : ""}</span></span><span class="dr-sum">${esc(a.sumario)}</span></a>`).join("")
+    : `<p class="empty">${drAtos.length ? "Nenhum ato na lista com esse texto. Carregue em «Pesquisar no DR» para procurar em todo o Diário da República." : "Ainda não foi publicado nenhum ato de Matosinhos desde que a recolha começou. Os novos aparecem aqui sozinhos."}</p>`;
+}
+$("drQ").addEventListener("input", drDesenhar);
+$("drForm").addEventListener("submit", (e) => {
+  e.preventDefault(); const q = $("drQ").value.trim() || "Matosinhos";
+  window.open(`https://www.google.com/search?q=${encodeURIComponent(`site:diariodarepublica.pt ${/matosinhos/i.test(q) ? q : q + " Matosinhos"}`)}`, "_blank", "noopener");
+});
+$("drBox").addEventListener("toggle", () => { if ($("drBox").open) drCarregar(); });
+
 // Rádio Secretaria: só carrega quando se abre a caixa; ao fechar a caixa, a rádio para
 const RADIO_URL = "https://joaoantunesss.github.io/Radio/";
 $("radioBox").addEventListener("toggle", () => {

@@ -1310,7 +1310,7 @@ function tempoHTML(iso, curto = true) {
 async function carregarTempo() {
   try {
     const c = JSON.parse(localStorage.getItem("kz-tempo") || "null");
-    if (c && Date.now() - c.em < 3 * 3600e3 && c.dias) { tempo = c.dias; return; }
+    if (c && Date.now() - c.em < 2 * 3600e3 && c.dias) { tempo = c.dias; return; }
   } catch {}
   try {
     const r = await fetch(TEMPO_URL); if (!r.ok) return;
@@ -1320,7 +1320,11 @@ async function carregarTempo() {
     try { localStorage.setItem("kz-tempo", JSON.stringify({ em: Date.now(), dias: novo })); } catch {}
   } catch {}
 }
-carregarTempo().then(() => { desenharHorario(); try { desenharEquipaHoje(); } catch {} });
+const atualizarTempo = () => carregarTempo().then(() => { desenharHorario(); try { desenharEquipaHoje(); } catch {} });
+atualizarTempo();
+// Com a app aberta o dia todo: volta a buscar a previsão de hora a hora (a cache dura 3 horas) e ao voltar à janela
+setInterval(atualizarTempo, 3600e3);
+document.addEventListener("visibilitychange", () => { if (!document.hidden) atualizarTempo(); });
 
 function desenharHorario() {
   if (!$("horGrid")) return;

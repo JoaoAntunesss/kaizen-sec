@@ -59,7 +59,7 @@ window.addEventListener("resize", navSetas);
 new MutationObserver(navSetas).observe($("mainNav"), { attributes: true, attributeFilter: ["hidden"] });
 
 /* ---------------- Vistas ---------------- */
-const VISTAS = ["vLogin", "vConfig", "vPainel", "vReuniao", "vRegistar", "vImprimir", "vEquipa", "vRelatorio", "vPowerBI", "vDiario", "vMapas", "vOficios", "vRegras", "vManual", "vContactos", "vHorario", "vMapaPainel"];
+const VISTAS = ["vLogin", "vConfig", "vPainel", "vReuniao", "vRegistar", "vImprimir", "vEquipa", "vRelatorio", "vPowerBI", "vDiario", "vMapas", "vOficios", "vRegras", "vManual", "vContactos", "vHorario", "vMapaPainel", "vFerramentas"];
 function mostrar(v) {
   for (const id of VISTAS) $(id).hidden = id !== v;
   $("fab").hidden = v !== "vPainel";
@@ -864,6 +864,7 @@ function desenharUrgentes() {
 }
 $("btnDiario").addEventListener("click", () => abrirDiario());
 $("btnOficios").addEventListener("click", () => mostrar("vOficios"));
+$("btnFerramentas").addEventListener("click", () => { mostrar("vFerramentas"); if ($("cpBox").open) cpPrepararConcelhos(); });
 $("btnKaizen").addEventListener("click", () => { mostrar("vPainel"); desenharPainel(); });
 function formNovo(abrir) { $("urgNovo").hidden = !abrir; $("btnUrgNovo").setAttribute("aria-expanded", String(abrir)); $("btnUrgNovo").textContent = abrir ? "Fechar" : "+ Adicionar Edoc"; if (abrir) $("urgEdoc").focus(); }
 $("btnUrgNovo").addEventListener("click", () => formNovo($("urgNovo").hidden));

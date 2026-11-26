@@ -2401,6 +2401,7 @@ function desenharManual() {
       ${m.prazos ? `<h4>Prazos</h4><p>${esc(m.prazos)}</p>` : ""}
       ${m.legislacao ? `<h4>Legislação</h4><p>${esc(m.legislacao)}</p>` : ""}
       ${m.notas ? `<h4>Notas</h4><p>${esc(m.notas)}</p>` : ""}
+      ${docUrl(m.doc) ? `<h4>Apresentação / documento</h4><div class="man-doc"><a class="btn small primary" href="${esc(docUrl(m.doc))}" target="_blank" rel="noopener">Abrir${/sharepoint\.com|onedrive|1drv\.ms/i.test(m.doc) ? " no PowerPoint" : ""}</a>${embedUrl(m.doc) ? `<button type="button" class="btn small ghost" data-man-ver="${esc(m.id)}">Ver aqui</button>` : ""}<span class="muted small">Precisa de ter sessão iniciada com a conta da Câmara.</span></div><div class="man-embed" data-man-embed="${esc(m.id)}"></div>` : ""}
       ${(m.modelos || []).length ? `<h4>Modelos de ofício</h4><div class="man-mods">${m.modelos.map((t) => `<button type="button" class="ct-b" data-man-mod="${esc(t)}" title="Abrir em Do Edoc ao ofício">${esc(t)}</button>`).join("")}</div>` : ""}
       <div class="man-acoes">
         <span class="muted small">${m.editadoEm ? `Atualizado por ${esc(m.editadoPor || "?")} em ${esc(quando(m.editadoEm))}` : "Versão inicial do manual"}</span>
@@ -2413,13 +2414,16 @@ function desenharManual() {
 }
 $("manQ").addEventListener("input", desenharManual);
 $("manAreas").addEventListener("click", (e) => { const b = e.target.closest("[data-area]"); if (!b) return; manArea = b.dataset.area; desenharManual(); });
+// link de um documento (SharePoint/OneDrive da Câmara): só se aceita https; fica guardado na base de dados, não no código
+const docUrl = (u) => { try { const x = new URL(String(u || "").trim()); return x.protocol === "https:" ? x.href : ""; } catch { return ""; } };
+const embedUrl = (u) => { const h = docUrl(u); if (!/\.sharepoint\.com\//i.test(h)) return ""; const x = new URL(h); x.searchParams.set("action", "embedview"); return x.href; };
 function abrirManForm(m) {
   manEditar = m ? m.id : null;
   $("manFormT").textContent = m ? "Editar procedimento" : "Novo procedimento";
   $("mfArea").innerHTML = AREAS_MANUAL.map((a) => `<option${m && m.area === a ? " selected" : ""}>${esc(a)}</option>`).join("");
   $("mfTitulo").value = m ? m.titulo : ""; $("mfQuando").value = m ? m.quando || "" : "";
   $("mfPassos").value = m ? (m.passos || []).join("\n") : ""; $("mfPrazos").value = m ? m.prazos || "" : "";
-  $("mfLeg").value = m ? m.legislacao || "" : ""; $("mfNotas").value = m ? m.notas || "" : "";
+  $("mfLeg").value = m ? m.legislacao || "" : ""; $("mfNotas").value = m ? m.notas || "" : ""; $("mfDoc").value = m ? m.doc || "" : "";
   const sel = new Set(m ? m.modelos || [] : []);
   $("mfMods").innerHTML = MODELOS_OFICIO.map((x) => `<label class="mf-chk"><input type="checkbox" value="${esc(x.t)}"${sel.has(x.t) ? " checked" : ""}> ${esc(x.t)}</label>`).join("");
   $("manForm").hidden = false; $("manForm").scrollIntoView({ behavior: "smooth", block: "start" }); $("mfTitulo").focus({ preventScroll: true });
@@ -2433,7 +2437,7 @@ $("manForm").addEventListener("submit", async (e) => {
   if (!$("mfTitulo").value.trim() || !passos.length) { manMsg("Indique o título e pelo menos um passo.", true); return; }
   const atual = manEditar ? manualLista().find((m) => m.id === manEditar) : null;
   const dados = { titulo: $("mfTitulo").value.trim().slice(0, 120), area: $("mfArea").value, quando: $("mfQuando").value.trim().slice(0, 400), passos,
-    prazos: $("mfPrazos").value.trim().slice(0, 600), legislacao: $("mfLeg").value.trim().slice(0, 600), notas: $("mfNotas").value.trim().slice(0, 600),
+    prazos: $("mfPrazos").value.trim().slice(0, 800), legislacao: $("mfLeg").value.trim().slice(0, 800), notas: $("mfNotas").value.trim().slice(0, 2500), doc: docUrl($("mfDoc").value),
     modelos: [...$("mfMods").querySelectorAll("input:checked")].map((i) => i.value), p: atual ? atual.p || [] : [],
     editadoPor: euNome() || quem(), editadoEm: new Date().toISOString() };
   try {
@@ -2447,6 +2451,13 @@ $("manLista").addEventListener("click", async (e) => {
   const lista = manualLista();
   if (b.dataset.manMod) return abrirEdocOficio(b.dataset.manMod);
   if (b.dataset.manEdit) return abrirManForm(lista.find((m) => m.id === b.dataset.manEdit));
+  if (b.dataset.manVer) {
+    const m = lista.find((x) => x.id === b.dataset.manVer), box = $("manLista").querySelector(`[data-man-embed="${CSS.escape(b.dataset.manVer)}"]`);
+    if (!m || !box) return;
+    if (box.innerHTML) { box.innerHTML = ""; b.textContent = "Ver aqui"; return; }
+    box.innerHTML = `<iframe src="${esc(embedUrl(m.doc))}" title="${esc(m.titulo)}" allowfullscreen loading="lazy"></iframe><p class="muted small">Se aparecer um pedido de início de sessão ou ficar em branco, use «Abrir no PowerPoint».</p>`;
+    b.textContent = "Fechar"; return;
+  }
   if (b.dataset.manPerg) { const m = lista.find((x) => x.id === b.dataset.manPerg); abrirAssistente(); $("chatTxt").value = `Tenho um caso de «${m.titulo}». `; $("chatTxt").focus(); return; }
   const id = b.dataset.manRepor || b.dataset.manRm; if (!id) return;
   if (b.dataset.ok !== "1") { const t = b.textContent; b.dataset.ok = "1"; b.textContent = "Confirmar"; setTimeout(() => { b.dataset.ok = ""; b.textContent = t; }, 4000); return; }

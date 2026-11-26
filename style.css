@@ -790,3 +790,6 @@ button.ur-t.on{border-color:#c98a1a}
 .hist-tl{margin:8px 0 0;padding-left:18px;display:flex;flex-direction:column;gap:4px;font-size:14px}
 .hist-tl li.t-dev strong{color:var(--late)}.hist-tl li.t-trat strong{color:var(--ok)}
 .hist-tl .hist-m{display:block}
+.man-doc{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.man-embed iframe{width:100%;aspect-ratio:16/10;border:1px solid var(--line);border-radius:10px;margin-top:10px;background:#fff}
+.man-embed:empty{display:none}

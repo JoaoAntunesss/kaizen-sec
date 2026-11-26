@@ -10,6 +10,7 @@ const COL_REGRAS = "kaizen_regras";
 const COL_CONTACTOS = "kaizen_contactos";
 const COL_RECADOS = "kaizen_recados";
 const COL_HORARIO = "kaizen_horario";
+const COL_HIST = "kaizen_historico";
 const COL_MANUAL = "kaizen_manual";
 // Equipa: vem da base de dados (editável na app); enquanto não houver, usa a lista do config.js
 let EQUIPA = EQUIPA_INICIAL.map((p) => ({ ...p }));
@@ -81,6 +82,7 @@ async function iniciarFirebase() {
       try { localStorage.setItem("kz-urg-por", c.nome); } catch {}
       if ($("urgPor") && [...$("urgPor").options].some((o) => o.value === c.nome)) $("urgPor").value = c.nome;
       if (est.urgentes) desenharUrgentes();
+      desenharHist();
     }).catch(() => {});
     $("btnMestreAbrir").hidden = !u; if (u) olaMestre();
     if (!u) { chatLimparUI(); fecharMestre(); mostrar("vLogin"); return; }
@@ -129,6 +131,7 @@ function subscrever() {
   }, () => {});
   lerLista(COL_CONTACTOS, "contactos", () => desenharContactos());
   lerLista(COL_RECADOS, "recados", () => desenharEquipaHoje());
+  D.onValue(D.query(D.ref(db, COL_HIST), D.limitToLast(2000)), (snap) => { est.hist = Object.entries(snap.val() || {}).map(([id, h]) => ({ id, ...h })); desenharHist(); }, () => {});
   lerLista(COL_MANUAL, "manualBD", () => desenharManual());
   D.onValue(D.ref(db, COL_HORARIO), (snap) => { const v = snap.val() || {}; est.horario = { equipas: v.equipas || {}, dias: v.dias || {} }; desenharHorario(); desenharEquipaHoje(); }, () => {});
   D.onValue(D.ref(db, COL_REGRAS), (snap) => {
@@ -789,6 +792,7 @@ function desenharUrgentes() {
   $("urgLista").innerHTML = vis.length ? vis.map((u) => itemUrg(u, false)).join("") : `<p class="empty">Sem Edocs urgentes por tratar.</p>`;
   $("urgFeitos").innerHTML = feitos.length ? feitos.slice(0, 100).map((u) => itemUrg(u, true)).join("") : `<p class="empty">Ainda nenhum tratado.</p>`;
   $("urgFeitosN").textContent = `(${feitos.length})`;
+  desenharHist();
   $("urgVerRes").textContent = verDe ? `${verDe}: ${abertos.length} por tratar · ${feitos.length} já tratado${feitos.length === 1 ? "" : "s"}` : "";
   const semana = new Date(Date.now() - 7 * 864e5).toISOString();
   const nAtraso = abertos.filter((u) => isoData(u.prazo) && u.prazo < hoje()).length;
@@ -822,18 +826,22 @@ $("urgForm").addEventListener("submit", async (e) => {
   if (est.urgentes.some((u) => !u.tratado && u.edoc === edoc)) { st.textContent = `O ${edoc} já está na lista de urgentes.`; st.className = "status err"; return; }
   $("btnUrgAdd").disabled = true;
   try {
-    await fb.D.set(fb.D.push(fb.D.ref(fb.db, COL_URGENTES)), {
+    const novoRef = fb.D.push(fb.D.ref(fb.db, COL_URGENTES)), novo = {
       edoc, assunto: $("urgAssunto").value.trim(), prio: +$("urgPrio").value || 2,
       nota: $("urgNota").value.trim(), resp: $("urgResp").value, prazo: $("urgPrazo").value || "",
       situacao: $("urgSit").value || "Outro", situacaoEm: new Date().toISOString(),
       link: linkEdoc($("urgLink").value),
       tratado: false, criadoPor: $("urgPor").value, criadoEm: new Date().toISOString(),
-    });
+    };
+    await fb.D.set(novoRef, novo);
+    regHist({ id: novoRef.key, ...novo }, novo.situacao === "Ofício por assinar" ? "Adicionado e enviado para assinatura" : "Adicionado");
     const porEsc = $("urgPor").value; try { localStorage.setItem("kz-urg-por", porEsc); } catch {}
     $("urgForm").reset(); $("urgSit").value = SITUACOES[0]; $("urgPrio").value = "2"; $("urgPor").value = porEsc; st.textContent = `${edoc} adicionado.`; st.className = "status"; formNovo(false);
   } catch { st.textContent = "Não consegui guardar. Verifique a internet."; st.className = "status err"; }
   $("btnUrgAdd").disabled = false;
 });
+["histTipo", "histPor"].forEach((id) => $(id).addEventListener("change", desenharHist));
+$("histQ").addEventListener("input", desenharHist);
 $("urgVerDe").addEventListener("change", () => {
   try { localStorage.setItem("kz-urg-ver", $("urgVerDe").value); } catch {}
   if ($("urgVerDe").value) $("urgFeitosBox").open = true;
@@ -858,8 +866,9 @@ $("urgLista").addEventListener("submit", async (e) => {
   try {
     await fb.D.update(fb.D.ref(fb.db, `${COL_URGENTES}/${u.id}`), {
       situacao: DEVOLVIDO, situacaoEm: agora, situacaoPor: por,
-      devolucao: { por, em: agora, motivo: f.querySelector("input").value.trim().slice(0, 300) }, devolucoes: (u.devolucoes || 0) + 1,
+      devolucao: { por, em: agora, motivo: f.querySelector("textarea").value.trim().slice(0, 500) }, devolucoes: (u.devolucoes || 0) + 1,
     });
+    regHist(u, "Devolvido para correção", { motivo: f.querySelector("textarea").value.trim().slice(0, 500) });
     st.textContent = `${u.edoc} devolvido para correção.`; st.className = "status";
   } catch { st.textContent = "Não consegui guardar. Verifique a internet."; st.className = "status err"; }
 });
@@ -868,7 +877,10 @@ $("urgFiltros").addEventListener("click", (e) => { const b = e.target.closest("[
 $("urgLista").addEventListener("change", async (e) => {
   const s = e.target.closest('[data-urg="sit"], [data-urg="prio"]'); if (!s) return;
   const dados = s.dataset.urg === "prio" ? { prio: +s.value } : { situacao: s.value, situacaoEm: new Date().toISOString(), situacaoPor: euNome() || quem() };
-  try { await fb.D.update(fb.D.ref(fb.db, `${COL_URGENTES}/${s.dataset.id}`), dados); }
+  try { await fb.D.update(fb.D.ref(fb.db, `${COL_URGENTES}/${s.dataset.id}`), dados);
+    const u = est.urgentes.find((x) => x.id === s.dataset.id);
+    if (u && dados.situacao) regHist(u, dados.situacao === "Ofício por assinar" ? "Enviado para assinatura" : `Situação: ${dados.situacao}`);
+    if (u && dados.prio) regHist({ ...u, prio: dados.prio }, `Prioridade: ${PRIO[dados.prio]}`); }
   catch { $("urgStatus").textContent = "Não consegui guardar. Verifique a internet."; $("urgStatus").className = "status err"; }
 });
 $("vDiario").addEventListener("click", async (e) => {
@@ -878,12 +890,12 @@ $("vDiario").addEventListener("click", async (e) => {
   if (["devolver", "tratado", "desfazer"].includes(acao) && !est.assina) { st.textContent = `Só ${QUEM_ASSINA} pode devolver ou marcar como tratado.`; st.className = "status err"; return; }
   if (acao === "devolver") {
     const item = b.closest(".urg-item"); if (!item || item.querySelector(".urg-devbox")) return;
-    item.insertAdjacentHTML("beforeend", `<form class="urg-devbox" data-id="${esc(id)}"><label class="f">O que há a corrigir (opcional)<input type="text" maxlength="300" placeholder="Ex.: falta o n.º de submissão; prazo errado"></label><button class="btn small ghost" type="button" data-cancel-dev>Cancelar</button><button class="btn small primary" type="submit">Devolver</button></form>`);
-    item.querySelector(".urg-devbox input").focus(); return;
+    item.insertAdjacentHTML("beforeend", `<form class="urg-devbox" data-id="${esc(id)}"><label class="f">Motivo da devolução<textarea rows="2" maxlength="500" required placeholder="Ex.: falta o n.º de submissão; o prazo indicado está errado"></textarea></label><button class="btn small ghost" type="button" data-cancel-dev>Cancelar</button><button class="btn small primary" type="submit">Devolver</button></form>`);
+    item.querySelector(".urg-devbox textarea").focus(); return;
   }
   if (acao === "reenviar") {
     b.disabled = true;
-    try { await fb.D.update(ref, { situacao: "Ofício por assinar", situacaoEm: new Date().toISOString(), situacaoPor: euNome() || quem(), reenviadoEm: new Date().toISOString() }); st.textContent = "Reenviado para assinatura."; st.className = "status"; }
+    try { await fb.D.update(ref, { situacao: "Ofício por assinar", situacaoEm: new Date().toISOString(), situacaoPor: euNome() || quem(), reenviadoEm: new Date().toISOString() }); regHist(est.urgentes.find((x) => x.id === id), "Reenviado para assinatura"); st.textContent = "Reenviado para assinatura."; st.className = "status"; }
     catch { st.textContent = "Não consegui guardar. Verifique a internet."; st.className = "status err"; b.disabled = false; }
     return;
   }
@@ -899,11 +911,57 @@ $("vDiario").addEventListener("click", async (e) => {
   if (acao === "apagar" && b.dataset.ok !== "1") { b.dataset.ok = "1"; b.textContent = "Confirmar apagar"; setTimeout(() => { b.dataset.ok = ""; b.textContent = "Apagar"; }, 4000); return; }
   b.disabled = true;
   try {
+    const uAntes = est.urgentes.find((x) => x.id === id);
     if (acao === "tratado") await fb.D.update(ref, { tratado: true, tratadoPor: euNome() || quem(), tratadoEm: new Date().toISOString() });
     else if (acao === "desfazer") await fb.D.update(ref, { tratado: false, tratadoPor: null, tratadoEm: null });
     else if (acao === "apagar") await fb.D.remove(ref);
+    regHist(uAntes, { tratado: "Tratado", desfazer: "Tratado desfeito (voltou aos urgentes)", apagar: "Apagado" }[acao]);
   } catch { st.textContent = "Não consegui guardar. Verifique a internet."; st.className = "status err"; b.disabled = false; }
 });
+
+/* ---------------- Histórico dos Edocs (enviados, devolvidos, tratados…) ---------------- */
+est.hist = est.hist || [];
+function regHist(u, acao, extra = {}) {
+  if (!fb || !u) return;
+  fb.D.set(fb.D.push(fb.D.ref(fb.db, COL_HIST)), { uid: u.id || "", edoc: u.edoc || "", assunto: String(u.assunto || "").slice(0, 200), prio: prioDe(u), link: u.link || "",
+    acao, por: euNome() || quem(), em: new Date().toISOString(), ...extra }).catch(() => {});
+}
+const TIPO_HIST = (a) => /devolvid/i.test(a) ? "dev" : /desfeito/i.test(a) ? "outro" : /tratad/i.test(a) ? "trat" : /assinatura/i.test(a) ? "env" : "outro";
+function eventosHist() {
+  const ev = [...est.hist];
+  const comLog = new Set(ev.map((h) => h.uid));
+  // Edocs de antes do histórico: reconstrói o que se sabe a partir do próprio Edoc
+  est.urgentes.filter((u) => !comLog.has(u.id)).forEach((u) => {
+    const b = { uid: u.id, edoc: u.edoc, assunto: u.assunto, prio: prioDe(u), link: u.link, antigo: true };
+    if (u.criadoEm) ev.push({ ...b, acao: "Adicionado", por: u.criadoPor, em: u.criadoEm });
+    if (u.devolucao && u.devolucao.em) ev.push({ ...b, acao: "Devolvido para correção", por: u.devolucao.por, em: u.devolucao.em, motivo: u.devolucao.motivo });
+    if (u.tratado && u.tratadoEm) ev.push({ ...b, acao: "Tratado", por: u.tratadoPor, em: u.tratadoEm });
+  });
+  return ev.filter((h) => h.em).sort((x, y) => String(y.em).localeCompare(String(x.em)));
+}
+function desenharHist() {
+  const box = $("histBox"); if (!box) return;
+  box.hidden = !est.assina; if (!est.assina) return;
+  const tipo = $("histTipo").value, pes = $("histPor").value, q = normCt($("histQ").value.trim());
+  const todos = eventosHist();
+  const pessoas = [...new Set(todos.map((h) => h.por).filter(Boolean))].sort((a, b) => a.localeCompare(b, "pt"));
+  $("histPor").innerHTML = `<option value="">Todos</option>` + pessoas.map((p) => `<option${p === pes ? " selected" : ""}>${esc(p)}</option>`).join("");
+  const l = todos.filter((h) => (!tipo || TIPO_HIST(h.acao) === tipo) && (!pes || h.por === pes) && (!q || normCt(`${h.edoc} ${h.assunto} ${h.motivo || ""}`).includes(q)));
+  const mes = new Date(); mes.setDate(1); const iniMes = isoD(mes);
+  const doMes = todos.filter((h) => String(h.em).slice(0, 10) >= iniMes);
+  const n = (t) => doMes.filter((h) => TIPO_HIST(h.acao) === t).length;
+  const pl = (k, s, p) => `${k} ${k === 1 ? s : p}`;
+  $("histRes").textContent = `Este mês: ${pl(n("env"), "enviado", "enviados")} para assinatura · ${pl(n("dev"), "devolvido", "devolvidos")} · ${pl(n("trat"), "tratado", "tratados")}`;
+  let dia = "";
+  $("histLista").innerHTML = l.length ? l.slice(0, 400).map((h) => {
+    const d = String(h.em).slice(0, 10);
+    const cab = d !== dia ? `<h4 class="hist-dia">${esc(fmt((dia = d)))}</h4>` : "";
+    const ed = h.link ? `<a class="urg-a" href="${esc(h.link)}" target="_blank" rel="noopener">${esc(h.edoc)}</a>` : esc(h.edoc);
+    return `${cab}<div class="hist-l t-${TIPO_HIST(h.acao)}"><span class="hist-h">${esc(new Date(h.em).toLocaleTimeString("pt-PT", { hour: "2-digit", minute: "2-digit" }))}</span>
+      <span class="hist-a">${esc(h.acao)}</span><span class="hist-e">${ed}${h.assunto ? ` — ${esc(h.assunto)}` : ""}${h.motivo ? `<span class="hist-m">${esc(h.motivo)}</span>` : ""}</span>
+      <span class="hist-p">${esc(h.por || "")}${h.antigo ? " · registo anterior" : ""}</span></div>`;
+  }).join("") : `<p class="empty">Sem registos com estes filtros.</p>`;
+}
 
 /* ---------------- Notificações (neste computador) ---------------- */
 const NOTIF_KEY = "kz-notif";
@@ -1877,11 +1935,12 @@ async function submeterAssinar(f, st) {
   if (!link) { st.textContent = "Cole o link da página do Edoc (https://edoc.cm-matosinhos.pt/...)."; st.className = "status err"; f.link.focus(); return false; }
   const ja = est.urgentes.find((u) => !u.tratado && u.edoc === edoc);
   try {
+    if (ja) regHist(ja, "Enviado para assinatura");
     if (ja) await fb.D.update(fb.D.ref(fb.db, `${COL_URGENTES}/${ja.id}`), { situacao: "Ofício por assinar", situacaoEm: new Date().toISOString(), situacaoPor: euNome() || quem(), link: ja.link || link });
-    else await fb.D.set(fb.D.push(fb.D.ref(fb.db, COL_URGENTES)), {
+    else { const r = fb.D.push(fb.D.ref(fb.db, COL_URGENTES)), novo = {
       edoc, assunto: f.assunto.value.trim().slice(0, 200), prio: +f.prio.value || 2, nota: "Assinar o ofício", resp: "", prazo: "",
       situacao: "Ofício por assinar", situacaoEm: new Date().toISOString(), link, tratado: false, criadoPor: euNome() || quem(), criadoEm: new Date().toISOString(),
-    });
+    }; await fb.D.set(r, novo); regHist({ id: r.key, ...novo }, "Adicionado e enviado para assinatura"); }
     st.textContent = ja ? `${edoc} já estava nos urgentes: passou para «Ofício por assinar».` : `${edoc} criado como «Ofício por assinar».`; st.className = "status";
     return true;
   } catch { st.textContent = "Não consegui guardar. Verifique a internet."; st.className = "status err"; return false; }
@@ -1903,12 +1962,14 @@ $("chatMsgs").addEventListener("submit", async (e) => {
   const edoc = normEdocTxt(ac.edoc);
   if (est.urgentes.some((u) => !u.tratado && u.edoc === edoc)) { st.textContent = `O ${edoc} já está na lista de urgentes.`; st.className = "status err"; return; }
   try {
-    await fb.D.set(fb.D.push(fb.D.ref(fb.db, COL_URGENTES)), {
+    const rM = fb.D.push(fb.D.ref(fb.db, COL_URGENTES));
+    await fb.D.set(rM, {
       edoc, assunto: String(ac.assunto || "").slice(0, 200), prio: [1, 2, 3].includes(+ac.prio) ? +ac.prio : 2, nota: String(ac.nota || "").slice(0, 300),
       resp: EQUIPA.some((p) => p.nome === ac.resp) ? ac.resp : "", prazo: isoData(ac.prazo) ? ac.prazo : "",
       situacao: SITUACOES.includes(ac.situacao) ? ac.situacao : "Outro", situacaoEm: new Date().toISOString(), link,
       tratado: false, criadoPor: euNome() || quem(), criadoEm: new Date().toISOString(),
     });
+    regHist({ id: rM.key, edoc, assunto: ac.assunto, prio: ac.prio, link }, "Adicionado (pelo MESTRE)");
     m.feito = true; await chatGravar(c); desenharChat(); st.textContent = `${edoc} adicionado aos Edocs urgentes.`; st.className = "status";
   } catch { st.textContent = "Não consegui guardar. Verifique a internet."; st.className = "status err"; }
 });

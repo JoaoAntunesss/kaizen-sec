@@ -766,3 +766,17 @@ button.ur-t.on{border-color:#c98a1a}
 .chip.urg-dev{white-space:normal}
 .urg-aguarda{font-size:13px;font-weight:600;color:var(--muted);align-self:center}
 .urg-aguarda:empty{display:none}
+
+/* Histórico (só a chefia) */
+.hist-filtros{display:grid;grid-template-columns:220px 200px 1fr;gap:10px;margin:10px 0}
+@media (max-width:720px){.hist-filtros{grid-template-columns:1fr}}
+.hist-dia{margin:14px 0 6px;font-size:13px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em}
+.hist-l{display:grid;grid-template-columns:52px 230px 1fr auto;gap:10px;align-items:baseline;padding:8px 10px;border-radius:8px;border-left:3px solid var(--line);background:var(--bg);margin-bottom:4px;font-size:14px}
+.hist-l.t-env{border-left-color:#c98a1a}.hist-l.t-dev{border-left-color:var(--late)}.hist-l.t-trat{border-left-color:var(--ok)}
+.hist-h{font-variant-numeric:tabular-nums;color:var(--muted);font-weight:600}
+.hist-a{font-weight:700}
+.hist-l.t-dev .hist-a{color:var(--late)}.hist-l.t-trat .hist-a{color:var(--ok)}
+.hist-m{display:block;font-size:13px;color:var(--late)}
+.hist-p{font-size:13px;color:var(--muted);text-align:right}
+@media (max-width:720px){.hist-l{grid-template-columns:48px 1fr}.hist-e,.hist-p{grid-column:2}.hist-p{text-align:left}}
+.urg-devbox textarea{width:100%;resize:vertical;font:inherit}

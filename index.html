@@ -239,6 +239,15 @@
         <summary>Tratados <span id="urgFeitosN"></span></summary>
         <div class="urg-list" id="urgFeitos"></div>
       </details>
+      <details class="urg-done hist" id="histBox" hidden>
+        <summary>Histórico <span class="muted small" id="histRes"></span></summary>
+        <div class="hist-filtros">
+          <label class="f">Ação<select id="histTipo"><option value="">Todas</option><option value="env">Enviados para assinatura</option><option value="dev">Devolvidos</option><option value="trat">Tratados</option><option value="outro">Outras</option></select></label>
+          <label class="f">Quem<select id="histPor"><option value="">Todos</option></select></label>
+          <label class="f">Procurar<input type="search" id="histQ" placeholder="N.º do Edoc, assunto, motivo…"></label>
+        </div>
+        <div class="hist-lista" id="histLista"></div>
+      </details>
       <details class="urg-notif" id="notifBox">
         <summary>Notificações neste computador <span class="notif-est" id="notifEst"></span></summary>
         <label class="chk-i"><input type="checkbox" id="notifAssinar"><span>Avisar quando for <strong>adicionado</strong> um Edoc ou um ofício for <strong>enviado/reenviado para assinatura</strong></span></label>

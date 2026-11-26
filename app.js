@@ -75,11 +75,12 @@ async function iniciarFirebase() {
   fb = { auth: authM.getAuth(app), db: dbM.getDatabase(app), A: authM, D: dbM };
   fb.A.getRedirectResult(fb.auth).catch((e) => { $("loginStatus").textContent = msgErroLogin(e); $("loginStatus").className = "status err"; });
   fb.A.onAuthStateChanged(fb.auth, (u) => {
-    est.user = u; est.assina = false; est.admin = false; est.conta = "";
+    est.user = u; est.assina = false; est.admin = false; est.conta = ""; mostrarQuemSou();
     if (u && u.email && crypto.subtle) crypto.subtle.digest("SHA-256", new TextEncoder().encode(u.email.trim().toLowerCase())).then((h) => {
       const c = CONTAS[[...new Uint8Array(h)].map((b) => b.toString(16).padStart(2, "0")).join("")];
       if (!c || est.user !== u) return;
       est.conta = c.nome; est.admin = !!c.admin; est.assina = !!(c.assina || c.admin);
+      mostrarQuemSou();
       try { localStorage.setItem("kz-urg-por", c.nome); } catch {}
       if ($("urgPor") && [...$("urgPor").options].some((o) => o.value === c.nome)) $("urgPor").value = c.nome;
       if (est.urgentes) desenharUrgentes();
@@ -721,6 +722,14 @@ const DEVOLVIDO = "Devolvido para correção";
 // guarda-se só o resumo (SHA-256) do email, para o email não ficar à vista no código público.
 const QUEM_ASSINA = (EQUIPA_INICIAL[0] && EQUIPA_INICIAL[0].nome) || "a chefia";
 const ASSINA_HASH = "6d41b74a8be4dca7a83965a6cc6685657139ad010cc0b7c10313b93214553a15";
+// no cabeçalho: com que conta entrou e se pode devolver/tratar (ajuda a perceber porque falta um botão)
+function mostrarQuemSou() {
+  const el = $("quemSou"); if (!el) return;
+  const u = est.user; el.hidden = !u; if (!u) return;
+  el.textContent = est.conta ? `${est.conta}${est.admin ? " · administrador" : est.assina ? " · assina ofícios" : ""}` : `${u.email || ""} · conta não associada`;
+  el.title = est.conta ? `Entrou com ${u.email || ""}` : "Este email não está na lista da equipa: os botões Devolver e Marcar como tratado não aparecem.";
+  el.classList.toggle("aviso", !est.conta);
+}
 // Contas Google da equipa (só o resumo SHA-256 de cada email): a app reconhece quem entrou, em qualquer aparelho.
 const CONTAS = {
   "6d41b74a8be4dca7a83965a6cc6685657139ad010cc0b7c10313b93214553a15": { nome: "Cristina Delca", assina: true },

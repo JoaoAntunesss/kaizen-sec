@@ -922,3 +922,13 @@ body.com-fundo .panel{box-shadow:0 4px 18px rgba(0,0,0,.18)}
 .mainnav{padding-left:8px;padding-right:8px}
 .mainnav > .nav-b:first-child{margin-left:auto}
 .mainnav > .nav-b:last-child{margin-right:auto}
+/* Código postal */
+.cp-bar{display:grid;grid-template-columns:minmax(0,2fr) minmax(0,1fr);gap:10px}
+@media (max-width:640px){.cp-bar{grid-template-columns:minmax(0,1fr)}}
+.cp-res{display:flex;flex-direction:column;gap:10px;margin-top:10px}
+.cp-um{display:flex;align-items:center;gap:12px;flex-wrap:wrap;background:color-mix(in srgb,var(--s3) 14%,var(--surface));border:1px solid color-mix(in srgb,var(--s3) 40%,var(--line));border-radius:10px;padding:10px 14px}
+.cp-um span{color:var(--muted);font-size:13px}
+.cp-um b{font-size:20px;letter-spacing:.02em}
+.cp-tab{max-height:360px;overflow:auto}
+.cp-tab table{font-size:13px;width:100%}
+.cp-tab .nw{white-space:nowrap}

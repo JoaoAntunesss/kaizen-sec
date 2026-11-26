@@ -1310,6 +1310,56 @@ const isoD = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "
 const eqsOrd = () => Object.entries(est.horario.equipas).map(([id, e]) => ({ id, ...e })).sort((a, b) => (a.ordem ?? 99) - (b.ordem ?? 99) || String(a.nome).localeCompare(b.nome, "pt"));
 const corTexto = (hex) => { const h = String(hex || "#ffffff").replace("#", ""); const [r, g, b] = [0, 2, 4].map((i) => parseInt(h.slice(i, i + 2), 16) || 255); return (r * 299 + g * 587 + b * 114) / 1000 > 150 ? "#1b1b1b" : "#ffffff"; };
 const horMsg = (t, erro) => { $("horStatus").textContent = t; $("horStatus").className = "status" + (erro ? " err" : ""); };
+/* ---------------- Código postal de uma rua (Matosinhos, dados CTT carregados só quando se usa) ---------------- */
+let cpDados = null, cpT = 0;
+const cpNorm = (t) => String(t || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/[^a-z0-9 ]+/g, " ").replace(/\s+/g, " ").trim();
+const CP_PALAVRAS_VAZIAS = new Set(["rua", "r", "av", "avenida", "travessa", "tv", "trav", "praca", "largo", "de", "da", "do", "das", "dos", "e"]);
+// «Pares de 40 a 258», «Impares de 1479 a 1583», «Impares de 7 a fim», «n.º 208» → serve para este número?
+function cpServe(troco, n) {
+  if (!n || !troco) return true;
+  const m = troco.match(/(Pares|Impares)\s+de\s+(\d+)\s+a\s+(\d+|fim)/i);
+  if (m) return (n % 2 === 0) === /^pares/i.test(m[1]) && n >= +m[2] && (m[3] === "fim" || n <= +m[3]);
+  const p = troco.match(/n\.º\s*(\d+)/); if (p) return +p[1] === n;
+  const d = troco.match(/(\d+)\s+a\s+(\d+|fim)/i); if (d) return n >= +d[1] && (d[2] === "fim" || n <= +d[2]);
+  return true;
+}
+async function cpProcurar() {
+  const q = cpNorm($("cpRua").value), box = $("cpRes");
+  if (q.length < 3) { box.innerHTML = ""; return; }
+  if (!cpDados) {
+    box.innerHTML = `<p class="muted small">A carregar os códigos postais…</p>`;
+    try { cpDados = (await import("./cp-matosinhos.js")).CP_MATOSINHOS.map((r) => ({ r, k: cpNorm(`${r[0]} ${r[2]} ${r[3]} ${r[6]}`) })); }
+    catch { box.innerHTML = `<p class="status err">Não consegui carregar os códigos postais. Verifique a internet.</p>`; return; }
+  }
+  const pal = q.split(" ").filter((w) => !CP_PALAVRAS_VAZIAS.has(w));
+  const termos = pal.length ? pal : q.split(" ");
+  const n = parseInt($("cpNum").value, 10) || 0;
+  let res = cpDados.filter((x) => termos.every((w) => x.k.includes(w)));
+  const total = res.length;
+  if (n) {
+    // com número: ficam os troços cujo intervalo inclui o número; numa rua sem troços numerados, fica o código da rua toda
+    const temNum = (t) => /\d+\s+a\s+(\d+|fim)|n\.º\s*\d+/i.test(t || "");
+    const ruasNum = new Set(res.filter((x) => temNum(x.r[1])).map((x) => x.r[0] + "|" + x.r[3]));
+    res = res.filter((x) => !x.r[6] && (temNum(x.r[1]) ? cpServe(x.r[1], n) : !ruasNum.has(x.r[0] + "|" + x.r[3]) && !x.r[1]));
+  }
+  // por rua; dentro de cada rua, sem troço primeiro e depois pela ordem dos números
+  const num1 = (t) => { const m = String(t).match(/(\d+)/); return m ? +m[1] : -1; };
+  res.sort((a, b) => a.r[0].localeCompare(b.r[0], "pt") || a.r[3].localeCompare(b.r[3], "pt") || (!!a.r[6] - !!b.r[6]) || num1(a.r[1]) - num1(b.r[1]));
+  if (!res.length) { box.innerHTML = `<p class="empty">${total && n ? `Nenhum troço da rua corresponde ao n.º ${n}. Experimente sem o número.` : "Não encontrei esta rua em Matosinhos. Experimente só uma parte do nome (ex.: «Brito Capelo»)."}</p>`; return; }
+  const cps = [...new Set(res.map((x) => x.r[4]))];
+  box.innerHTML = (cps.length === 1 ? `<div class="cp-um"><span>Código postal</span><b>${esc(cps[0])} ${esc(res[0].r[5])}</b><button type="button" class="btn small" data-cp-copiar="${esc(cps[0] + " " + res[0].r[5])}">Copiar</button></div>` : "") +
+    `<div class="scroll cp-tab"><table><thead><tr><th>Rua</th><th>Troço</th><th>Localidade</th><th>Código postal</th><th></th></tr></thead><tbody>${res.slice(0, 120).map((x) => {
+      const [rua, tro, lugar, loc, cp, desig, cli] = x.r;
+      return `<tr><td>${esc(rua)}${cli ? `<br><span class="muted small">${esc(cli)}</span>` : ""}</td><td>${esc(tro || (cli ? "Código próprio" : "Toda a rua"))}</td><td>${esc(lugar ? lugar + " · " : "")}${esc(loc)}</td><td class="nw"><b>${esc(cp)}</b> ${esc(desig)}</td><td><button type="button" class="btn small ghost" data-cp-copiar="${esc(cp + " " + desig)}">Copiar</button></td></tr>`;
+    }).join("")}</tbody></table></div>${res.length > 120 ? `<p class="muted small">A mostrar 120 de ${res.length}. Escreva mais do nome para afinar.</p>` : ""}`;
+}
+$("cpRua").addEventListener("input", () => { clearTimeout(cpT); cpT = setTimeout(cpProcurar, 200); });
+$("cpNum").addEventListener("input", () => { clearTimeout(cpT); cpT = setTimeout(cpProcurar, 200); });
+$("cpRes").addEventListener("click", async (e) => {
+  const b = e.target.closest("[data-cp-copiar]"); if (!b) return;
+  try { await navigator.clipboard.writeText(b.dataset.cpCopiar); const t = b.textContent; b.textContent = "Copiado"; setTimeout(() => { b.textContent = t; }, 1500); } catch {}
+});
+
 /* ---------------- Tempo em Matosinhos (Open-Meteo, sem chave; previsão até 16 dias) ---------------- */
 const TEMPO_URL = "https://api.open-meteo.com/v1/forecast?latitude=41.1844&longitude=-8.6963&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max&timezone=Europe%2FLisbon&forecast_days=16";
 let tempo = {};

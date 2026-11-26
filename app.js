@@ -2259,8 +2259,8 @@ function marcarManualVisto() { const k = chaveFundo(); if (k && fb) fb.D.set(fb.
 function abrirAvisoManual() {
   const d = $("dlgFundo");
   d.classList.add("so-manual"); $("fundoMan").hidden = false; d.dataset.manual = "1"; d.dataset.pergunta = "";
-  $("dlgFundoT").textContent = "Manual da plataforma";
-  $("dlgFundoTxt").textContent = `Olá ${est.conta.split(" ")[0]}. Já está disponível o manual da plataforma, com os passos de cada secção e imagens. Vale a pena dar uma vista de olhos.`;
+  $("dlgFundoT").textContent = "Manual de utilização da plataforma";
+  $("dlgFundoTxt").textContent = `Olá ${est.conta.split(" ")[0]}. Já está disponível o manual de utilização da plataforma, com os passos de cada secção e imagens. Vale a pena dar uma vista de olhos.`;
   $("fundoFechar").textContent = "Mais tarde"; $("fundoStatus").textContent = "";
   if (!d.open) d.showModal();
 }

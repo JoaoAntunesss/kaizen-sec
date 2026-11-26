@@ -896,3 +896,13 @@ body.com-fundo .panel{box-shadow:0 4px 18px rgba(0,0,0,.18)}
 .fundo-man b{display:block}
 .fundo-man span{color:var(--muted);font-size:13px}
 .dlg-fundo.so-manual .fundo-prev,.dlg-fundo.so-manual #fundoEscolher,.dlg-fundo.so-manual #fundoRemover{display:none!important}
+/* Tempo em Matosinhos */
+.tempo{display:inline-flex;align-items:center;gap:3px;font-size:12px;font-weight:700;color:var(--muted);line-height:1}
+.tempo svg{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
+.tempo .ts{stroke:#d69e2e}
+.tempo.t-sol svg circle{fill:color-mix(in srgb,#f6c445 45%,transparent)}
+.tempo .tc{stroke:#3182ce}
+.tempo small{font-weight:600;opacity:.8}
+.hor-d .tempo{position:absolute;top:8px;right:8px;color:var(--ink);opacity:.8}
+.hor-d.fora .tempo{display:none}
+#horHoje .tempo{margin:0 4px}

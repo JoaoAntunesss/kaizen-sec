@@ -1251,7 +1251,7 @@ const isoMais = (dias) => { const d = new Date(); d.setDate(d.getDate() + dias);
 function ehMsg(t, erro) { $("ehStatus").textContent = t; $("ehStatus").className = "status" + (erro ? " err" : ""); }
 function desenharEquipaHoje() {
   { const { e, nota } = equipaDeHoje(); const el = $("horHoje");
-    if (el) el.innerHTML = e || nota ? `<span class="muted small">Hoje</span>${e ? `<span class="hor-chip" style="background:${esc(e.cor)};color:${corTexto(e.cor)}">Equipa ${esc(e.nome)}</span>` : ""}${nota ? `<span class="small">${esc(nota)}</span>` : ""}` : ""; }
+    if (el) el.innerHTML = e || nota || tempo[hoje()] ? `<span class="muted small">Hoje</span>${tempoHTML(hoje(), false)}${e ? `<span class="hor-chip" style="background:${esc(e.cor)};color:${corTexto(e.cor)}">Equipa ${esc(e.nome)}</span>` : ""}${nota ? `<span class="small">${esc(nota)}</span>` : ""}` : ""; }
   const rec = est.recados.filter((r) => r.texto && (r.ate || "") >= hoje()).sort((a, b) => String(b.criadoEm).localeCompare(String(a.criadoEm)));
   $("recLista").innerHTML = rec.map((r, i) => `<div class="recado c${i % 3}"><p>${esc(r.texto)}</p><div class="rec-meta"><span>${esc(r.criadoPor || "")} · até ${esc(fmt(r.ate))}</span><button type="button" class="rec-x" data-rec-rm="${esc(r.id)}" aria-label="Retirar recado">Retirar</button></div></div>`).join("");
   $("recVazio").hidden = !!rec.length || !$("recForm").hidden;
@@ -1287,6 +1287,41 @@ const isoD = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "
 const eqsOrd = () => Object.entries(est.horario.equipas).map(([id, e]) => ({ id, ...e })).sort((a, b) => (a.ordem ?? 99) - (b.ordem ?? 99) || String(a.nome).localeCompare(b.nome, "pt"));
 const corTexto = (hex) => { const h = String(hex || "#ffffff").replace("#", ""); const [r, g, b] = [0, 2, 4].map((i) => parseInt(h.slice(i, i + 2), 16) || 255); return (r * 299 + g * 587 + b * 114) / 1000 > 150 ? "#1b1b1b" : "#ffffff"; };
 const horMsg = (t, erro) => { $("horStatus").textContent = t; $("horStatus").className = "status" + (erro ? " err" : ""); };
+/* ---------------- Tempo em Matosinhos (Open-Meteo, sem chave; previsão até 16 dias) ---------------- */
+const TEMPO_URL = "https://api.open-meteo.com/v1/forecast?latitude=41.1844&longitude=-8.6963&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max&timezone=Europe%2FLisbon&forecast_days=16";
+let tempo = {};
+const TEMPO_TIPO = (c) => c === 0 ? ["sol", "Céu limpo"] : c <= 2 ? ["parcial", "Pouco nublado"] : c === 3 ? ["nuvem", "Nublado"] : c === 45 || c === 48 ? ["nevoeiro", "Nevoeiro"]
+  : c >= 51 && c <= 57 ? ["chuvisco", "Chuvisco"] : (c >= 61 && c <= 67) || (c >= 80 && c <= 82) ? ["chuva", c >= 80 ? "Aguaceiros" : "Chuva"] : (c >= 71 && c <= 77) || c === 85 || c === 86 ? ["neve", "Neve"] : c >= 95 ? ["trovoada", "Trovoada"] : ["nuvem", "Nublado"];
+const ICONE_TEMPO = {
+  sol: '<circle cx="12" cy="12" r="4.2" class="ts"/><path class="ts" d="M12 2.5v2.2M12 19.3v2.2M2.5 12h2.2M19.3 12h2.2M5.3 5.3l1.6 1.6M17.1 17.1l1.6 1.6M5.3 18.7l1.6-1.6M17.1 6.9l1.6-1.6"/>',
+  parcial: '<circle cx="9" cy="9" r="3.4" class="ts"/><path class="ts" d="M9 2.8v1.4M2.8 9h1.4M4.6 4.6l1 1M13.4 4.6l-1 1"/><path d="M8.5 19.5h9a3.5 3.5 0 0 0 .3-7 5 5 0 0 0-9.5 1.2 2.9 2.9 0 0 0 .2 5.8z"/>',
+  nuvem: '<path d="M7 18.5h10.5a4 4 0 0 0 .4-8 5.8 5.8 0 0 0-11 1.4A3.3 3.3 0 0 0 7 18.5z"/>',
+  nevoeiro: '<path d="M7 13.5h10.5a3.6 3.6 0 0 0 .3-7.2 5.3 5.3 0 0 0-10.1 1.3A3 3 0 0 0 7 13.5z"/><path d="M4 17h16M6 20.5h12"/>',
+  chuvisco: '<path d="M7 14.5h10.5a3.8 3.8 0 0 0 .4-7.6 5.5 5.5 0 0 0-10.4 1.3A3.2 3.2 0 0 0 7 14.5z"/><path class="tc" d="M9 18v.6M12.5 18v.6M16 18v.6M10.7 21v.6M14.3 21v.6"/>',
+  chuva: '<path d="M7 14.5h10.5a3.8 3.8 0 0 0 .4-7.6 5.5 5.5 0 0 0-10.4 1.3A3.2 3.2 0 0 0 7 14.5z"/><path class="tc" d="M9 17.5l-1 3M13 17.5l-1 3M17 17.5l-1 3"/>',
+  trovoada: '<path d="M7 14h10.5a3.8 3.8 0 0 0 .4-7.6 5.5 5.5 0 0 0-10.4 1.3A3.2 3.2 0 0 0 7 14z"/><path class="ts" d="M12.5 14.5l-2.2 3.6h3l-2 3.6"/>',
+  neve: '<path d="M7 14.5h10.5a3.8 3.8 0 0 0 .4-7.6 5.5 5.5 0 0 0-10.4 1.3A3.2 3.2 0 0 0 7 14.5z"/><path class="tc" d="M9 18.5h.01M12.5 18.5h.01M16 18.5h.01M10.7 21h.01M14.3 21h.01"/>',
+};
+function tempoHTML(iso, curto = true) {
+  const t = tempo[iso]; if (!t) return "";
+  const [k, nome] = TEMPO_TIPO(t.c), dica = `Matosinhos: ${nome}, máx. ${t.max}° / mín. ${t.min}°${t.p != null ? `, chuva ${t.p}%` : ""}`;
+  return `<span class="tempo t-${k}" title="${esc(dica)}" aria-label="${esc(dica)}"><svg viewBox="0 0 24 24" aria-hidden="true">${ICONE_TEMPO[k]}</svg>${t.max}°${curto ? "" : `<small>/${t.min}°</small>`}</span>`;
+}
+async function carregarTempo() {
+  try {
+    const c = JSON.parse(localStorage.getItem("kz-tempo") || "null");
+    if (c && Date.now() - c.em < 3 * 3600e3 && c.dias) { tempo = c.dias; return; }
+  } catch {}
+  try {
+    const r = await fetch(TEMPO_URL); if (!r.ok) return;
+    const j = await r.json(), d = j.daily || {}, novo = {};
+    (d.time || []).forEach((iso, i) => { novo[iso] = { c: d.weather_code[i], max: Math.round(d.temperature_2m_max[i]), min: Math.round(d.temperature_2m_min[i]), p: d.precipitation_probability_max ? d.precipitation_probability_max[i] : null }; });
+    tempo = novo;
+    try { localStorage.setItem("kz-tempo", JSON.stringify({ em: Date.now(), dias: novo })); } catch {}
+  } catch {}
+}
+carregarTempo().then(() => { desenharHorario(); try { desenharEquipaHoje(); } catch {} });
+
 function desenharHorario() {
   if (!$("horGrid")) return;
   const [y, m] = horMes.split("-").map(Number);
@@ -1301,7 +1336,7 @@ function desenharHorario() {
     const fds = d.getDay() === 0 || d.getDay() === 6, fora = d.getMonth() !== m - 1, feriado = /feriado/i.test(reg.nota || "");
     html += `<button type="button" class="hor-d${fds ? " fds" : ""}${fora ? " fora" : ""}${iso === hoje() ? " hoje" : ""}${iso === horSel ? " sel" : ""}${feriado ? " fer" : ""}" data-dia="${iso}"
       ${e ? `style="--eq:${esc(e.cor)};--eqt:${corTexto(e.cor)}"` : ""} aria-label="${fmt(iso)}${e ? ", equipa " + esc(e.nome) : ""}${reg.nota ? ", " + esc(reg.nota) : ""}">
-      <span class="hor-n">${d.getDate()}</span>${e ? `<span class="hor-eq">${esc(e.nome)}</span>` : ""}${reg.nota ? `<span class="hor-nota">${esc(reg.nota)}</span>` : ""}</button>`;
+      <span class="hor-n">${d.getDate()}</span>${tempoHTML(iso)}${e ? `<span class="hor-eq">${esc(e.nome)}</span>` : ""}${reg.nota ? `<span class="hor-nota">${esc(reg.nota)}</span>` : ""}</button>`;
   }
   $("horGrid").innerHTML = html;
   $("horEdEq").innerHTML = `<option value="">— Nenhuma —</option>` + eqsOrd().map((e) => `<option value="${esc(e.id)}">${esc(e.nome)}</option>`).join("");
@@ -1310,6 +1345,7 @@ function desenharHorario() {
 function abrirDia(iso) {
   horSel = iso; const reg = est.horario.dias[iso] || {};
   $("horEd").hidden = false; $("horEdTit").textContent = `${["Domingo", "Segunda-feira", "Terça-feira", "Quarta-feira", "Quinta-feira", "Sexta-feira", "Sábado"][new Date(iso + "T12:00").getDay()]}, ${fmt(iso)}`;
+  if (tempo[iso]) { const t = tempo[iso]; $("horEdTit").textContent += ` · ${TEMPO_TIPO(t.c)[1]}, ${t.max}° / ${t.min}°${t.p != null ? `, chuva ${t.p}%` : ""}`; }
   desenharHorario(); $("horEdEq").value = reg.eq || ""; $("horEdNota").value = reg.nota || ""; $("horEdSemana").checked = false; $("horEdEq").focus();
 }
 $("btnHorario").addEventListener("click", () => { horMsg(""); desenharHorario(); mostrar("vHorario"); });

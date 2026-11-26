@@ -953,3 +953,4 @@ body.com-fundo .panel{box-shadow:0 4px 18px rgba(0,0,0,.18)}
 .mr-vol input{width:90px;accent-color:#7fb3e8}
 @media (max-width:700px){.mini-radio{left:8px;right:8px;width:auto;bottom:calc(8px + env(safe-area-inset-bottom))}.mr-vol{display:none}body.com-radio .mestre-btn{bottom:calc(84px + env(safe-area-inset-bottom))}}
 @media print{.mini-radio{display:none!important}}
+.chip.inf{background:color-mix(in srgb,var(--s1) 16%,var(--surface));color:var(--accent,#1F4E79);border-color:color-mix(in srgb,var(--s1) 40%,var(--line));font-weight:700}

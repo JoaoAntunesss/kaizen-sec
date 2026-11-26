@@ -774,7 +774,8 @@ const CONTAS = {
   "5d1d78f97ae5af3093ac5333e7c7ee2076272c7bfaea0a20e3829100f20aaaee": { nome: "Sandra Peixoto" },
   "2830d5b00080ae8887d317fa216ccd1ba3b0038e7eea257381e3079962807623": { nome: "Carlos Ribeiro" },
 };
-const SITUACOES = ["Por oficiar", "Ofício por assinar", DEVOLVIDO, "Aguarda execução", "Aguarda entidade externa", "Em análise técnica", "Outro"];
+const POR_INFORMAR = "Por informar ou encaminhar";
+const SITUACOES = ["Por oficiar", POR_INFORMAR, "Ofício por assinar", DEVOLVIDO, "Aguarda execução", "Aguarda entidade externa", "Em análise técnica", "Outro"];
 let urgFiltro = "";
 const diasDesde = (iso) => { const d = new Date(iso); return isNaN(d) ? null : Math.max(0, Math.floor((Date.now() - d) / 864e5)); };
 const quem = () => (est.user && (est.user.displayName || est.user.email)) || "";
@@ -800,6 +801,7 @@ function itemUrg(u, feito) {
   const prazoHoje = !feito && u.prazo === hoje();
   const dsit = diasDesde(u.situacaoEm || u.criadoEm);
   const chips = [
+    ehInformar(u) ? `<span class="chip inf">Para informar ou encaminhar</span>` : "",
     u.resp ? `<span class="chip">${esc(u.resp)}</span>` : "",
     isoData(u.prazo) ? `<span class="chip ${atraso ? "late" : prazoHoje ? "warn" : ""}">${atraso ? "Em atraso · " : prazoHoje ? "Hoje · " : "Prazo "}${esc(fmt(u.prazo))}</span>` : "",
     !feito && u.situacao === DEVOLVIDO && u.devolucao ? `<span class="chip late urg-dev">Devolvido${u.devolucao.para ? ` a ${esc(u.devolucao.para)}` : ""} por ${esc(u.devolucao.por || "")} a ${esc(quando(u.devolucao.em))}${u.devolucao.motivo ? ` · Corrigir: ${esc(u.devolucao.motivo)}` : ""}</span>` : "",
@@ -812,9 +814,10 @@ function itemUrg(u, feito) {
   const acts = feito
     ? (u.arquivado ? `<button class="btn small ghost" type="button" data-urg="desarquivar" data-id="${esc(u.id)}">Desarquivar</button>`
         : `<button class="btn small ghost" type="button" data-urg="arquivar" data-id="${esc(u.id)}">Arquivar</button>`) + (est.assina ? `<button class="btn small primary" type="button" data-urg="devolver" data-id="${esc(u.id)}">Devolver para corrigir</button>` : "") + (est.assina && !u.arquivado ? `<button class="btn small ghost" type="button" data-urg="desfazer" data-id="${esc(u.id)}">Desfazer</button>` : "")
-    : `${est.assina && u.situacao !== DEVOLVIDO ? `<button class="btn small ${u.situacao === "Ofício por assinar" ? "primary" : "ghost"}" type="button" data-urg="devolver" data-id="${esc(u.id)}">Devolver</button>` : ""}
+    : `${!feito && ehInformar(u) && podeFecharInformar(u) ? `<button class="btn small ok" type="button" data-urg="feito-arquivar" data-id="${esc(u.id)}">Feito · arquivar</button>` : ""}
+       ${est.assina && u.situacao !== DEVOLVIDO && !ehInformar(u) ? `<button class="btn small ${u.situacao === "Ofício por assinar" ? "primary" : "ghost"}" type="button" data-urg="devolver" data-id="${esc(u.id)}">Devolver</button>` : ""}
        ${u.situacao === DEVOLVIDO ? `<button class="btn small primary" type="button" data-urg="reenviar" data-id="${esc(u.id)}">Reenviar para assinatura</button>` : ""}
-       ${est.assina ? `<button class="btn small ok" type="button" data-urg="tratado" data-id="${esc(u.id)}">Marcar como tratado</button>` : `<span class="urg-aguarda">${u.situacao === "Ofício por assinar" ? `Aguarda ${esc(QUEM_ASSINA)}` : ""}</span>`}
+       ${ehInformar(u) ? "" : est.assina ? `<button class="btn small ok" type="button" data-urg="tratado" data-id="${esc(u.id)}">Marcar como tratado</button>` : `<span class="urg-aguarda">${u.situacao === "Ofício por assinar" ? `Aguarda ${esc(QUEM_ASSINA)}` : ""}</span>`}
        <button class="btn small ghost" type="button" data-urg="link" data-id="${esc(u.id)}">${linkDe(u) ? "Alterar link" : "Juntar link"}</button>
        <button class="btn small ghost danger" type="button" data-urg="apagar" data-id="${esc(u.id)}" aria-label="Apagar ${esc(u.edoc)}">Apagar</button>`;
   const p = prioDe(u);
@@ -918,14 +921,14 @@ $("urgForm").addEventListener("submit", async (e) => {
     const novoRef = fb.D.push(fb.D.ref(fb.db, COL_URGENTES)), novo = {
       edoc, assunto: $("urgAssunto").value.trim(), prio: +$("urgPrio").value || 2,
       nota: $("urgNota").value.trim(), resp: $("urgResp").value, prazo: $("urgPrazo").value || "",
-      situacao: $("urgSit").value || "Outro", situacaoEm: new Date().toISOString(),
+      situacao: $("urgSit").value || "Outro", situacaoEm: new Date().toISOString(), tipo: $("urgTipo").value === "informar" ? "informar" : "oficiar",
       link: linkEdoc($("urgLink").value),
       tratado: false, criadoPor: $("urgPor").value, criadoEm: new Date().toISOString(),
     };
     await fb.D.set(novoRef, novo);
     regHist({ id: novoRef.key, ...novo }, novo.situacao === "Ofício por assinar" ? "Adicionado e enviado para assinatura" : "Adicionado");
     const porEsc = $("urgPor").value; try { localStorage.setItem("kz-urg-por", porEsc); } catch {}
-    $("urgForm").reset(); $("urgSit").value = SITUACOES[0]; $("urgPrio").value = "2"; $("urgPor").value = porEsc; st.textContent = `${edoc} adicionado.`; st.className = "status"; formNovo(false);
+    $("urgForm").reset(); $("urgSit").value = SITUACOES[0]; $("urgTipo").value = "oficiar"; $("urgPrio").value = "2"; $("urgPor").value = porEsc; st.textContent = `${edoc} adicionado.`; st.className = "status"; formNovo(false);
   } catch { st.textContent = "Não consegui guardar. Verifique a internet."; st.className = "status err"; }
   $("btnUrgAdd").disabled = false;
 });
@@ -1033,11 +1036,22 @@ $("vDiario").addEventListener("click", async (e) => {
   try {
     const uAntes = est.urgentes.find((x) => x.id === id);
     if (acao === "tratado") await fb.D.update(ref, { tratado: true, tratadoPor: euNome() || quem(), tratadoEm: new Date().toISOString() });
+    else if (acao === "feito-arquivar") { const p = euNome() || quem(), t = new Date().toISOString(); await fb.D.update(ref, { tratado: true, tratadoPor: p, tratadoEm: t, arquivado: true, arquivadoPor: p, arquivadoEm: t }); }
     else if (acao === "desfazer") await fb.D.update(ref, { tratado: false, tratadoPor: null, tratadoEm: null, arquivado: null, arquivadoPor: null, arquivadoEm: null });
     else if (acao === "apagar") await fb.D.remove(ref);
-    regHist(uAntes, { tratado: "Tratado", desfazer: "Tratado desfeito (voltou aos urgentes)", apagar: "Apagado" }[acao]);
+    regHist(uAntes, { tratado: "Tratado", "feito-arquivar": "Tratado (informado ou encaminhado) e arquivado", desfazer: "Tratado desfeito (voltou aos urgentes)", apagar: "Apagado" }[acao]);
   } catch { st.textContent = "Não consegui guardar. Verifique a internet."; st.className = "status err"; b.disabled = false; }
 });
+
+// Edocs só para informar ou encaminhar (sem ofício): a situação acompanha a escolha
+$("urgTipo").addEventListener("change", () => {
+  const inf = $("urgTipo").value === "informar", sit = $("urgSit").value;
+  if (inf && (sit === "Por oficiar" || sit === "Ofício por assinar")) $("urgSit").value = POR_INFORMAR;
+  if (!inf && sit === POR_INFORMAR) $("urgSit").value = "Por oficiar";
+});
+const ehInformar = (u) => u.tipo === "informar" || u.situacao === POR_INFORMAR;
+// quem fica com o Edoc (o responsável; se não houver, quem o adicionou) pode dá-lo por feito e arquivá-lo; quem assina também
+const podeFecharInformar = (u) => est.assina || (euNome() && euNome() === (u.resp || u.criadoPor));
 
 /* ---------------- Histórico dos Edocs (enviados, devolvidos, tratados…) ---------------- */
 est.hist = est.hist || [];

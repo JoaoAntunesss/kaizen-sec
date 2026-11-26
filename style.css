@@ -892,3 +892,7 @@ body.com-fundo .panel{box-shadow:0 4px 18px rgba(0,0,0,.18)}
 .man-guia{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;background:color-mix(in srgb,var(--s1) 10%,var(--surface));border:1px solid color-mix(in srgb,var(--s1) 30%,var(--line));border-radius:10px;padding:12px 14px}
 .man-guia b{display:block;font-size:15px}
 .man-guia span{color:var(--muted);font-size:13px}
+.fundo-man{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;background:color-mix(in srgb,var(--s1) 10%,var(--surface));border:1px solid color-mix(in srgb,var(--s1) 30%,var(--line));border-radius:10px;padding:10px 12px}
+.fundo-man b{display:block}
+.fundo-man span{color:var(--muted);font-size:13px}
+.dlg-fundo.so-manual .fundo-prev,.dlg-fundo.so-manual #fundoEscolher,.dlg-fundo.so-manual #fundoRemover{display:none!important}

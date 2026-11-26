@@ -2246,10 +2246,27 @@ async function carregarFundo() {
     if (chaveFundo() !== k) return;
     aplicarFundo(v && v.img ? v.img : "");
     try { localStorage.setItem("kz-fundo", JSON.stringify(v && v.img ? { k, img: v.img } : null)); } catch {}
-    if (!v) abrirFundo(true); // ainda nunca respondeu: pergunta uma vez
+    let viuManual = true;
+    try { viuManual = !!(await fb.D.get(fb.D.ref(fb.db, `${COL_AVISOS}/${k}/manual`))).val(); } catch {}
+    if (chaveFundo() !== k) return;
+    if (!v) abrirFundo(true, !viuManual); // ainda nunca respondeu: pergunta uma vez
+    else if (!viuManual) abrirAvisoManual();
   } catch {}
 }
-function abrirFundo(pergunta = false) {
+// Aviso do manual da plataforma: aparece uma vez por conta (junto com a pergunta do fundo, ou sozinho)
+const COL_AVISOS = "kaizen_avisos";
+function marcarManualVisto() { const k = chaveFundo(); if (k && fb) fb.D.set(fb.D.ref(fb.db, `${COL_AVISOS}/${k}/manual`), new Date().toISOString()).catch(() => {}); }
+function abrirAvisoManual() {
+  const d = $("dlgFundo");
+  d.classList.add("so-manual"); $("fundoMan").hidden = false; d.dataset.manual = "1"; d.dataset.pergunta = "";
+  $("dlgFundoT").textContent = "Manual da plataforma";
+  $("dlgFundoTxt").textContent = `Olá ${est.conta.split(" ")[0]}. Já está disponível o manual da plataforma, com os passos de cada secção e imagens. Vale a pena dar uma vista de olhos.`;
+  $("fundoFechar").textContent = "Mais tarde"; $("fundoStatus").textContent = "";
+  if (!d.open) d.showModal();
+}
+function abrirFundo(pergunta = false, comManual = false) {
+  const d0 = $("dlgFundo"); d0.classList.remove("so-manual"); $("dlgFundoT").textContent = "Imagem de fundo";
+  $("fundoMan").hidden = !comManual; d0.dataset.manual = comManual ? "1" : "";
   $("dlgFundoTxt").textContent = pergunta
     ? `Olá ${est.conta.split(" ")[0]}. Agora pode escolher uma fotografia para o fundo da aplicação. Fica só na sua conta e aparece em todos os aparelhos onde entrar. Pode mudar mais tarde no botão «Fundo».`
     : "Escolha uma fotografia para o fundo da aplicação. Fica só na sua conta e aparece em todos os aparelhos onde entrar.";
@@ -2295,6 +2312,8 @@ $("fundoRemover").addEventListener("click", async () => {
   catch { $("fundoStatus").textContent = "Não consegui remover. Tente outra vez."; $("fundoStatus").className = "status err"; }
 });
 // «Agora não» na primeira pergunta: não volta a perguntar
+$("fundoManAbrir").addEventListener("click", () => { const d = $("dlgFundo"); if (d.dataset.manual === "1") { d.dataset.manual = ""; marcarManualVisto(); } if (d.classList.contains("so-manual")) d.close(); });
+$("dlgFundo").addEventListener("close", () => { if ($("dlgFundo").dataset.manual === "1") { $("dlgFundo").dataset.manual = ""; marcarManualVisto(); } });
 $("dlgFundo").addEventListener("close", () => { if ($("dlgFundo").dataset.pergunta === "1") { $("dlgFundo").dataset.pergunta = ""; guardarFundo({ recusado: true, em: new Date().toISOString() }).catch(() => {}); } });
 
 /* ---------------- Painéis dos mapas (Empreitadas / Fornecimentos) ---------------- */

@@ -1,3 +1,0 @@
-Bibliotecas de terceiros usadas pelo MESTRE (carregadas só quando são precisas):
-- docx.iife.js: docx 9.16.0 (MIT) — gerar ficheiros Word.
-- pdf.min.mjs / pdf.worker.min.mjs: pdfjs-dist 6.5.438 (Apache-2.0) — ler PDF.

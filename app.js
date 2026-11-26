@@ -73,9 +73,13 @@ async function iniciarFirebase() {
   fb = { auth: authM.getAuth(app), db: dbM.getDatabase(app), A: authM, D: dbM };
   fb.A.getRedirectResult(fb.auth).catch((e) => { $("loginStatus").textContent = msgErroLogin(e); $("loginStatus").className = "status err"; });
   fb.A.onAuthStateChanged(fb.auth, (u) => {
-    est.user = u; est.assina = false;
+    est.user = u; est.assina = false; est.admin = false; est.conta = "";
     if (u && u.email && crypto.subtle) crypto.subtle.digest("SHA-256", new TextEncoder().encode(u.email.trim().toLowerCase())).then((h) => {
-      est.assina = [...new Uint8Array(h)].map((b) => b.toString(16).padStart(2, "0")).join("") === ASSINA_HASH;
+      const c = CONTAS[[...new Uint8Array(h)].map((b) => b.toString(16).padStart(2, "0")).join("")];
+      if (!c || est.user !== u) return;
+      est.conta = c.nome; est.admin = !!c.admin; est.assina = !!(c.assina || c.admin);
+      try { localStorage.setItem("kz-urg-por", c.nome); } catch {}
+      if ($("urgPor") && [...$("urgPor").options].some((o) => o.value === c.nome)) $("urgPor").value = c.nome;
       if (est.urgentes) desenharUrgentes();
     }).catch(() => {});
     $("btnMestreAbrir").hidden = !u; if (u) olaMestre();
@@ -713,6 +717,15 @@ const DEVOLVIDO = "Devolvido para correção";
 // guarda-se só o resumo (SHA-256) do email, para o email não ficar à vista no código público.
 const QUEM_ASSINA = (EQUIPA_INICIAL[0] && EQUIPA_INICIAL[0].nome) || "a chefia";
 const ASSINA_HASH = "6d41b74a8be4dca7a83965a6cc6685657139ad010cc0b7c10313b93214553a15";
+// Contas Google da equipa (só o resumo SHA-256 de cada email): a app reconhece quem entrou, em qualquer aparelho.
+const CONTAS = {
+  "6d41b74a8be4dca7a83965a6cc6685657139ad010cc0b7c10313b93214553a15": { nome: "Cristina Delca", assina: true },
+  "3617280f9f343324a10c2691111c7b059ed43a371605800355b506c4d8bad877": { nome: "João Antunes", admin: true },
+  "42116d7e426925bcb39919fbd8f7e169d65e3ac0c8d78ca26f6c0fb33686aad4": { nome: "Isabel Pereira" },
+  "4ff1108ebfca07696d4fcc4db69ee9efea5610789d45cd01f51f9416154ff91f": { nome: "Inês Miranda" },
+  "9192620e47f8314535f98b81b7035ea959c2ab8bf8125bbbdb0b3e7b15aecc40": { nome: "Daniela Rodrigues" },
+  "5d1d78f97ae5af3093ac5333e7c7ee2076272c7bfaea0a20e3829100f20aaaee": { nome: "Sandra Peixoto" },
+};
 const SITUACOES = ["Por oficiar", "Ofício por assinar", DEVOLVIDO, "Aguarda execução", "Aguarda entidade externa", "Em análise técnica", "Outro"];
 let urgFiltro = "";
 const diasDesde = (iso) => { const d = new Date(iso); return isNaN(d) ? null : Math.max(0, Math.floor((Date.now() - d) / 864e5)); };
@@ -898,7 +911,7 @@ let abrirPendente = new URLSearchParams(location.search).get("abrir") === "diari
 let notifPref = { assinar: false, muito: false, meu: false };
 try { notifPref = { ...notifPref, ...JSON.parse(localStorage.getItem(NOTIF_KEY) || "{}") }; } catch {}
 let avisosVistos = null; // estado anterior de cada Edoc: "situação|tratado|prio"
-const euNome = () => { try { return localStorage.getItem("kz-urg-por") || ""; } catch { return ""; } };
+const euNome = () => { if (est.conta) return est.conta; try { return localStorage.getItem("kz-urg-por") || ""; } catch { return ""; } };
 async function avisar(titulo, corpo, filtro, url) {
   if (!("Notification" in window) || Notification.permission !== "granted") return;
   const opts = { body: corpo, icon: "icons/icon-192.png", badge: "icons/icon-192.png", tag: `kz-${Date.now()}`, data: { filtro, url: url || "" } };

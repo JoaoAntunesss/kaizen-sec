@@ -807,9 +807,11 @@ function itemUrg(u, feito) {
       <div class="urg-chips">${sit}${chips}</div><span class="urg-meta">${meta}</span></div>
     <div class="urg-acts">${acts}</div></div>`;
 }
+// Edocs «de» uma pessoa: os que adicionou, os que tem como responsável e os que lhe foram devolvidos para corrigir
+const edocDe = (u, nome) => u.criadoPor === nome || u.resp === nome || (u.situacao === DEVOLVIDO && u.devolucao && u.devolucao.para === nome);
 function desenharUrgentes() {
   const verDe = $("urgVerDe").value;
-  const meus = verDe ? est.urgentes.filter((u) => u.criadoPor === verDe) : est.urgentes;
+  const meus = verDe ? est.urgentes.filter((u) => edocDe(u, verDe)) : est.urgentes;
   const abertos = meus.filter((u) => !u.tratado)
     .sort((a, b) => prioDe(a) - prioDe(b) || (a.prazo || "9999").localeCompare(b.prazo || "9999") || String(a.criadoEm).localeCompare(String(b.criadoEm)));
   const feitos = meus.filter((u) => u.tratado).sort((a, b) => String(b.tratadoEm).localeCompare(String(a.tratadoEm)));
@@ -828,7 +830,7 @@ function desenharUrgentes() {
   $("urgArqN").textContent = `(${arq.length})`;
   $("urgArq").innerHTML = arq.length ? arq.slice(0, 200).map((u) => itemUrg(u, true)).join("") : `<p class="empty">Ainda nada arquivado.</p>`;
   desenharHist();
-  $("urgVerRes").textContent = verDe ? `${verDe}: ${abertos.length} por tratar · ${feitos.length} já tratado${feitos.length === 1 ? "" : "s"}` : "";
+  $("urgVerRes").textContent = verDe ? `${verDe}: ${abertos.length} por tratar · ${feitos.length} já tratado${feitos.length === 1 ? "" : "s"} (adicionados, como responsável ou devolvidos para corrigir)` : "";
   const semana = new Date(Date.now() - 7 * 864e5).toISOString();
   const nAtraso = abertos.filter((u) => isoData(u.prazo) && u.prazo < hoje()).length;
   const tiles = [
@@ -937,7 +939,7 @@ $("vDiario").addEventListener("click", async (e) => {
   const st = $("urgStatus");
   if (["devolver", "tratado", "desfazer"].includes(acao) && !est.assina) { st.textContent = `Só ${QUEM_ASSINA} pode devolver ou marcar como tratado.`; st.className = "status err"; return; }
   if (acao === "arquivar-todos") {
-    const l = est.urgentes.filter((u) => u.tratado && !u.arquivado && (!$("urgVerDe").value || u.criadoPor === $("urgVerDe").value));
+    const l = est.urgentes.filter((u) => u.tratado && !u.arquivado && (!$("urgVerDe").value || edocDe(u, $("urgVerDe").value)));
     if (!l.length || !confirm(`Arquivar ${l.length} Edoc${l.length === 1 ? "" : "s"} tratado${l.length === 1 ? "" : "s"}?`)) return;
     const upd = {}, em = new Date().toISOString(), por = euNome() || quem();
     l.forEach((u) => { upd[`${u.id}/arquivado`] = true; upd[`${u.id}/arquivadoPor`] = por; upd[`${u.id}/arquivadoEm`] = em; });

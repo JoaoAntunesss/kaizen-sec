@@ -46,11 +46,11 @@ export const MANUAL_BASE = [
       "Abrir o 1.º registo do Edoc e confirmar o nome, o contacto (e-mail ou morada), o n.º de submissão e a referência OD.",
       "Confirmar o despacho da Senhora Chefe de Divisão e o que os serviços verificaram ou fizeram no local.",
       "Se a resolução for de uma entidade externa (Indaqua, E-Redes…), pedir a intervenção à entidade e informar o munícipe do encaminhamento.",
-      "Caso contrário, usar o modelo «Resposta a reclamação», descrevendo o que foi verificado e o que foi ou vai ser feito.",
+      "Caso contrário, usar o modelo «Resposta a reclamação», descrevendo o que foi verificado e o que foi ou vai ser feito. A resposta deve ter: confirmação da receção, resumo da situação, factos verificados, enquadramento e a solução ou decisão.",
       "Seguir a lista «Antes de enviar um ofício» (destinatário certo, só os dados necessários).",
       "Enviar para assinatura e associar ao processo no Edoc. Insistências do mesmo munícipe ficam associadas ao processo original.",
     ],
-    prazos: "Quando a lei não fixa outro prazo, o prazo geral é de 10 dias úteis (art. 86.º CPA). Pedido de informação sobre o andamento do processo: 10 dias (art. 82.º CPA).",
+    prazos: "Reclamações: a regra da Câmara é responder em 15 dias úteis a contar da data da reclamação, ou enviar resposta intermédia com o prazo expectável (ver «Tratamento de reclamações»). Para outros pedidos, quando a lei não fixa prazo, o prazo geral é de 10 dias úteis (art. 86.º CPA). Pedido de informação sobre o andamento do processo: 10 dias (art. 82.º CPA).",
     legislacao: "CPA: arts. 13.º (dever de decidir), 82.º, 86.º e 87.º.",
     modelos: ["Resposta a reclamação", "Pedido de intervenção a entidade externa", "Informar o munícipe do encaminhamento a entidade"],
     notas: "",
@@ -109,9 +109,28 @@ export const MANUAL_BASE = [
     notas: "",
     p: ["rgpd", "dados pessoais", "pessoa errada", "violação de dados"],
   },
+  {
+    id: "base-reclamacoes", area: "Reclamações", titulo: "Tratamento de reclamações",
+    quando: "Chega uma reclamação: manifestação de insatisfação dirigida à Câmara sobre um serviço prestado ou pedido, uma decisão ou a atuação dos serviços, para a qual se espera resposta. Não confundir com participação (aviso de uma anomalia ou dano no território ou num equipamento municipal, que pede intervenção e não necessariamente uma resposta).",
+    passos: [
+      "Receção e registo: confirmar que a reclamação está na distribuição Edoc, com canal de entrada, data e unidade orgânica responsável. A Loja do Munícipe regista-a no ficheiro «Reclamações Gerais da CMM».",
+      "Triagem e classificação: assunto, motivo (morosidade, insatisfação com a decisão, falta de resposta, comportamento indevido…), impacto, urgência e se pode haver uma não conformidade.",
+      "Análise e investigação: verificar os factos internamente e no terreno quando for preciso (não fechar sem verificação), juntar as evidências e procurar a causa-raiz.",
+      "Responder ao reclamante dentro de 15 dias úteis. Uma boa resposta tem: 1) confirmação da receção; 2) resumo claro da situação; 3) análise dos factos verificados; 4) justificação ou enquadramento; 5) solução, decisão ou medidas a tomar.",
+      "Se a resposta final não for possível no prazo, enviar resposta intermédia com o ponto de situação e o prazo expectável de resolução ou de resposta final.",
+      "Quem assina e quem expede depende do canal (ver Notas). Juntar sempre a evidência da resposta à distribuição Edoc da reclamação.",
+      "A distribuição da reclamação só termina quando a reclamação está resolvida.",
+      "Ação corretiva: se a reclamação revelar uma falha do serviço (não conformidade), corrigir a causa para não se repetir. Nem todas as reclamações são não conformidades, mas todas devem ser analisadas para ver se há falha por trás.",
+    ],
+    prazos: "15 dias úteis, contados da data em que o reclamante fez a reclamação (não da data em que chegou ao serviço) até à data em que a resposta é enviada. Não sendo possível, resposta intermédia com prazo expectável.",
+    legislacao: "DL n.º 135/99 (modernização administrativa; comunicações escritas e informação sobre o tempo de resposta), incluindo o art. 35.º-A (sistema de elogios, sugestões e reclamações online); DL n.º 156/2005 (Livro de Reclamações físico e eletrónico); Portaria n.º 659/2006 (modelo do Livro de Reclamações nas autarquias). ISO 9001: 5.1.2, 7.4, 8.2/8.5, 9.1/10.2.",
+    modelos: [],
+    notas: "Quem assina e expede, por canal (apresentação do GACGE, junho de 2026): Livro de Reclamações físico ou digital: a UO elabora, a resposta final é assinada pela Senhora Presidente e expedida pelo Gabinete de Comunicação e Relações Públicas. Portal da Queixa: a UO elabora, o Senhor Vereador ou Vereadora com o pelouro (SH) assina, a UO expede e o GACGE regista a resposta no Portal. E-mail, Loja do Munícipe, Happy or Not e inquéritos de satisfação: a UO elabora, SH assina, a UO expede (GAOA quando a resposta vai em papel). Formulário no site da CMM: a UO elabora, SH assina; resposta por e-mail ou ofício, conforme o contacto indicado. Reuniões de Câmara públicas e Assembleia Municipal: só entram se não forem respondidas presencialmente; assina a Presidente da Câmara ou da Assembleia Municipal e expede o GAOA. Canal de Denúncias: a UO elabora, SH assina, a UO expede quando há identificação; quando é anónima, o GACGE regista a resposta no Canal. Política da Administração: dar sempre resposta ao reclamante, com as decisões tomadas ou o ponto de situação. Motivos mais comuns até 2025: morosidade, insatisfação com a decisão e falta de resposta. Assunto mais frequente: anomalias na via pública. Trimestralmente é feito um relatório do estado das reclamações para a Administração.",
+    p: ["reclama", "queixa", "portal da queixa", "livro de reclamações", "livro amarelo", "insatisf", "morosidade", "demora", "falta de resposta", "resposta intermédia", "participação"],
+  },
 ];
 
-export const AREAS_MANUAL = ["Munícipes", "Indemnizações", "Empreitadas", "Entidades", "Dados pessoais", "Outro"];
+export const AREAS_MANUAL = ["Reclamações", "Munícipes", "Indemnizações", "Empreitadas", "Entidades", "Dados pessoais", "Outro"];
 
 // procedimentos mais parecidos com um pedido (para o MESTRE)
 export function procedimentosRelevantes(lista, texto, max = 2) {

@@ -954,3 +954,26 @@ body.com-fundo .panel{box-shadow:0 4px 18px rgba(0,0,0,.18)}
 @media (max-width:700px){.mini-radio{left:8px;right:8px;width:auto;bottom:calc(8px + env(safe-area-inset-bottom))}.mr-vol{display:none}body.com-radio .mestre-btn{bottom:calc(84px + env(safe-area-inset-bottom))}}
 @media print{.mini-radio{display:none!important}}
 .chip.inf{background:color-mix(in srgb,var(--s1) 16%,var(--surface));color:var(--accent,#1F4E79);border-color:color-mix(in srgb,var(--s1) 40%,var(--line));font-weight:700}
+/* Edocs por tratar em três colunas */
+.diario-grid{grid-template-columns:minmax(0,1fr)}
+.diario-grid > .equipa-hoje{order:-1;position:static}
+.diario-grid > .equipa-hoje .recados{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:12px}
+#urgLista.urg-list{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;align-items:start}
+@media (max-width:1000px){#urgLista.urg-list{grid-template-columns:minmax(0,1fr)}}
+.urg-col{background:var(--bg);border:1px solid var(--line);border-radius:12px;display:flex;flex-direction:column;min-width:0}
+.urg-col-h{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:10px 12px;border-bottom:3px solid var(--accent);border-radius:12px 12px 0 0;background:var(--surface)}
+.urg-col-h b{display:block;font-size:15px}
+.urg-col-h span{font-size:12px;color:var(--muted)}
+.urg-col-h .urg-col-n{font-size:15px;font-weight:800;color:var(--ink);background:var(--bg);border-radius:999px;min-width:30px;text-align:center;padding:2px 8px}
+.urg-col.c-env .urg-col-h{border-bottom-color:var(--s2)}
+.urg-col.c-esp .urg-col-h{border-bottom-color:var(--muted)}
+.urg-col-b{display:flex;flex-direction:column;gap:10px;padding:10px}
+.urg-col-b .empty{margin:6px 2px;font-size:13px}
+.urg-col .urg-item{flex-direction:column;align-items:stretch}
+.urg-col .urg-acts{justify-content:flex-start}
+.urg-orig{align-self:flex-start;font-size:11.5px;font-weight:700;letter-spacing:.01em;padding:2px 8px;border-radius:999px;background:var(--bg);color:var(--muted);border:1px solid var(--line);margin-bottom:2px}
+.urg-orig.chefia{background:color-mix(in srgb,#7c3aed 12%,var(--surface));color:#5b21b6;border-color:color-mix(in srgb,#7c3aed 35%,var(--line))}
+.urg-orig.meu{background:color-mix(in srgb,var(--s3) 15%,var(--surface));color:#1f6b3a;border-color:color-mix(in srgb,var(--s3) 40%,var(--line))}
+@media (prefers-color-scheme:dark){.urg-orig.chefia{color:#c4b5fd}.urg-orig.meu{color:#86efac}}
+.urg-col .urg-aguarda{display:none}
+.urg-col .urg-acts .btn{padding:6px 10px;font-size:13px}

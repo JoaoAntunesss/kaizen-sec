@@ -796,6 +796,13 @@ function opcoesResp() {
   if (!$("urgSit").options.length) $("urgSit").innerHTML = SITUACOES.map((s) => `<option>${esc(s)}</option>`).join("");
 }
 est.recados = est.recados || []; est.contactos = est.contactos || [];
+// Quem registou: pedido da chefia, registado por si, ou por outro colega
+function origemUrg(u) {
+  const p = u.criadoPor || "", eu = euNome();
+  if (p && p === QUEM_ASSINA) return `<span class="urg-orig chefia">Registado por ${esc(p)}${eu === p ? " (si)" : ""}</span>`;
+  if (p && eu && p === eu) return `<span class="urg-orig meu">Registado por si</span>`;
+  return p ? `<span class="urg-orig">Registado por ${esc(p)}</span>` : "";
+}
 function itemUrg(u, feito) {
   const atraso = !feito && isoData(u.prazo) && u.prazo < hoje();
   const prazoHoje = !feito && u.prazo === hoje();
@@ -810,7 +817,7 @@ function itemUrg(u, feito) {
   ].join("");
   const sit = feito ? (u.situacao ? `<span class="chip">${esc(u.situacao)}</span>` : "")
     : `<select class="urg-sit" data-urg="sit" data-id="${esc(u.id)}" aria-label="Situação do ${esc(u.edoc)}">${SITUACOES.map((s) => `<option${s === (u.situacao || "Outro") ? " selected" : ""}>${esc(s)}</option>`).join("")}</select>`;
-  const meta = feito ? `${u.arquivado ? `Arquivado por ${esc(u.arquivadoPor || "")} a ${esc(quando(u.arquivadoEm))} · ` : ""}Tratado por ${esc(u.tratadoPor || "")} a ${esc(quando(u.tratadoEm))} · adicionado por ${esc(u.criadoPor || "")} a ${esc(quando(u.criadoEm))}` : `Adicionado por ${esc(u.criadoPor || "")} a ${esc(quando(u.criadoEm))}`;
+  const meta = feito ? `${u.arquivado ? `Arquivado por ${esc(u.arquivadoPor || "")} a ${esc(quando(u.arquivadoEm))} · ` : ""}Tratado por ${esc(u.tratadoPor || "")} a ${esc(quando(u.tratadoEm))} · adicionado por ${esc(u.criadoPor || "")} a ${esc(quando(u.criadoEm))}` : `Registado a ${esc(quando(u.criadoEm))}`;
   const acts = feito
     ? (u.arquivado ? `<button class="btn small ghost" type="button" data-urg="desarquivar" data-id="${esc(u.id)}">Desarquivar</button>`
         : `<button class="btn small ghost" type="button" data-urg="arquivar" data-id="${esc(u.id)}">Arquivar</button>`) + (est.assina ? `<button class="btn small primary" type="button" data-urg="devolver" data-id="${esc(u.id)}">Devolver para corrigir</button>` : "") + (est.assina && !u.arquivado ? `<button class="btn small ghost" type="button" data-urg="desfazer" data-id="${esc(u.id)}">Desfazer</button>` : "")
@@ -823,7 +830,7 @@ function itemUrg(u, feito) {
   const p = prioDe(u);
   const prio = feito ? "" : `<select class="urg-prio p${p}" data-urg="prio" data-id="${esc(u.id)}" aria-label="Prioridade do ${esc(u.edoc)}">${[1, 2, 3].map((n) => `<option value="${n}"${n === p ? " selected" : ""}>${PRIO[n]}</option>`).join("")}</select>`;
   return `<div class="urg-item p${p}${atraso ? " late" : ""}${feito ? " done" : ""}">
-    <div class="urg-main"><div class="urg-top">${linkDe(u) ? `<a class="urg-edoc urg-a" href="${esc(linkDe(u))}" target="_blank" rel="noopener" title="Abrir no Edoc">${esc(u.edoc)}</a>` : `<strong class="urg-edoc">${esc(u.edoc)}</strong>`}${prio}</div>${u.assunto ? `<span class="urg-assunto">${esc(u.assunto)}</span>` : ""}${u.nota ? `<span class="urg-nota">A fazer: ${esc(u.nota)}</span>` : ""}
+    <div class="urg-main">${origemUrg(u)}<div class="urg-top">${linkDe(u) ? `<a class="urg-edoc urg-a" href="${esc(linkDe(u))}" target="_blank" rel="noopener" title="Abrir no Edoc">${esc(u.edoc)}</a>` : `<strong class="urg-edoc">${esc(u.edoc)}</strong>`}${prio}</div>${u.assunto ? `<span class="urg-assunto">${esc(u.assunto)}</span>` : ""}${u.nota ? `<span class="urg-nota">A fazer: ${esc(u.nota)}</span>` : ""}
       <div class="urg-chips">${sit}${chips}</div><span class="urg-meta">${meta}</span></div>
     <div class="urg-acts">${acts}</div></div>`;
 }
@@ -840,7 +847,16 @@ function desenharUrgentes() {
   $("urgFiltros").innerHTML = abertos.length ? [["", `Todos (${abertos.length})`], ...SITUACOES.filter((s) => cont[s]).map((s) => [s, `${s} (${cont[s]})`])]
     .map(([v, t]) => `<button type="button" class="fchip${v === urgFiltro ? " on" : ""}" data-filtro="${esc(v)}" aria-pressed="${v === urgFiltro}">${esc(t)}</button>`).join("") : "";
   const vis = urgFiltro ? abertos.filter((u) => (u.situacao || "Outro") === urgFiltro) : abertos;
-  $("urgLista").innerHTML = vis.length ? vis.map((u) => itemUrg(u, false)).join("") : `<p class="empty">Sem Edocs urgentes por tratar.</p>`;
+  // Três colunas: o que está connosco, o que foi enviado para assinatura e o que está à espera de outros
+  const ESPERA = ["Aguarda execução", "Aguarda entidade externa", "Em análise técnica"];
+  const colEnv = vis.filter((u) => u.situacao === "Ofício por assinar");
+  const colEsp = vis.filter((u) => ESPERA.includes(u.situacao));
+  const colTrat = vis.filter((u) => !colEnv.includes(u) && !colEsp.includes(u)).sort((a, b) => (b.situacao === DEVOLVIDO) - (a.situacao === DEVOLVIDO));
+  const coluna = (cls, titulo, sub, l, vazio) => `<section class="urg-col ${cls}"><header class="urg-col-h"><div><b>${esc(titulo)}</b><span>${esc(sub)}</span></div><span class="urg-col-n">${l.length}</span></header>
+    <div class="urg-col-b">${l.length ? l.map((u) => itemUrg(u, false)).join("") : `<p class="empty">${esc(vazio)}</p>`}</div></section>`;
+  $("urgLista").innerHTML = coluna("c-tratar", "Por tratar", "Connosco: oficiar, corrigir, informar ou registar", colTrat, "Nada por tratar.")
+    + coluna("c-env", "Enviados para assinatura", `À espera de ${QUEM_ASSINA}`, colEnv, "Nenhum ofício à espera de assinatura.")
+    + coluna("c-esp", "À espera de outros", "Execução, entidade externa ou análise técnica", colEsp, "Nada à espera de outros.");
   // tratados por arquivar ficam em «Tratados»; os arquivados passam para «Arquivados» (continuam no histórico)
   const porArq = feitos.filter((u) => !u.arquivado), arq = feitos.filter((u) => u.arquivado).sort((x, y) => String(y.arquivadoEm).localeCompare(String(x.arquivadoEm)));
   $("urgFeitos").innerHTML = (porArq.length > 1 ? `<div class="arq-barra"><span class="muted small">Arquive os que já viu ou deu seguimento: deixam de aparecer aqui.</span><button class="btn small ghost" type="button" data-urg="arquivar-todos">Arquivar todos (${porArq.length})</button></div>` : "")

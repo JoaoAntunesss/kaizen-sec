@@ -868,9 +868,36 @@ $("btnOficios").addEventListener("click", () => mostrar("vOficios"));
 const RADIO_URL = "https://joaoantunesss.github.io/Radio/";
 $("radioBox").addEventListener("toggle", () => {
   const m = $("radioMoldura");
-  if ($("radioBox").open) { if (!m.firstChild) m.innerHTML = `<iframe src="${RADIO_URL}" title="Rádio Secretaria" allow="autoplay; encrypted-media" loading="lazy"></iframe>`; }
-  else m.innerHTML = "";
+  if ($("radioBox").open && !m.firstChild) m.innerHTML = `<iframe id="radioFrame" src="${RADIO_URL}" title="Rádio Secretaria" allow="autoplay; encrypted-media"></iframe>`;
 });
+// Mini-leitor no fundo do ecrã (como no Spotify): comanda a rádio da caixa, que é do mesmo sítio (github.io) e por isso se pode controlar daqui
+let mrTimer = 0;
+const radioDoc = () => { try { const f = $("radioFrame"); return f && f.contentDocument; } catch { return null; } };
+function mrAtualizar() {
+  const d = radioDoc(), a = d && d.getElementById("audio");
+  const nome = d && d.getElementById("nowName") ? d.getElementById("nowName").textContent.trim() : "";
+  const escolhida = !!(a && (a.currentSrc || a.src)) || (nome && !/^Rode o botão/.test(nome));
+  $("miniRadio").hidden = !escolhida; document.body.classList.toggle("com-radio", escolhida);
+  if (!escolhida) return;
+  const musica = (d.getElementById("song") || {}).textContent || "", artista = (d.getElementById("artist") || {}).textContent || "";
+  const temMusica = musica && !/^(Escolha uma rádio|À espera da música)/.test(musica);
+  $("mrTitulo").textContent = temMusica ? musica : nome || "Rádio Secretaria";
+  $("mrSub").textContent = temMusica ? `${artista ? artista + " · " : ""}${nome}` : (a && !a.paused ? "Em direto" : "Em pausa");
+  const img = d.querySelector("#art img"); const src = img ? img.src : "";
+  if ($("mrCapa").dataset.src !== src) { $("mrCapa").dataset.src = src; $("mrCapa").innerHTML = src ? `<img src="${esc(src)}" alt="">` : ""; }
+  const toca = a && !a.paused;
+  $("mrPlay").innerHTML = toca ? '<svg viewBox="0 0 16 16"><path d="M3 2h4v12H3zM9 2h4v12H9z"/></svg>' : '<svg viewBox="0 0 16 16"><path d="M4 2l10 6-10 6z"/></svg>';
+  $("mrPlay").setAttribute("aria-label", toca ? "Pausar" : "Tocar");
+  if (a && document.activeElement !== $("mrVol")) $("mrVol").value = a.volume;
+}
+const mrClicar = (id) => { const d = radioDoc(), b = d && d.getElementById(id); if (b) b.click(); setTimeout(mrAtualizar, 300); };
+$("mrPlay").addEventListener("click", () => mrClicar("play"));
+$("mrAnt").addEventListener("click", () => mrClicar("prev"));
+$("mrSeg").addEventListener("click", () => mrClicar("next"));
+$("mrVol").addEventListener("input", (e) => { const d = radioDoc(), v = d && d.getElementById("vol"); if (v) { v.value = e.target.value; v.dispatchEvent(new Event("input", { bubbles: true })); } });
+$("mrAbrir").addEventListener("click", () => { mostrar("vFerramentas"); $("radioBox").open = true; $("radioBox").scrollIntoView({ block: "start", behavior: "smooth" }); });
+$("mrFechar").addEventListener("click", () => { $("radioMoldura").innerHTML = ""; $("radioBox").open = false; mrAtualizar(); });
+mrTimer = setInterval(() => { if ($("radioFrame")) mrAtualizar(); else if (!$("miniRadio").hidden) mrAtualizar(); }, 1000);
 $("btnFerramentas").addEventListener("click", () => { mostrar("vFerramentas"); if ($("cpBox").open) cpPrepararConcelhos(); });
 $("btnKaizen").addEventListener("click", () => { mostrar("vPainel"); desenharPainel(); });
 function formNovo(abrir) { $("urgNovo").hidden = !abrir; $("btnUrgNovo").setAttribute("aria-expanded", String(abrir)); $("btnUrgNovo").textContent = abrir ? "Fechar" : "+ Adicionar Edoc"; if (abrir) $("urgEdoc").focus(); }

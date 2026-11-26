@@ -934,3 +934,22 @@ body.com-fundo .panel{box-shadow:0 4px 18px rgba(0,0,0,.18)}
 .cp-tab .nw{white-space:nowrap}
 .radio-moldura iframe{width:100%;height:min(720px,80vh);border:0;border-radius:10px;background:#1a4f8a;display:block}
 .radio-nota{margin:10px 0}
+/* Mini-leitor da rádio */
+.mini-radio{position:fixed;left:16px;bottom:calc(16px + env(safe-area-inset-bottom));z-index:30;display:flex;align-items:center;gap:10px;width:min(560px,calc(100% - 140px));padding:8px 10px;background:#0f2238;color:#fff;border-radius:14px;box-shadow:0 10px 30px rgba(0,0,0,.35)}
+.mini-radio[hidden]{display:none}
+.mr-capa{flex:none;width:44px;height:44px;border-radius:8px;background:#1a4f8a center/cover;overflow:hidden}
+.mr-capa img{width:100%;height:100%;object-fit:cover;display:block}
+.mr-info{flex:1;min-width:0;display:flex;flex-direction:column;align-items:flex-start;background:none;border:0;color:inherit;font:inherit;text-align:left;cursor:pointer;padding:0}
+.mr-info b{font-size:14px;max-width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mr-info span{font-size:12px;opacity:.75;max-width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mr-ctl{display:flex;align-items:center;gap:4px}
+.mr-ctl button,.mr-x{width:34px;height:34px;border-radius:50%;border:0;background:transparent;color:#fff;display:inline-flex;align-items:center;justify-content:center;cursor:pointer}
+.mr-ctl button:hover,.mr-x:hover{background:rgba(255,255,255,.12)}
+.mr-ctl svg,.mr-x svg{width:15px;height:15px;fill:currentColor}
+.mr-ctl .mr-play{width:40px;height:40px;background:#fff;color:#0f2238}
+.mr-ctl .mr-play:hover{background:#e6eef7}
+.mr-vol{display:flex;align-items:center;gap:6px;color:#fff;opacity:.9}
+.mr-vol svg{width:16px;height:16px;fill:currentColor;flex:none}
+.mr-vol input{width:90px;accent-color:#7fb3e8}
+@media (max-width:700px){.mini-radio{left:8px;right:8px;width:auto;bottom:calc(8px + env(safe-area-inset-bottom))}.mr-vol{display:none}body.com-radio .mestre-btn{bottom:calc(84px + env(safe-area-inset-bottom))}}
+@media print{.mini-radio{display:none!important}}

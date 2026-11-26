@@ -908,7 +908,8 @@ $("btnDiario").addEventListener("click", () => abrirDiario());
 $("btnOficios").addEventListener("click", () => mostrar("vOficios"));
 /* ---------------- Spotify: leitor completo (Web Playback SDK, contas Premium) ---------------- */
 const SP_SCOPES = "streaming user-read-email user-read-private user-read-playback-state user-modify-playback-state playlist-read-private playlist-read-collaborative user-library-read";
-const SP_REDIRECT = location.origin + location.pathname;
+// tem de ser igual a um dos «Redirect URIs» da app no painel do Spotify
+const SP_REDIRECT = /github\.io$/.test(location.hostname) ? "https://joaoantunesss.github.io/kaizen-sec/" : location.origin + location.pathname;
 const sp = { tok: null, player: null, device: "", estado: null, eu: null, listas: [], pronto: false, sdk: null };
 const spLerTok = () => { try { return JSON.parse(localStorage.getItem("kz-sp-tok") || "null"); } catch { return null; } };
 const spGuardarTok = (t) => { try { t ? localStorage.setItem("kz-sp-tok", JSON.stringify(t)) : localStorage.removeItem("kz-sp-tok"); } catch {} };

@@ -46,4 +46,4 @@ export const EQUIPA = [
 ];
 
 // Spotify (Web Playback SDK): Client ID da app criada em developer.spotify.com (não é segredo). Vazio = leitor por configurar.
-export const SPOTIFY_CLIENT_ID = "";
+export const SPOTIFY_CLIENT_ID = "c485d1237075431198f82aae723cfa1e";

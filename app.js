@@ -2275,8 +2275,8 @@ function graficoBarrasH(id, pares, { euros = false, rotulo = "" } = {}) {
     }),
   });
 }
-function listaMapa(titulo, sub, cab, linhas, vazio) {
-  return `<div class="panel mp-lista"><div class="panel-head"><h2>${esc(titulo)} <span class="muted">(${linhas.length})</span></h2>${sub ? `<span class="sub">${esc(sub)}</span>` : ""}</div>
+function listaMapa(titulo, sub, cab, linhas, vazio, cls = "") {
+  return `<div class="panel mp-lista ${cls}"><div class="panel-head"><h2>${esc(titulo)} <span class="muted">(${linhas.length})</span></h2>${sub ? `<span class="sub">${esc(sub)}</span>` : ""}</div>
     ${linhas.length ? `<div class="scroll"><table><thead><tr>${cab.map((c) => `<th>${esc(c)}</th>`).join("")}</tr></thead><tbody>${linhas.map((l) => `<tr>${l.map((v, i) => `<td${i === 0 ? ' class="des"' : ""}>${v}</td>`).join("")}</tr>`).join("")}</tbody></table></div>` : `<p class="empty">${esc(vazio)}</p>`}</div>`;
 }
 const celDes = (x) => `${esc(x.des)}${x.edoc ? `<br><span class="muted small">${esc(x.edoc)}${x.div ? " · " + esc(x.div) : ""}</span>` : ""}`;
@@ -2345,6 +2345,9 @@ function desenharPainelMapa() {
     L.push(listaMapa("Concluídas sem auto de receção provisória", "a data do auto de RP não está preenchida", ["Obra", "Conclusão", "Adjudicatário"],
       i.semRp.map((x) => [celDes(x), `<span class="nw">${fmt(x.concl || "")}</span>`, esc(x.adj || "")]), "Todas as concluídas têm o auto de RP."));
   } else {
+    L.push(listaMapa("Quanto falta faturar por processo", "todos os contratos não cancelados com valor por faturar, do maior para o menor", ["Contrato", "Estado", "Adjudicatário", "Valor", "Faturado", "Por faturar", "% faturado"],
+      i.porFaturarLista.map((x) => [celDes(x), `<span class="nw">${esc(E[x.est] || "Sem estado")}</span>`, esc(corta(x.adj, 50)), `<span class="nw">${eurT(x.valor)}</span>`, `<span class="nw">${eurT(x.fat)}</span>`,
+        `<span class="nw"><strong>${eurT(x.porFat)}</strong></span>`, x.valor ? `<span class="nw">${Math.round(((x.fat || 0) / x.valor) * 100)}%</span>` : ""]), "Não há valores por faturar.", "mp-larga"));
     L.push(listaMapa("Concluídos com valor por faturar", "", ["Contrato", "Adjudicatário", "Valor", "Por faturar"],
       i.concluidosPorFaturar.map((x) => [celDes(x), esc(corta(x.adj, 60)), `<span class="nw">${eurT(x.valor)}</span>`, `<span class="tag-late nw">${eurT(x.porFat)}</span>`]), "Todos os concluídos estão faturados."));
     L.push(listaMapa("Em execução por gestor do contrato", "", ["Gestor", "Contratos"], i.execGestor.map(([g, v]) => [esc(g), v]), "Nenhum contrato em execução."));

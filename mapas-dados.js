@@ -166,6 +166,7 @@ export function indicadores(tipo, linhas, { ano = "", hoje = hojeIso(), dias = 6
     base.porFaturar = ativos.reduce((s, x) => s + (x.porFat > 0.5 ? x.porFat : 0), 0);
     base.procs = topo(contar(ativos, (x) => procCurto(x.proc)), 8);
     base.valorProc = topo(somar(ativos, (x) => procCurto(x.proc), (x) => x.valor), 8);
+    base.porFaturarLista = ativos.filter((x) => x.porFat > 0.5).sort((a, b) => b.porFat - a.porFat);
     base.concluidosPorFaturar = l.filter((x) => x.est === "conc" && x.porFat > 0.5).sort((a, b) => b.porFat - a.porFat);
   }
   return base;

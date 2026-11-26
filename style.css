@@ -830,3 +830,5 @@ button.ur-t.on{border-color:#c98a1a}
 .mp-lista .tag-late{color:var(--late);font-weight:700}
 .mapa-acts .btn + .btn{margin-left:6px}
 .mp-lista .nw{white-space:nowrap}
+.mp-lista.mp-larga{grid-column:1/-1}
+.mp-larga .scroll{max-height:480px}

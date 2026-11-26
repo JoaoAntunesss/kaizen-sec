@@ -768,7 +768,7 @@ function itemUrg(u, feito) {
   const meta = feito ? `${u.arquivado ? `Arquivado por ${esc(u.arquivadoPor || "")} a ${esc(quando(u.arquivadoEm))} · ` : ""}Tratado por ${esc(u.tratadoPor || "")} a ${esc(quando(u.tratadoEm))} · adicionado por ${esc(u.criadoPor || "")} a ${esc(quando(u.criadoEm))}` : `Adicionado por ${esc(u.criadoPor || "")} a ${esc(quando(u.criadoEm))}`;
   const acts = feito
     ? (u.arquivado ? `<button class="btn small ghost" type="button" data-urg="desarquivar" data-id="${esc(u.id)}">Desarquivar</button>`
-        : `<button class="btn small ghost" type="button" data-urg="arquivar" data-id="${esc(u.id)}">Arquivar</button>`) + (est.assina && !u.arquivado ? `<button class="btn small ghost" type="button" data-urg="desfazer" data-id="${esc(u.id)}">Desfazer</button>` : "")
+        : `<button class="btn small ghost" type="button" data-urg="arquivar" data-id="${esc(u.id)}">Arquivar</button>`) + (est.assina ? `<button class="btn small primary" type="button" data-urg="devolver" data-id="${esc(u.id)}">Devolver para corrigir</button>` : "") + (est.assina && !u.arquivado ? `<button class="btn small ghost" type="button" data-urg="desfazer" data-id="${esc(u.id)}">Desfazer</button>` : "")
     : `${est.assina && u.situacao === "Ofício por assinar" ? `<button class="btn small primary" type="button" data-urg="devolver" data-id="${esc(u.id)}">Devolver para corrigir</button>` : ""}
        ${u.situacao === DEVOLVIDO ? `<button class="btn small primary" type="button" data-urg="reenviar" data-id="${esc(u.id)}">Reenviar para assinatura</button>` : ""}
        ${est.assina ? `<button class="btn small ok" type="button" data-urg="tratado" data-id="${esc(u.id)}">Marcar como tratado</button>` : `<span class="urg-aguarda">${u.situacao === "Ofício por assinar" ? `Aguarda ${esc(QUEM_ASSINA)}` : ""}</span>`}
@@ -875,8 +875,9 @@ $("urgLista").addEventListener("submit", async (e) => {
   try { await fb.D.update(fb.D.ref(fb.db, `${COL_URGENTES}/${f.dataset.id}`), { link: linkEdoc(v) }); st.textContent = "Link guardado."; st.className = "status"; }
   catch { st.textContent = "Não consegui guardar. Verifique a internet."; st.className = "status err"; }
 });
-$("urgLista").addEventListener("click", (e) => { if (e.target.closest("[data-cancel]")) e.target.closest(".urg-linkbox")?.remove(); if (e.target.closest("[data-cancel-dev]")) e.target.closest(".urg-devbox")?.remove(); });
-$("urgLista").addEventListener("submit", async (e) => {
+$("urgLista").addEventListener("click", (e) => { if (e.target.closest("[data-cancel]")) e.target.closest(".urg-linkbox")?.remove(); });
+$("vDiario").addEventListener("click", (e) => { if (e.target.closest("[data-cancel-dev]")) e.target.closest(".urg-devbox")?.remove(); });
+$("vDiario").addEventListener("submit", async (e) => {
   const f = e.target.closest(".urg-devbox"); if (!f) return;
   e.preventDefault();
   if (!est.assina) return;
@@ -885,9 +886,10 @@ $("urgLista").addEventListener("submit", async (e) => {
   try {
     await fb.D.update(fb.D.ref(fb.db, `${COL_URGENTES}/${u.id}`), {
       situacao: DEVOLVIDO, situacaoEm: agora, situacaoPor: por,
+      ...(u.tratado ? { tratado: false, tratadoPor: null, tratadoEm: null, arquivado: null, arquivadoPor: null, arquivadoEm: null } : {}),
       devolucao: { por, em: agora, motivo: f.querySelector("textarea").value.trim().slice(0, 500) }, devolucoes: (u.devolucoes || 0) + 1,
     });
-    regHist(u, "Devolvido para correção", { para: u.criadoPor || "", motivo: f.querySelector("textarea").value.trim().slice(0, 500) });
+    regHist(u, u.tratado ? "Devolvido para correção (depois de tratado)" : "Devolvido para correção", { para: u.criadoPor || "", motivo: f.querySelector("textarea").value.trim().slice(0, 500) });
     st.textContent = `${u.edoc} devolvido para correção.`; st.className = "status";
   } catch { st.textContent = "Não consegui guardar. Verifique a internet."; st.className = "status err"; }
 });

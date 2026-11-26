@@ -704,7 +704,10 @@ const PRIO = { 1: "Muito urgente", 2: "Urgente", 3: "Normal" };
 const linkEdoc = (s) => { try { const u = new URL(String(s || "").trim()); return u.protocol === "https:" && u.hostname === "edoc.cm-matosinhos.pt" ? u.href : ""; } catch { return ""; } };
 const linkDe = (u) => linkEdoc(u.link);
 const prioDe = (u) => (u.prio >= 1 && u.prio <= 3 ? +u.prio : 2);
-const SITUACOES = ["Por oficiar", "Ofício por assinar", "Aguarda execução", "Aguarda entidade externa", "Em análise técnica", "Outro"];
+const DEVOLVIDO = "Devolvido para correção";
+// quem assina os ofícios (destaque do botão «Devolver» no computador dela)
+const QUEM_ASSINA = (EQUIPA_INICIAL[0] && EQUIPA_INICIAL[0].nome) || "";
+const SITUACOES = ["Por oficiar", "Ofício por assinar", DEVOLVIDO, "Aguarda execução", "Aguarda entidade externa", "Em análise técnica", "Outro"];
 let urgFiltro = "";
 const diasDesde = (iso) => { const d = new Date(iso); return isNaN(d) ? null : Math.max(0, Math.floor((Date.now() - d) / 864e5)); };
 const quem = () => (est.user && (est.user.displayName || est.user.email)) || "";
@@ -732,6 +735,8 @@ function itemUrg(u, feito) {
   const chips = [
     u.resp ? `<span class="chip">${esc(u.resp)}</span>` : "",
     isoData(u.prazo) ? `<span class="chip ${atraso ? "late" : prazoHoje ? "warn" : ""}">${atraso ? "Em atraso · " : prazoHoje ? "Hoje · " : "Prazo "}${esc(fmt(u.prazo))}</span>` : "",
+    !feito && u.situacao === DEVOLVIDO && u.devolucao ? `<span class="chip late urg-dev">Devolvido por ${esc(u.devolucao.por || "")} a ${esc(quando(u.devolucao.em))}${u.devolucao.motivo ? ` · ${esc(u.devolucao.motivo)}` : ""}</span>` : "",
+    !feito && u.devolucoes ? `<span class="chip none">${u.devolucoes} devoluç${u.devolucoes === 1 ? "ão" : "ões"}</span>` : "",
     !feito && dsit !== null ? `<span class="chip ${dsit > 7 ? "late" : "none"}">${dsit === 0 ? "nesta situação desde hoje" : `há ${dsit} dia${dsit === 1 ? "" : "s"} nesta situação`}</span>` : "",
   ].join("");
   const sit = feito ? (u.situacao ? `<span class="chip">${esc(u.situacao)}</span>` : "")
@@ -739,7 +744,9 @@ function itemUrg(u, feito) {
   const meta = feito ? `Tratado por ${esc(u.tratadoPor || "")} a ${esc(quando(u.tratadoEm))} · adicionado por ${esc(u.criadoPor || "")} a ${esc(quando(u.criadoEm))}` : `Adicionado por ${esc(u.criadoPor || "")} a ${esc(quando(u.criadoEm))}`;
   const acts = feito
     ? `<button class="btn small ghost" type="button" data-urg="desfazer" data-id="${esc(u.id)}">Desfazer</button>`
-    : `<button class="btn small ok" type="button" data-urg="tratado" data-id="${esc(u.id)}">Marcar como tratado</button>
+    : `${u.situacao === "Ofício por assinar" ? `<button class="btn small ${euNome() === QUEM_ASSINA ? "primary" : "ghost"}" type="button" data-urg="devolver" data-id="${esc(u.id)}">Devolver para corrigir</button>` : ""}
+       ${u.situacao === DEVOLVIDO ? `<button class="btn small primary" type="button" data-urg="reenviar" data-id="${esc(u.id)}">Reenviar para assinatura</button>` : ""}
+       <button class="btn small ok" type="button" data-urg="tratado" data-id="${esc(u.id)}">Marcar como tratado</button>
        <button class="btn small ghost" type="button" data-urg="link" data-id="${esc(u.id)}">${linkDe(u) ? "Alterar link" : "Juntar link"}</button>
        <button class="btn small ghost danger" type="button" data-urg="apagar" data-id="${esc(u.id)}" aria-label="Apagar ${esc(u.edoc)}">Apagar</button>`;
   const p = prioDe(u);
@@ -822,12 +829,25 @@ $("urgLista").addEventListener("submit", async (e) => {
   try { await fb.D.update(fb.D.ref(fb.db, `${COL_URGENTES}/${f.dataset.id}`), { link: linkEdoc(v) }); st.textContent = "Link guardado."; st.className = "status"; }
   catch { st.textContent = "Não consegui guardar. Verifique a internet."; st.className = "status err"; }
 });
-$("urgLista").addEventListener("click", (e) => { if (e.target.closest("[data-cancel]")) e.target.closest(".urg-linkbox")?.remove(); });
+$("urgLista").addEventListener("click", (e) => { if (e.target.closest("[data-cancel]")) e.target.closest(".urg-linkbox")?.remove(); if (e.target.closest("[data-cancel-dev]")) e.target.closest(".urg-devbox")?.remove(); });
+$("urgLista").addEventListener("submit", async (e) => {
+  const f = e.target.closest(".urg-devbox"); if (!f) return;
+  e.preventDefault();
+  const u = est.urgentes.find((x) => x.id === f.dataset.id); if (!u) return;
+  const st = $("urgStatus"), agora = new Date().toISOString(), por = euNome() || quem();
+  try {
+    await fb.D.update(fb.D.ref(fb.db, `${COL_URGENTES}/${u.id}`), {
+      situacao: DEVOLVIDO, situacaoEm: agora, situacaoPor: por,
+      devolucao: { por, em: agora, motivo: f.querySelector("input").value.trim().slice(0, 300) }, devolucoes: (u.devolucoes || 0) + 1,
+    });
+    st.textContent = `${u.edoc} devolvido para correção.`; st.className = "status";
+  } catch { st.textContent = "Não consegui guardar. Verifique a internet."; st.className = "status err"; }
+});
 $("urgResumo").addEventListener("click", (e) => { const b = e.target.closest("[data-filtro]"); if (!b) return; urgFiltro = urgFiltro === b.dataset.filtro ? "" : b.dataset.filtro; desenharUrgentes(); });
 $("urgFiltros").addEventListener("click", (e) => { const b = e.target.closest("[data-filtro]"); if (!b) return; urgFiltro = b.dataset.filtro; desenharUrgentes(); });
 $("urgLista").addEventListener("change", async (e) => {
   const s = e.target.closest('[data-urg="sit"], [data-urg="prio"]'); if (!s) return;
-  const dados = s.dataset.urg === "prio" ? { prio: +s.value } : { situacao: s.value, situacaoEm: new Date().toISOString(), situacaoPor: quem() };
+  const dados = s.dataset.urg === "prio" ? { prio: +s.value } : { situacao: s.value, situacaoEm: new Date().toISOString(), situacaoPor: euNome() || quem() };
   try { await fb.D.update(fb.D.ref(fb.db, `${COL_URGENTES}/${s.dataset.id}`), dados); }
   catch { $("urgStatus").textContent = "Não consegui guardar. Verifique a internet."; $("urgStatus").className = "status err"; }
 });
@@ -835,6 +855,17 @@ $("vDiario").addEventListener("click", async (e) => {
   const b = e.target.closest("button[data-urg]"); if (!b) return;
   const id = b.dataset.id, acao = b.dataset.urg, ref = fb.D.ref(fb.db, `${COL_URGENTES}/${id}`);
   const st = $("urgStatus");
+  if (acao === "devolver") {
+    const item = b.closest(".urg-item"); if (!item || item.querySelector(".urg-devbox")) return;
+    item.insertAdjacentHTML("beforeend", `<form class="urg-devbox" data-id="${esc(id)}"><label class="f">O que há a corrigir (opcional)<input type="text" maxlength="300" placeholder="Ex.: falta o n.º de submissão; prazo errado"></label><button class="btn small ghost" type="button" data-cancel-dev>Cancelar</button><button class="btn small primary" type="submit">Devolver</button></form>`);
+    item.querySelector(".urg-devbox input").focus(); return;
+  }
+  if (acao === "reenviar") {
+    b.disabled = true;
+    try { await fb.D.update(ref, { situacao: "Ofício por assinar", situacaoEm: new Date().toISOString(), situacaoPor: euNome() || quem(), reenviadoEm: new Date().toISOString() }); st.textContent = "Reenviado para assinatura."; st.className = "status"; }
+    catch { st.textContent = "Não consegui guardar. Verifique a internet."; st.className = "status err"; b.disabled = false; }
+    return;
+  }
   if (acao === "link") {
     const item = b.closest(".urg-item"); if (!item || item.querySelector(".urg-linkbox")) return;
     const u = est.urgentes.find((x) => x.id === id) || {};
@@ -868,27 +899,38 @@ async function avisar(titulo, corpo, filtro, url) {
 }
 function verificarAvisos(lista) {
   const agora = {};
-  lista.forEach((u) => { agora[u.id] = `${u.situacao || ""}|${u.tratado ? 1 : 0}|${prioDe(u)}`; });
+  lista.forEach((u) => { agora[u.id] = `${u.situacao || ""}|${u.tratado ? 1 : 0}|${prioDe(u)}|${u.situacaoEm || ""}`; });
   const porAssinar = lista.filter((u) => !u.tratado && u.situacao === "Ofício por assinar").length;
   try { if (navigator.setAppBadge) porAssinar ? navigator.setAppBadge(porAssinar) : navigator.clearAppBadge(); } catch {}
   if (avisosVistos === null) { avisosVistos = agora; return; } // primeira leitura: não avisar do que já existia
-  const eu = euNome();
+  const eus = new Set([euNome(), quem()].filter(Boolean));
+  const fuiEu = (n) => n && eus.has(n);
+  const meu = (u) => fuiEu(u.criadoPor);
+  // cada aviso diz a urgência e, ao clicar, abre o Edoc
+  const enviar = (u, acao, extra) => {
+    const urg = PRIO[prioDe(u)] || "Urgente";
+    avisar(`${urg} · ${acao}`, `${u.edoc}${u.assunto ? " — " + u.assunto : ""}${extra ? " · " + extra : ""}${linkDe(u) ? "\nClique para abrir no Edoc." : ""}`, u.situacao || "", linkDe(u));
+  };
   lista.forEach((u) => {
     const antes = avisosVistos[u.id];
+    const [sitAntes, tratAntes, , emAntes] = (antes || "").split("|");
     if (u.tratado) {
-      const tratadoAntes = antes && antes.split("|")[1] === "1";
-      if (notifPref.meu && antes && !tratadoAntes && eu && u.criadoPor === eu && u.tratadoPor !== eu)
-        avisar("Edoc tratado", `${u.edoc}${u.assunto ? " — " + u.assunto : ""}${u.tratadoPor ? " · por " + u.tratadoPor : ""}${linkDe(u) ? " · clique para abrir no Edoc" : ""}`, "", linkDe(u));
+      if (!antes || tratAntes === "1" || fuiEu(u.tratadoPor)) return;
+      if ((notifPref.meu && meu(u)) || notifPref.muito) enviar(u, "Edoc tratado", u.tratadoPor ? "por " + u.tratadoPor : "");
       return;
     }
-    const [sitAntes] = (antes || "").split("|");
-    const autor = antes ? (u.situacaoPor || "") : (u.criadoPor || "");
-    if (eu && autor === eu) return;
-    const desc = `${u.edoc}${u.assunto ? " — " + u.assunto : ""}`;
-    if (notifPref.assinar && u.situacao === "Ofício por assinar" && sitAntes !== "Ofício por assinar")
-      avisar("Novo ofício por assinar", `${desc}${prioDe(u) === 1 ? " · MUITO URGENTE" : ""}`, "Ofício por assinar");
-    else if (notifPref.muito && !antes && prioDe(u) === 1)
-      avisar("Edoc muito urgente", `${desc}${u.criadoPor ? " · adicionado por " + u.criadoPor : ""}`, "");
+    if (!antes) {
+      if (fuiEu(u.criadoPor) || !notifPref.assinar) return;
+      enviar(u, u.situacao === "Ofício por assinar" ? "Novo ofício por assinar" : "Novo Edoc urgente", u.criadoPor ? "adicionado por " + u.criadoPor : "");
+      return;
+    }
+    if (u.situacao === sitAntes && (u.situacaoEm || "") === emAntes) return;
+    if (fuiEu(u.situacaoPor)) return;
+    if (u.situacao === DEVOLVIDO) {
+      if ((notifPref.meu && (meu(u) || fuiEu(u.resp))) || notifPref.muito)
+        enviar(u, "Ofício devolvido para correção", [u.devolucao && u.devolucao.por ? "por " + u.devolucao.por : "", u.devolucao && u.devolucao.motivo].filter(Boolean).join(": "));
+    } else if (u.situacao === "Ofício por assinar" && notifPref.assinar)
+      enviar(u, sitAntes === DEVOLVIDO ? "Ofício corrigido, reenviado para assinatura" : "Ofício por assinar", u.situacaoPor ? "por " + u.situacaoPor : "");
   });
   avisosVistos = agora;
 }

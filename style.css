@@ -336,7 +336,7 @@ input[type=text],input[type=search],input[type=email],input[type=url],input[type
 .chk{display:flex;flex-direction:column;gap:8px}
 .chk-i{display:flex;gap:10px;align-items:flex-start;font-size:14px;cursor:pointer}
 .chk-i input{width:20px;height:20px;margin-top:1px;flex:none;accent-color:var(--ok)}
-.chk-i input:checked+span{color:var(--muted);text-decoration:line-through}
+.todo .chk-i input:checked+span,.chk-i.riscar input:checked+span{color:var(--muted);text-decoration:line-through}
 .ok-t{color:var(--ok);font-weight:700}
 
 /* Prioridade */

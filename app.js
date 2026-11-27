@@ -173,7 +173,7 @@ function subscrever() {
   }, () => {});
   lerLista(COL_CONTACTOS, "contactos", () => desenharContactos());
   lerLista(COL_RECADOS, "recados", () => desenharEquipaHoje());
-  D.onValue(D.query(D.ref(db, COL_HIST), D.limitToLast(2000)), (snap) => { est.hist = Object.entries(snap.val() || {}).map(([id, h]) => ({ id, ...h })); desenharHist(); }, () => {});
+  D.onValue(D.query(D.ref(db, COL_HIST), D.limitToLast(2000)), (snap) => { est.hist = Object.entries(snap.val() || {}).map(([id, h]) => ({ id, ...h })); desenharHist(); avisosDoHistorico(est.hist); }, () => {});
   lerLista(COL_MANUAL, "manualBD", () => desenharManual());
   D.onValue(D.ref(db, COL_HORARIO), (snap) => { const v = snap.val() || {}; est.horario = { equipas: v.equipas || {}, dias: v.dias || {} }; desenharHorario(); desenharEquipaHoje(); }, () => {});
   D.onValue(D.ref(db, COL_REGRAS), (snap) => {
@@ -1382,6 +1382,7 @@ function verificarAvisos(lista) {
   const eus = new Set([euNome(), quem()].filter(Boolean));
   const fuiEu = (n) => n && eus.has(n);
   const meu = (u) => fuiEu(u.criadoPor);
+  const minha = (u) => [...eus].some((n) => edocDe(u, n));
   // cada aviso diz a urgência e, ao clicar, abre o Edoc
   const enviar = (u, acao, extra) => {
     const urg = PRIO[prioDe(u)] || "Urgente";
@@ -1392,7 +1393,7 @@ function verificarAvisos(lista) {
     const [sitAntes, tratAntes, , emAntes] = (antes || "").split("|");
     if (u.tratado) {
       if (!antes || tratAntes === "1" || fuiEu(u.tratadoPor)) return;
-      if ((notifPref.meu && meu(u)) || notifPref.muito) enviar(u, "Edoc tratado", u.tratadoPor ? "por " + u.tratadoPor : "");
+      if (notifPref.muito && !(notifPref.meu && minha(u))) enviar(u, "Edoc tratado", u.tratadoPor ? "por " + u.tratadoPor : "");
       return;
     }
     if (!antes) {
@@ -1404,12 +1405,32 @@ function verificarAvisos(lista) {
     if (fuiEu(u.situacaoPor)) return;
     if (u.situacao === DEVOLVIDO) {
       const paraMim = fuiEu(u.devolucao && u.devolucao.para) || (!(u.devolucao && u.devolucao.para) && meu(u));
-      if ((notifPref.meu && (paraMim || meu(u))) || notifPref.muito || paraMim)
+      if ((notifPref.muito || paraMim) && !(notifPref.meu && minha(u)))
         enviar(u, fuiEu(u.devolucao && u.devolucao.para) ? "Ofício devolvido para si corrigir" : "Ofício devolvido para correção", [u.devolucao && u.devolucao.por ? "por " + u.devolucao.por : "", u.devolucao && u.devolucao.motivo].filter(Boolean).join(": "));
     } else if (u.situacao === "Ofício por assinar" && notifPref.assinar)
       enviar(u, sitAntes === DEVOLVIDO ? "Ofício corrigido, reenviado para assinatura" : "Ofício por assinar", u.situacaoPor ? "por " + u.situacaoPor : "");
   });
   avisosVistos = agora;
+}
+// «Os meus Edocs»: qualquer alteração feita por outra pessoa a um Edoc que adicionei, de que sou responsável
+// ou que me foi devolvido. Lê o histórico (cada alteração fica lá registada com quem a fez).
+let histAvisados = null;
+function avisosDoHistorico(lista) {
+  const ids = new Set(lista.map((h) => h.id));
+  if (histAvisados === null) { histAvisados = ids; return; } // primeira leitura: não avisar do que já existia
+  const novos = lista.filter((h) => !histAvisados.has(h.id)); histAvisados = ids;
+  if (!notifPref.meu || !novos.length) return;
+  const eus = new Set([euNome(), quem()].filter(Boolean));
+  novos.forEach((h) => {
+    if (!h.por || eus.has(h.por)) return;
+    let u = est.urgentes.find((x) => x.id === h.uid);
+    if (!u && h.copia) { try { u = JSON.parse(h.copia); } catch {} }
+    u = { edoc: h.edoc, assunto: h.assunto, link: h.link, prio: h.prio, ...(u || {}), id: h.uid };
+    const minha = [...eus].some((n) => edocDe(u, n)) || (h.para && eus.has(h.para));
+    if (!minha) return;
+    const extra = [`por ${h.por}`, h.motivo].filter(Boolean).join(": ");
+    avisar(`${PRIO[prioDe(u)] || "Urgente"} · ${h.acao}`, `${u.edoc || ""}${u.assunto ? " — " + u.assunto : ""} · ${extra}${linkDe(u) ? "\nClique para abrir no Edoc." : ""}`, u.situacao || "", linkDe(u));
+  });
 }
 function abrirDiario(filtro) {
   if (!est.user) return;
@@ -1487,7 +1508,7 @@ const VERIFICAR = [
 let chk = {};
 try { chk = JSON.parse(localStorage.getItem("kz-chk-oficio") || "{}"); } catch {}
 function desenharChk() {
-  $("chkLista").innerHTML = VERIFICAR.map((t, i) => `<label class="chk-i"><input type="checkbox" data-chk="${i}"${chk[i] ? " checked" : ""}><span>${esc(t)}</span></label>`).join("");
+  $("chkLista").innerHTML = VERIFICAR.map((t, i) => `<label class="chk-i riscar"><input type="checkbox" data-chk="${i}"${chk[i] ? " checked" : ""}><span>${esc(t)}</span></label>`).join("");
   const n = VERIFICAR.filter((_, i) => chk[i]).length;
   $("chkStatus").textContent = n === VERIFICAR.length ? "Tudo verificado — pode enviar." : `${n} de ${VERIFICAR.length} verificados`;
   $("chkStatus").className = n === VERIFICAR.length ? "status ok-t" : "status";

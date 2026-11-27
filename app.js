@@ -863,6 +863,7 @@ $("urgLista").addEventListener("dblclick", (e) => { if (e.target.closest("[data-
 
 // Edocs «de» uma pessoa: os que adicionou, os que tem como responsável e os que lhe foram devolvidos para corrigir
 const edocDe = (u, nome) => u.criadoPor === nome || u.resp === nome || (u.situacao === DEVOLVIDO && u.devolucao && u.devolucao.para === nome);
+const ESPERA = ["Aguarda informação (em prazo)", "Suspenso", "Aguarda execução", "Aguarda entidade externa", "Em análise técnica"];
 function desenharUrgentes() {
   const verDe = $("urgVerDe").value;
   const meus = verDe ? est.urgentes.filter((u) => edocDe(u, verDe)) : est.urgentes;
@@ -875,7 +876,6 @@ function desenharUrgentes() {
     .map(([v, t]) => `<button type="button" class="fchip${v === urgFiltro ? " on" : ""}" data-filtro="${esc(v)}" aria-pressed="${v === urgFiltro}">${esc(t)}</button>`).join("") : "";
   const vis = urgFiltro ? abertos.filter((u) => (u.situacao || "Outro") === urgFiltro) : abertos;
   // Três colunas: o que está connosco, o que foi enviado para assinatura e o que está à espera de outros
-  const ESPERA = ["Aguarda informação (em prazo)", "Suspenso", "Aguarda execução", "Aguarda entidade externa", "Em análise técnica"];
   const colEnv = vis.filter((u) => u.situacao === "Ofício por assinar");
   const colEsp = vis.filter((u) => ESPERA.includes(u.situacao));
   const colTrat = vis.filter((u) => !colEnv.includes(u) && !colEsp.includes(u)).sort((a, b) => (b.situacao === DEVOLVIDO) - (a.situacao === DEVOLVIDO));
@@ -1346,10 +1346,13 @@ function guardarNotifHist(titulo, corpo, filtro, url) {
   try { localStorage.setItem(NOTIF_HIST_KEY, JSON.stringify(notifHist)); } catch {}
   desenharNotifHist();
 }
-// Número no ícone da app: a quem assina, os ofícios por assinar; aos outros, as notificações por ler
+// Número no ícone da app: a quem assina, os ofícios por assinar; aos outros, os seus Edocs por tratar
+// (os que estão connosco: nem à espera de assinatura, nem suspensos ou a aguardar informação)
 let badgePorAssinar = 0;
 function atualizarBadge() {
-  const n = est.conta === QUEM_ASSINA ? badgePorAssinar : notifHist.filter((x) => !x.lida).length;
+  const eu = euNome() || est.conta;
+  const n = est.conta === QUEM_ASSINA ? badgePorAssinar
+    : est.urgentes.filter((u) => !u.tratado && edocDe(u, eu) && u.situacao !== "Ofício por assinar" && !ESPERA.includes(u.situacao)).length;
   try { if (navigator.setAppBadge) n ? navigator.setAppBadge(n) : navigator.clearAppBadge(); } catch {}
 }
 function desenharNotifHist() {

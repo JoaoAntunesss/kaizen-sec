@@ -820,7 +820,7 @@ function itemUrg(u, feito) {
     u.resp ? `<span class="chip">${esc(u.resp)}</span>` : "",
     isoData(u.prazo) ? `<span class="chip ${atraso ? "late" : prazoHoje ? "warn" : ""}">${atraso ? "Em atraso · " : prazoHoje ? "Hoje · " : "Prazo "}${esc(fmt(u.prazo))}</span>` : "",
     !feito && u.situacao === DEVOLVIDO && u.devolucao ? `<span class="chip late urg-dev">Devolvido${u.devolucao.para ? ` a ${esc(u.devolucao.para)}` : ""} por ${esc(u.devolucao.por || "")} a ${esc(quando(u.devolucao.em))}${u.devolucao.motivo ? ` · Corrigir: ${esc(u.devolucao.motivo)}` : ""}</span>` : "",
-    !feito && u.situacao === POR_ENVIAR && u.assinado ? `<span class="chip ok urg-dev">Assinado por ${esc(u.assinado.por || "")} a ${esc(quando(u.assinado.em))} · por enviar</span>` : "",
+    !feito && u.situacao === POR_ENVIAR && u.assinado ? `<span class="chip ok urg-dev">Assinado por ${esc(u.assinado.por || "")} a ${esc(quando(u.assinado.em))} · por enviar${u.assinado.para ? ` (com ${esc(u.assinado.para)})` : ""}</span>` : "",
     !feito && u.devolucoes ? `<span class="chip none">${u.devolucoes} devoluç${u.devolucoes === 1 ? "ão" : "ões"}</span>` : "",
     !feito && dsit !== null ? `<span class="chip ${dsit > 7 ? "late" : "none"}">${dsit === 0 ? "nesta situação desde hoje" : `há ${dsit} dia${dsit === 1 ? "" : "s"} nesta situação`}</span>` : "",
   ].join("");
@@ -865,7 +865,8 @@ $("urgLista").addEventListener("pointerdown", (e) => {
 $("urgLista").addEventListener("dblclick", (e) => { if (e.target.closest("[data-puxa]")) { urgLarg = [1, 1, 1]; aplicarLarg(); try { localStorage.removeItem("kz-urg-larg"); } catch {} } });
 
 // Edocs «de» uma pessoa: os que adicionou, os que tem como responsável e os que lhe foram devolvidos para corrigir
-const edocDe = (u, nome) => u.criadoPor === nome || u.resp === nome || (u.situacao === DEVOLVIDO && u.devolucao && u.devolucao.para === nome);
+const edocDe = (u, nome) => u.criadoPor === nome || u.resp === nome || (u.situacao === DEVOLVIDO && u.devolucao && u.devolucao.para === nome)
+  || (u.situacao === POR_ENVIAR && u.assinado && u.assinado.para === nome);
 const ESPERA = ["Aguarda informação (em prazo)", "Suspenso", "Aguarda execução", "Aguarda entidade externa", "Em análise técnica"];
 function desenharUrgentes() {
   const verDe = $("urgVerDe").value;
@@ -1156,7 +1157,10 @@ $("vDiario").addEventListener("click", async (e) => {
   try {
     const uAntes = est.urgentes.find((x) => x.id === id);
     if (acao === "tratado") await fb.D.update(ref, { tratado: true, tratadoPor: euNome() || quem(), tratadoEm: new Date().toISOString() });
-    else if (acao === "assinado") { const p = euNome() || quem(), t = new Date().toISOString(); await fb.D.update(ref, { situacao: POR_ENVIAR, situacaoEm: t, situacaoPor: p, assinado: { por: p, em: t } }); }
+    else if (acao === "assinado") { const p = euNome() || quem(), t = new Date().toISOString(); const u0 = est.urgentes.find((x) => x.id === id) || {};
+      // volta a quem o enviou para assinatura (ou ao responsável, ou a quem o registou)
+      const para = (u0.situacaoPor && u0.situacaoPor !== p ? u0.situacaoPor : "") || u0.resp || u0.criadoPor || "";
+      await fb.D.update(ref, { situacao: POR_ENVIAR, situacaoEm: t, situacaoPor: p, assinado: { por: p, em: t, para } }); }
     else if (acao === "enviado") { const p = euNome() || quem(), t = new Date().toISOString(); await fb.D.update(ref, { tratado: true, tratadoPor: p, tratadoEm: t, enviadoPor: p, enviadoEm: t, arquivado: true, arquivadoPor: p, arquivadoEm: t }); }
     else if (acao === "feito-arquivar") { const p = euNome() || quem(), t = new Date().toISOString(); await fb.D.update(ref, { tratado: true, tratadoPor: p, tratadoEm: t, arquivado: true, arquivadoPor: p, arquivadoEm: t }); }
     else if (acao === "desfazer") await fb.D.update(ref, { tratado: false, tratadoPor: null, tratadoEm: null, arquivado: null, arquivadoPor: null, arquivadoEm: null });

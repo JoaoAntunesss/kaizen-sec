@@ -3440,18 +3440,18 @@ function nevePasso(t) {
   for (const f of neve.flocos) {
     f.fase += 0.012 * dt * f.osc;
     const dx = f.x - R.x, dy = f.y - R.y, d2 = dx * dx + dy * dy;
-    if (d2 < 110 * 110) { // perto do rato: afasta-se e é levado pelo movimento
+    if (d2 < 110 * 110 && !f.torrao) { // perto do rato: afasta-se e é levado pelo movimento
       const d = Math.sqrt(d2) || 1, k = (1 - d / 110);
       f.vx += (dx / d) * k * 0.9 * dt + R.vx * k * 0.08; f.vy += (dy / d) * k * 0.5 * dt + R.vy * k * 0.05;
     }
-    f.vx *= 0.96; f.vy += ((0.35 + f.r * 0.32) - f.vy) * 0.03 * dt;
+    if (f.torrao) { f.vy += 0.2 * dt; f.vx *= 0.995; } else { f.vx *= 0.96; f.vy += ((0.35 + f.r * 0.32) - f.vy) * 0.03 * dt; }
     f.x += (f.vx + Math.sin(f.fase) * 0.45 * f.osc) * dt; f.y += f.vy * dt;
     // pousa em cima de uma caixa e junta-se ao monte dessa caixa
     if (f.vy > 0) for (const c of neve.caixas) {
       if (f.x <= c.left || f.x >= c.right) continue;
       const i = Math.round((f.x - c.left) / NEVE_CX_COL), m = c.m, sup = c.top - m[i];
       if (f.y >= sup && f.y - f.vy * dt < sup + 2) {
-        const add = f.r * 0.5;
+        const add = f.vol || f.r * 0.5;
         if (m[i] < NEVE_CX_MAX) { m[i] += add; if (i > 0) m[i - 1] += add * 0.35; if (i < m.length - 1) m[i + 1] += add * 0.35; }
         f.extra ? (f.morto = true) : Object.assign(f, neveFloco(true), { y: -10 });
         break;
@@ -3459,7 +3459,7 @@ function nevePasso(t) {
     }
     const col = Math.max(0, Math.min(neve.chao.length - 1, Math.round(f.x / NEVE_COL)));
     if (f.vy > 0 && f.y >= h - neve.chao[col]) { // chega ao monte do fundo
-      const add = f.r * 0.55;
+      const add = f.vol || f.r * 0.55;
       if (neve.chao[col] < NEVE_MAX) { neve.chao[col] += add; if (col > 0) neve.chao[col - 1] += add * 0.4; if (col < neve.chao.length - 1) neve.chao[col + 1] += add * 0.4; }
       f.extra ? (f.morto = true) : Object.assign(f, neveFloco(true), { y: -10 });
     }
@@ -3470,28 +3470,13 @@ function nevePasso(t) {
   const velR = Math.hypot(R.vx, R.vy);
   for (const c of neve.caixas) {
     const m = c.m, n = m.length;
-    for (let i = 1; i < n; i++) { const d = m[i] - m[i - 1]; if (Math.abs(d) > 1.6) { const q = d * 0.25; m[i] -= q; m[i - 1] += q; } }
+    for (let i = 1; i < n; i++) { const d = m[i] - m[i - 1]; if (Math.abs(d) > 2.6) { const q = (d - Math.sign(d) * 2.6) * 0.3; m[i] -= q; m[i - 1] += q; } }
     for (const i of [0, n - 1]) if (m[i] > 2.5) { // cai pela ponta da caixa
       const sobra = m[i] - 2.5; m[i] = 2.5;
       if (Math.random() < sobra * 0.8 && neve.flocos.length < 460) { const f = neveFloco(false); Object.assign(f, { extra: true, x: c.left + (i ? c.w + 2 : -2), y: c.top - 2, r: 1 + Math.random() * 1.6, vx: (i ? 1 : -1) * (0.4 + Math.random()), vy: 0.6 }); neve.flocos.push(f); }
     }
     for (let i = 0; i < n; i++) m[i] = Math.max(0, m[i] - 0.0006 * dt);
-    if (R.x > c.left - 10 && R.x < c.right + 10 && velR > 1) {
-      const c0 = Math.round((R.x - c.left) / NEVE_CX_COL), raio = 7;
-      for (let i = Math.max(0, c0 - raio); i <= Math.min(n - 1, c0 + raio); i++) {
-        const sup = c.top - m[i]; if (m[i] < 0.6 || R.y < sup - 22 || R.y > c.top + 16) continue;
-        const tira = Math.min(m[i], (0.7 + velR * 0.14) * dt * (1 - Math.abs(i - c0) / (raio + 1)));
-        m[i] -= tira;
-        // parte da neve é empurrada para o lado, o resto é atirada pelo ar
-        const lado = Math.sign(R.vx) || 1, j = i + lado * (2 + Math.round(Math.random() * 3));
-        if (j >= 0 && j < n && Math.random() < 0.5) m[j] += tira * 0.6;
-        else if (Math.random() < tira * 0.45 && neve.flocos.length < 460) {
-          const f = neveFloco(false);
-          Object.assign(f, { extra: true, x: c.left + i * NEVE_CX_COL, y: sup, r: 1 + Math.random() * 1.8, vx: lado * (1.5 + Math.random() * 2.5) + R.vx * 0.2, vy: -(1.5 + Math.random() * 2.5) });
-          neve.flocos.push(f);
-        }
-      }
-    }
+    neveEmpurrar(c.m, NEVE_CX_COL, c.left, c.top + 1, c.el, dt, true);
     // desenho: um monte com contorno suave e sombra por baixo
     cx.globalAlpha = 1; cx.beginPath(); cx.moveTo(c.left, c.top + 1);
     for (let i = 0; i < n; i++) cx.lineTo(Math.min(c.right, c.left + i * NEVE_CX_COL), c.top + 1 - m[i]);
@@ -3501,22 +3486,9 @@ function nevePasso(t) {
   }
   // monte do fundo: escorrega para os lados, derrete muito devagar e a pá (o rato) tira neve e atira-a
   const ch = neve.chao, n = ch.length;
-  for (let i = 1; i < n; i++) { const d = ch[i] - ch[i - 1]; if (Math.abs(d) > 2.2) { const m = d * 0.22; ch[i] -= m; ch[i - 1] += m; } }
+  for (let i = 1; i < n; i++) { const d = ch[i] - ch[i - 1]; if (Math.abs(d) > 3.6) { const m = (d - Math.sign(d) * 3.6) * 0.3; ch[i] -= m; ch[i - 1] += m; } }
   for (let i = 0; i < n; i++) ch[i] = Math.max(0, ch[i] - 0.0008 * dt);
-  const vel = Math.hypot(R.vx, R.vy);
-  if (R.x > -900 && vel > 1.2) {
-    const c0 = Math.round(R.x / NEVE_COL), raio = 6;
-    for (let i = Math.max(0, c0 - raio); i <= Math.min(n - 1, c0 + raio); i++) {
-      const topo = h - ch[i]; if (ch[i] < 1 || R.y < topo - 26) continue;
-      const tira = Math.min(ch[i], (0.9 + vel * 0.12) * dt * (1 - Math.abs(i - c0) / (raio + 1)));
-      ch[i] -= tira;
-      if (Math.random() < tira * 0.35 && neve.flocos.length < 420) {
-        const f = neveFloco(false); const dir = R.vx === 0 ? (Math.random() - 0.5) : Math.sign(R.vx);
-        Object.assign(f, { extra: true, x: i * NEVE_COL, y: topo, r: 1.2 + Math.random() * 2, vx: dir * (2 + Math.random() * 3) + R.vx * 0.25, vy: -(2.5 + Math.random() * 3.5) - Math.min(4, vel * 0.15) });
-        neve.flocos.push(f);
-      }
-    }
-  }
+  neveEmpurrar(ch, NEVE_COL, 0, h, neve, dt, false);
   if (neve.flocos.some((f) => f.morto)) neve.flocos = neve.flocos.filter((f) => !f.morto);
   cx.globalAlpha = 1; cx.beginPath(); cx.moveTo(0, h);
   for (let i = 0; i < n; i++) cx.lineTo(i * NEVE_COL, h - ch[i]);
@@ -3537,7 +3509,7 @@ function neveAplicar() {
     neveTamanho();
     if (!matchMedia("(prefers-reduced-motion: reduce)").matches) neve.raf = requestAnimationFrame(nevePasso);
   } else if (!quer && neve.on) {
-    neve.on = false; cancelAnimationFrame(neve.raf); neve.cv.remove(); neve.cv = null;
+    neve.on = false; cancelAnimationFrame(neve.raf); neve.cv.remove(); neve.cv = null; document.documentElement.classList.remove("neve-pa");
   }
 }
 addEventListener("resize", () => { if (neve.on) neveTamanho(); });
@@ -3546,7 +3518,81 @@ addEventListener("pointermove", (e) => {
   const R = neve.rato, t = performance.now(), dt = Math.max(8, t - R.t);
   if (R.t && t - R.t < 100) { R.vx = R.vx * 0.5 + ((e.clientX - R.x) / dt) * 16 * 0.5; R.vy = R.vy * 0.5 + ((e.clientY - R.y) / dt) * 16 * 0.5; }
   R.x = e.clientX; R.y = e.clientY; R.t = t;
+  if (neve.on) nevePa(e.clientX, e.clientY);
 }, { passive: true });
+// Cursor em forma de pá quando está por cima da neve acumulada (no fundo do ecrã ou em cima de uma caixa)
+// Pá: raspa a neve que está debaixo da lâmina e junta-a à frente, num monte que avança com ela;
+// um gesto rápido atira essa neve em torrões, que voam em arco e se juntam ao monte onde caem.
+const nevePas = new WeakMap(); // carga de neve na pá, por monte
+function neveLancar(x, y, dir, quanto, vel) {
+  const n = Math.min(14, Math.max(1, Math.ceil(quanto / 2.2)));
+  for (let k = 0; k < n && neve.flocos.length < 480; k++) {
+    const f = neveFloco(false), r = 1.8 + Math.random() * 2;
+    Object.assign(f, { extra: true, torrao: true, vol: quanto / n, r, a: 0.95, x: x + dir * Math.random() * 8, y: y - Math.random() * 6,
+      vx: dir * (1.5 + Math.random() * 2 + Math.min(9, vel * 0.45)), vy: -(2.5 + Math.random() * 2.5) - Math.min(4, vel * 0.18) });
+    neve.flocos.push(f);
+  }
+}
+function neveEmpurrar(m, colW, x0, y0, dono, dt, caixa) {
+  const R = neve.rato, n = m.length;
+  let st = nevePas.get(dono); if (!st) { st = { carga: 0 }; nevePas.set(dono, st); }
+  const c0 = Math.round((R.x - x0) / colW), cc = Math.max(0, Math.min(n - 1, c0));
+  const sup = y0 - m[cc], dentro = c0 >= -2 && c0 <= n + 1 && R.y >= sup - 10 && R.y <= y0 + (caixa ? 8 : 40);
+  const sp = Math.abs(R.vx), dir = Math.sign(R.vx) || 1;
+  if (!dentro) { if (st.carga > 0.6) neveLancar(R.x, sup, dir, st.carga, sp); st.carga = 0; return; }
+  if (sp < 0.4) return;
+  const meia = Math.max(2, Math.round(8 / colW));
+  for (let i = c0 - meia; i <= c0 + meia; i++) { // raspa debaixo da lâmina
+    if (i < 0 || i >= n) continue;
+    const t = Math.max(0, m[i] - 0.4) * Math.min(1, 0.4 * dt * (0.6 + sp * 0.1));
+    m[i] -= t; st.carga += t;
+  }
+  // a neve juntada fica à frente da pá, num monte arredondado que cresce enquanto se arrasta;
+  // acima de certa altura rola por cima e cai mais à frente
+  const pesos = [0.2, 0.19, 0.17, 0.14, 0.11, 0.08, 0.06, 0.05], larg = Math.max(1, Math.round(3 / colW));
+  const teto = caixa ? NEVE_CX_MAX + 9 : NEVE_MAX + 16;
+  let pos = 0, sobra = 0;
+  const tot = st.carga * 0.6;
+  for (let k = 0; k < pesos.length; k++) for (let w = 0; w < larg; w++) {
+    const j = c0 + dir * (meia + 1 + k * larg + w); let q = tot * pesos[k] / larg + (k === pesos.length - 1 && w === larg - 1 ? sobra : 0); sobra = 0;
+    pos += q;
+    if (j >= 0 && j < n) {
+      const cabe = Math.max(0, teto - m[j]);
+      if (q > cabe) { sobra = q - cabe; q = cabe; }
+      m[j] += q;
+    } else if (caixa && Math.random() < q * 0.6 && neve.flocos.length < 480) { // cai pela ponta da caixa
+      const f = neveFloco(false); Object.assign(f, { extra: true, torrao: true, vol: q * 1.5, r: 1.5 + Math.random() * 1.5, x: x0 + (j < 0 ? -3 : n * colW + 3), y: y0 - 2, vx: dir * (0.6 + sp * 0.15), vy: -0.5 });
+      neve.flocos.push(f);
+    }
+  }
+  if (sobra > 0.3 && neve.flocos.length < 480) { // rola por cima do monte e cai à frente
+    const jf = Math.max(0, Math.min(n - 1, c0 + dir * (meia + pesos.length * larg)));
+    const f = neveFloco(false); Object.assign(f, { extra: true, torrao: true, vol: sobra, r: 1.6 + Math.random() * 1.4, x: x0 + jf * colW, y: y0 - m[jf] - 2, vx: dir * (0.8 + Math.random()), vy: -0.6 });
+    neve.flocos.push(f);
+  }
+  st.carga = Math.max(0, st.carga - pos);
+  // gesto rápido: atira a neve da frente da pá
+  if (sp > 9) {
+    let lanc = st.carga;
+    for (let k = 1; k <= meia * 3; k++) { const j = c0 + dir * k; if (j < 0 || j >= n) break; const q = m[j] * 0.75; m[j] -= q; lanc += q; }
+    if (lanc > 0.6) neveLancar(R.x + dir * meia * colW, y0 - m[cc], dir, lanc, sp);
+    st.carga = 0;
+  } else if (Math.random() < sp * 0.04 && neve.flocos.length < 480) { // um pouco de pó de neve a saltar
+    const f = neveFloco(false); Object.assign(f, { extra: true, x: R.x + dir * meia * colW, y: sup, r: 0.8 + Math.random(), vx: dir * (0.5 + Math.random() * 1.5), vy: -(0.8 + Math.random() * 1.2) });
+    neve.flocos.push(f);
+  }
+}
+function nevePa(x, y) {
+  let em = false;
+  const ch = neve.chao, i = Math.round(x / NEVE_COL);
+  if (ch.length && i >= 0 && i < ch.length && ch[i] > 1.5 && y >= innerHeight - ch[i] - 6) em = true;
+  if (!em) for (const c of neve.caixas) {
+    if (x < c.left || x > c.right) continue;
+    const j = Math.round((x - c.left) / NEVE_CX_COL), h = c.m[j] || 0;
+    if (h > 1 && y >= c.top - h - 6 && y <= c.top + 3) { em = true; break; }
+  }
+  document.documentElement.classList.toggle("neve-pa", em);
+}
 document.addEventListener("pointerleave", () => { neve.rato.x = neve.rato.y = -999; });
 addEventListener("pointerdown", (e) => { // um clique solta um punhado de neve
   if (!neve.on || e.target.closest("input,select,textarea")) return;

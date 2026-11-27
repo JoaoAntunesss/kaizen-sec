@@ -1009,3 +1009,6 @@ body.com-fundo.transp.transp-alta :is(.panel,.equipa-hoje) :is(.card,.tile,.ct,.
 .dr-fav.on{color:#d9a400}.dr-fav.on svg{fill:currentColor}
 .dr-tabs button[aria-pressed="true"]{background:var(--accent-soft);color:var(--accent);font-weight:700}
 .dr-emi{font-size:12px;font-weight:600;color:var(--accent)}
+.apag-item{display:flex;align-items:center;gap:12px;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:var(--surface);margin-bottom:8px}
+.apag-main{display:flex;flex-direction:column;gap:2px;min-width:0;flex:1}
+.apag-ass{font-size:14px;overflow:hidden;text-overflow:ellipsis}

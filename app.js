@@ -1153,6 +1153,7 @@ $("vDiario").addEventListener("click", async (e) => {
     else if (acao === "feito-arquivar") { const p = euNome() || quem(), t = new Date().toISOString(); await fb.D.update(ref, { tratado: true, tratadoPor: p, tratadoEm: t, arquivado: true, arquivadoPor: p, arquivadoEm: t }); }
     else if (acao === "desfazer") await fb.D.update(ref, { tratado: false, tratadoPor: null, tratadoEm: null, arquivado: null, arquivadoPor: null, arquivadoEm: null });
     else if (acao === "apagar") await fb.D.remove(ref);
+    if (acao === "apagar" && uAntes) { const { id: _i, ...copia } = uAntes; regHist(uAntes, "Apagado", { copia: JSON.stringify(copia) }); return; }
     regHist(uAntes, { tratado: "Tratado", "feito-arquivar": uAntes && tipoSemOficio(uAntes) === "registar" ? "Tratado (registado) e arquivado" : "Tratado (informado ou encaminhado) e arquivado", desfazer: "Tratado desfeito (voltou aos urgentes)", apagar: "Apagado" }[acao]);
   } catch { st.textContent = "Não consegui guardar. Verifique a internet."; st.className = "status err"; b.disabled = false; }
 });
@@ -1198,8 +1199,36 @@ function estadoAtual(uid) {
   if (u.situacao === DEVOLVIDO) return { t: `Agora: por corrigir (com ${(u.devolucao && u.devolucao.para) || u.criadoPor || "quem o enviou"})`, c: "late" };
   return { t: `Agora: ${u.situacao || "Outro"}`, c: "none" };
 }
+// Apagados: os Edocs apagados da lista, a partir do histórico; podem ser repostos
+function apagadosLista() {
+  const vivos = new Set(est.urgentes.map((u) => u.id)), vistos = new Set();
+  return [...(est.hist || [])].sort((x, y) => String(y.em).localeCompare(String(x.em)))
+    .filter((h) => h.acao === "Apagado" && h.uid && !vivos.has(h.uid) && !vistos.has(h.uid) && vistos.add(h.uid));
+}
+function desenharApagados() {
+  if (!$("urgApag")) return;
+  const l = apagadosLista();
+  $("urgApagN").textContent = `(${l.length})`;
+  $("urgApag").innerHTML = l.length ? l.slice(0, 200).map((h) => {
+    const ed = h.link ? `<a class="urg-a" href="${esc(h.link)}" target="_blank" rel="noopener">${esc(h.edoc)}</a>` : `<strong>${esc(h.edoc || "Sem n.º")}</strong>`;
+    const quando = `${fmt(String(h.em).slice(0, 10))} às ${new Date(h.em).toLocaleTimeString("pt-PT", { hour: "2-digit", minute: "2-digit" })}`;
+    return `<div class="apag-item"><div class="apag-main">${ed}${h.assunto ? `<span class="apag-ass">${esc(h.assunto)}</span>` : ""}
+      <span class="muted small">Apagado por ${esc(h.por || "—")} a ${esc(quando)}</span></div>
+      <button class="btn small ghost" type="button" data-repor="${esc(h.id)}">Repor</button></div>`; }).join("")
+    : `<p class="empty">Nenhum Edoc apagado.</p>`;
+}
+$("urgApag").addEventListener("click", async (e) => {
+  const b = e.target.closest("[data-repor]"); if (!b || !fb) return;
+  const h = (est.hist || []).find((x) => x.id === b.dataset.repor); if (!h) return;
+  let dados = null; try { dados = h.copia ? JSON.parse(h.copia) : null; } catch {}
+  if (!dados) dados = { edoc: h.edoc || "", assunto: h.assunto || "", link: h.link || "", situacao: "Outro", criadoPor: h.por || "", criadoEm: h.em };
+  b.disabled = true;
+  try { await fb.D.set(fb.D.ref(fb.db, `${COL_URGENTES}/${h.uid}`), dados); regHist({ id: h.uid, ...dados }, "Reposto (estava apagado)"); }
+  catch { b.disabled = false; b.textContent = "Não consegui repor"; }
+});
 let histModo = "data";
 function desenharHist() {
+  desenharApagados();
   const box = $("histBox"); if (!box) return;
   box.hidden = !est.assina; if (!est.assina) return;
   const tipo = $("histTipo").value, pes = $("histPor").value, q = normCt($("histQ").value.trim());

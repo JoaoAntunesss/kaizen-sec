@@ -1012,3 +1012,10 @@ body.com-fundo.transp.transp-alta :is(.panel,.equipa-hoje) :is(.card,.tile,.ct,.
 .apag-item{display:flex;align-items:center;gap:12px;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:var(--surface);margin-bottom:8px}
 .apag-main{display:flex;flex-direction:column;gap:2px;min-width:0;flex:1}
 .apag-ass{font-size:14px;overflow:hidden;text-overflow:ellipsis}
+.nh-novas{display:inline-block;margin-left:6px;padding:1px 8px;border-radius:999px;background:var(--accent);color:#fff;font-size:12px;font-weight:700}
+.nh-cab{display:flex;align-items:center;justify-content:space-between;margin-top:14px}.nh-cab h4{margin:0;font-size:15px}
+.nh-lista{max-height:340px;overflow:auto;display:flex;flex-direction:column;gap:6px;margin-top:6px}
+.nh-item{display:flex;align-items:center;gap:12px;padding:8px 10px;border:1px solid var(--line);border-radius:10px;background:var(--surface)}
+.nh-item.nova{border-left:3px solid var(--accent);background:color-mix(in srgb,var(--accent) 7%,var(--surface))}
+.nh-quando{font-size:12px;color:var(--muted);white-space:nowrap;min-width:118px}
+.nh-txt{display:flex;flex-direction:column;gap:1px;flex:1;min-width:0}.nh-txt span{font-size:13px;color:var(--muted);overflow:hidden;text-overflow:ellipsis}

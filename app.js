@@ -1334,7 +1334,37 @@ let notifPref = { assinar: false, muito: false, meu: false };
 try { notifPref = { ...notifPref, ...JSON.parse(localStorage.getItem(NOTIF_KEY) || "{}") }; } catch {}
 let avisosVistos = null; // estado anterior de cada Edoc: "situação|tratado|prio"
 const euNome = () => { if (est.conta) return est.conta; try { return localStorage.getItem("kz-urg-por") || ""; } catch { return ""; } };
-async function avisar(titulo, corpo, filtro, url) {
+// Histórico de notificações deste computador (as últimas 200), com as novas por ler
+const NOTIF_HIST_KEY = "kz-notif-hist";
+let notifHist = []; try { notifHist = JSON.parse(localStorage.getItem(NOTIF_HIST_KEY) || "[]"); } catch {}
+function guardarNotifHist(titulo, corpo, filtro, url) {
+  notifHist.unshift({ em: new Date().toISOString(), titulo, corpo, filtro: filtro || "", url: url || "", lida: !!$("notifBox").open });
+  notifHist = notifHist.slice(0, 200);
+  try { localStorage.setItem(NOTIF_HIST_KEY, JSON.stringify(notifHist)); } catch {}
+  desenharNotifHist();
+}
+function desenharNotifHist() {
+  const novas = notifHist.filter((n) => !n.lida).length;
+  $("notifNovas").textContent = novas ? `${novas} nova${novas === 1 ? "" : "s"}` : ""; $("notifNovas").hidden = !novas;
+  $("notifHistLista").innerHTML = notifHist.length ? notifHist.map((n, i) => {
+    const d = new Date(n.em), quando = `${fmt(n.em.slice(0, 10))} às ${d.toLocaleTimeString("pt-PT", { hour: "2-digit", minute: "2-digit" })}`;
+    const corpo = String(n.corpo || "").replace(/\nClique para abrir no Edoc\.?/, "");
+    return `<div class="nh-item${n.lida ? "" : " nova"}"><span class="nh-quando">${esc(quando)}</span><div class="nh-txt"><strong>${esc(n.titulo)}</strong><span>${esc(corpo)}</span></div>
+      ${n.url ? `<a class="btn small ghost" href="${esc(n.url)}" target="_blank" rel="noopener">Abrir Edoc</a>` : `<button class="btn small ghost" type="button" data-nh="${i}">Ver</button>`}</div>`; }).join("")
+    : `<p class="empty">Ainda não houve notificações neste computador.</p>`;
+}
+function marcarNotifLidas() {
+  if (!notifHist.some((n) => !n.lida)) return;
+  notifHist.forEach((n) => { n.lida = true });
+  try { localStorage.setItem(NOTIF_HIST_KEY, JSON.stringify(notifHist)); } catch {}
+  desenharNotifHist();
+}
+$("notifBox").addEventListener("toggle", () => { if ($("notifBox").open) setTimeout(marcarNotifLidas, 1500); });
+$("notifHistLista").addEventListener("click", (e) => { const b = e.target.closest("[data-nh]"); if (b) abrirDiario(notifHist[+b.dataset.nh]?.filtro || ""); });
+$("btnNotifLimpar").addEventListener("click", () => { notifHist = []; try { localStorage.removeItem(NOTIF_HIST_KEY); } catch {} desenharNotifHist(); });
+desenharNotifHist();
+async function avisar(titulo, corpo, filtro, url, teste) {
+  if (!teste) guardarNotifHist(titulo, corpo, filtro, url);
   if (!("Notification" in window) || Notification.permission !== "granted") return;
   const opts = { body: corpo, icon: "icons/icon-192.png", badge: "icons/icon-192.png", tag: `kz-${Date.now()}`, data: { filtro, url: url || "" } };
   try { const reg = await navigator.serviceWorker?.getRegistration(); if (reg) { await reg.showNotification(titulo, opts); return; } } catch {}
@@ -1407,7 +1437,7 @@ $("btnNotifTeste").addEventListener("click", async () => {
   if ("Notification" in window && Notification.permission === "default") { try { await Notification.requestPermission(); } catch {} }
   desenharNotif();
   if (!("Notification" in window) || Notification.permission !== "granted") { $("urgStatus").textContent = "Permita as notificações para este site para receber avisos."; $("urgStatus").className = "status err"; return; }
-  avisar("Teste — Kaizen Secretaria", "Os avisos estão a funcionar neste computador.", "Ofício por assinar");
+  avisar("Teste — Kaizen Secretaria", "Os avisos estão a funcionar neste computador.", "Ofício por assinar", "", true);
 });
 navigator.serviceWorker?.addEventListener("message", (e) => { if (e.data && e.data.abrir === "diario") abrirDiario(e.data.filtro); });
 desenharNotif();

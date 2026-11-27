@@ -162,6 +162,9 @@ function subscrever() {
   D.onValue(D.ref(db, COL_MAPAS), (snap) => {
     const v = snap.val() || {};
     est.mapas = Object.entries(v).map(([id, m]) => ({ id, ...m }));
+    // nome novo pedido pela equipa: «Paragens / Abrigos» passou a «Concessão Mobiliário Urbano»
+    est.mapas.filter((m) => /^\s*paragens\s*\/\s*abrigos\s*$/i.test(m.nome || "")).forEach((m) => {
+      m.nome = "Concessão Mobiliário Urbano"; D.update(D.ref(db, `${COL_MAPAS}/${m.id}`), { nome: m.nome }).catch(() => {}); });
     desenharMapas();
   }, () => { $("mapasStatus").textContent = "Não consegui ler os mapas."; $("mapasStatus").className = "status err"; });
   const lerLista = (col, chave, depois) => D.onValue(D.ref(db, col), (snap) => {
@@ -2556,6 +2559,7 @@ function desenharMapas() {
       <div class="mapa-main"><strong>${esc(m.nome)}</strong>${m.desc ? `<span>${esc(m.desc)}</span>` : ""}<span class="muted small">${esc(origemMapa(m.link))}</span></div>
       <div class="mapa-acts">${linkMapa(m.link) ? `<a class="btn small primary" href="${esc(linkMapa(m.link))}" target="_blank" rel="noopener">Abrir</a>` : ""}
         ${tipoDoMapa(m) ? `<button class="btn small" type="button" data-mapa-painel="${tipoDoMapa(m)}">Painel</button>` : ""}
+        ${m.fixo ? "" : `<button class="btn small ghost" type="button" data-mapa-nome="${esc(m.id)}" aria-label="Mudar o nome de ${esc(m.nome)}">Mudar nome</button>`}
         ${m.fixo ? "" : `<button class="btn small ghost danger" type="button" data-mapa-rm="${esc(m.id)}" aria-label="Retirar ${esc(m.nome)}">Retirar</button>`}</div></div>`).join("")
     : `<p class="empty">Ainda não há mapas. Use «Adicionar mapa» para juntar os links dos Excel partilhados.</p>`;
   if (!l.length) $("mapasAddBox").open = true;
@@ -2574,6 +2578,15 @@ $("mapaForm").addEventListener("submit", async (e) => {
 });
 $("mapasLista").addEventListener("click", async (e) => {
   const pn = e.target.closest("[data-mapa-painel]"); if (pn) { abrirPainelMapa(pn.dataset.mapaPainel); return; }
+  const rn = e.target.closest("[data-mapa-nome]");
+  if (rn) {
+    const m = est.mapas.find((x) => x.id === rn.dataset.mapaNome); if (!m) return;
+    const novo = (prompt("Novo nome do mapa:", m.nome || "") || "").trim();
+    if (!novo || novo === m.nome) return;
+    try { await fb.D.update(fb.D.ref(fb.db, `${COL_MAPAS}/${m.id}`), { nome: novo }); $("mapasStatus").textContent = `Nome mudado para «${novo}».`; $("mapasStatus").className = "status"; }
+    catch { $("mapasStatus").textContent = "Não consegui mudar o nome. Verifique a internet."; $("mapasStatus").className = "status err"; }
+    return;
+  }
   const b = e.target.closest("[data-mapa-rm]"); if (!b) return;
   if (b.dataset.ok !== "1") { b.dataset.ok = "1"; b.textContent = "Confirmar retirar"; setTimeout(() => { b.dataset.ok = ""; b.textContent = "Retirar"; }, 4000); return; }
   try { await fb.D.remove(fb.D.ref(fb.db, `${COL_MAPAS}/${b.dataset.mapaRm}`)); }

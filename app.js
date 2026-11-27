@@ -68,6 +68,7 @@ function mostrar(v) {
   $("btnNovaTop").hidden = v !== "vPainel";
   $("btnSair").hidden = !est.user;
   $("btnFundo").hidden = !est.user;
+  $("btnNeve").hidden = !est.user || !epocaNeve();
   $("mainNav").hidden = !est.user || v === "vLogin" || v === "vConfig";
   const sec = { vEquipa: "vPainel", vRelatorio: "vPainel", vReuniao: "vPainel", vRegistar: "vPainel", vImprimir: "vPainel", vMapaPainel: "vMapas" }[v] || v;
   document.querySelectorAll("#mainNav .nav-b").forEach((b) => b.classList.toggle("on", b.dataset.v === sec));
@@ -102,7 +103,7 @@ async function iniciarFirebase() {
   // Só entram as contas Google da equipa (lista CONTAS, guardada como hash do email): as outras saem logo.
   const hashEmail = async (e) => [...new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(String(e).trim().toLowerCase())))].map((b) => b.toString(16).padStart(2, "0")).join("");
   fb.A.onAuthStateChanged(fb.auth, async (u) => {
-    est.user = null; est.assina = false; est.admin = false; est.conta = ""; mostrarQuemSou();
+    est.user = null; est.assina = false; est.admin = false; est.conta = ""; mostrarQuemSou(); neveAplicar();
     $("btnMestreAbrir").hidden = true;
     if (!u) { chatLimparUI(); fecharMestre(); aplicarFundo(""); mostrar("vLogin"); return; }
     let c = null;
@@ -116,7 +117,7 @@ async function iniciarFirebase() {
     }
     $("loginStatus").textContent = "";
     est.user = u; est.conta = c.nome; est.admin = !!c.admin; est.assina = !!(c.assina || c.admin);
-    mostrarQuemSou();
+    mostrarQuemSou(); neveAplicar();
     try { localStorage.setItem("kz-urg-por", c.nome); } catch {}
     if ($("urgPor") && [...$("urgPor").options].some((o) => o.value === c.nome)) $("urgPor").value = c.nome;
     $("btnMestreAbrir").hidden = false; olaMestre();
@@ -2661,14 +2662,21 @@ function medirLuz(img) {
   im.src = img;
 }
 matchMedia("(prefers-color-scheme: dark)").addEventListener("change", aplicarTransp);
-function aplicarFundo(img) {
+// Com o Modo Natal ligado mostra-se o fundo de Natal; o fundo de cada pessoa fica guardado e volta ao desligar
+const NATAL_FUNDO = "icons/natal-fundo.jpg";
+let fundoProprio = null;
+function fundoNoEcra() {
+  const img = document.body.classList.contains("com-neve") ? NATAL_FUNDO : fundoProprio;
   document.body.classList.toggle("com-fundo", !!img);
   document.body.style.setProperty("--fundo-img", img ? `url("${img}")` : "none");
+  if (img) medirLuz(img);
+  aplicarTransp();
+}
+function aplicarFundo(img) {
+  fundoProprio = img || null; fundoNoEcra();
   const pv = $("fundoPrev"); if (pv) { pv.hidden = !img; pv.style.backgroundImage = img ? `url("${img}")` : ""; }
   $("fundoRemover").hidden = !img;
   $("fundoTranspBox").hidden = $("fundoTranspAj").hidden = !img; $("fundoTransp").value = fundoTransp;
-  if (img) medirLuz(img);
-  aplicarTransp();
 }
 try { const c = JSON.parse(localStorage.getItem("kz-fundo") || "null"); if (c && c.img) aplicarFundo(c.img); } catch {}
 async function carregarFundo() {
@@ -2684,6 +2692,7 @@ async function carregarFundo() {
     if (chaveFundo() !== k) return;
     if (!v) abrirFundo(true, !viuManual); // ainda nunca respondeu: pergunta uma vez
     else if (!viuManual) abrirAvisoManual();
+    avisoNatal(k);
   } catch {}
 }
 // Aviso do manual da plataforma: aparece uma vez por conta (junto com a pergunta do fundo, ou sozinho)
@@ -3380,3 +3389,224 @@ $("manLista").addEventListener("click", async (e) => {
 });
 $("btnManual").addEventListener("click", () => { manMsg(""); desenharManual(); mostrar("vManual"); });
 desenharManual();
+
+// Neve de Natal: flocos a cair (afastam-se do rato e são soprados quando o rato passa depressa; um clique
+// solta um punhado; no fundo a neve acumula e o rato tira-a como uma pá), montes de neve e luzes de Natal.
+// Cada pessoa liga o «Modo Natal» no botão do topo (fica guardado neste computador); o botão só aparece de 25/11 a 6/1.
+function epocaNeve(d = new Date()) { const m = d.getMonth() + 1, dia = d.getDate(); return (m === 11 && dia >= 25) || m === 12 || (m === 1 && dia <= 6); }
+const NEVE_KEY = "kz-neve";
+const NEVE_COL = 4, NEVE_MAX = 46; // colunas do monte do fundo (px) e altura máxima
+const neve = { on: false, cv: null, cx: null, flocos: [], pousados: [], chao: new Float32Array(0), caixas: [], rato: { x: -999, y: -999, vx: 0, vy: 0, t: 0 }, raf: 0, ultimo: 0, medido: 0 };
+function neveLigada() { try { return localStorage.getItem(NEVE_KEY) === "1"; } catch { return false; } }
+function neveFloco(topo) {
+  const w = innerWidth, r = 1 + Math.random() * 2.6;
+  return { x: Math.random() * w, y: topo ? -10 - Math.random() * innerHeight * 0.3 : Math.random() * innerHeight, r,
+    vy: 0.35 + r * 0.32 + Math.random() * 0.3, vx: 0, fase: Math.random() * 6.28, osc: 0.4 + Math.random() * 0.8, a: 0.55 + Math.random() * 0.4 };
+}
+// Neve em cima de cada caixa: uma fila de colunas (como o monte do fundo) que acompanha a caixa ao fazer scroll
+const NEVE_CX_COL = 3, NEVE_CX_MAX = 17;
+let neveMontes = new WeakMap();
+function neveMonte(el, largura) {
+  const n = Math.max(2, Math.ceil(largura / NEVE_CX_COL) + 1);
+  let m = neveMontes.get(el);
+  if (!m) { m = new Float32Array(n); for (let i = 0; i < n; i++) m[i] = 3 + Math.random() * 3; neveMontes.set(el, m); return m; }
+  if (m.length !== n) { const novo = new Float32Array(n); for (let i = 0; i < n; i++) novo[i] = m[Math.min(m.length - 1, Math.round(i * m.length / n))]; neveMontes.set(el, novo); return novo; }
+  return m;
+}
+const cabecaFundo = () => { const c = document.querySelector(".cabeca"); return c ? c.getBoundingClientRect().bottom : 0; };
+function neveMedir() {
+  neve.caixas = [...document.querySelectorAll("main .panel, .equipa-hoje")].filter((e) => e.offsetParent)
+    .map((el) => { const r = el.getBoundingClientRect(); return { el, left: r.left, right: r.right, top: r.top, bottom: r.bottom, w: r.width }; })
+    .filter((c) => c.top > cabecaFundo() + 6 && c.top < innerHeight + 40 && c.w > 60)
+    .map((c) => Object.assign(c, { m: neveMonte(c.el, c.w) }));
+}
+function neveTamanho() {
+  const dpr = Math.min(devicePixelRatio || 1, 2);
+  neve.cv.width = innerWidth * dpr; neve.cv.height = innerHeight * dpr; neve.cx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  const alvo = neve.alvo = Math.round(Math.min(220, (innerWidth * innerHeight) / 9000));
+  while (neve.flocos.length < alvo) neve.flocos.push(neveFloco(false));
+  neve.flocos.length = alvo; neveMedir();
+  const n = Math.ceil(innerWidth / NEVE_COL) + 1, velho = neve.chao; neve.chao = new Float32Array(n);
+  for (let i = 0; i < n; i++) neve.chao[i] = velho[Math.min(velho.length - 1, Math.round(i * velho.length / n))] || 0;
+}
+function nevePasso(t) {
+  neve.raf = requestAnimationFrame(nevePasso);
+  const dt = Math.min(3, (t - (neve.ultimo || t)) / 16.7 || 1); neve.ultimo = t;
+  if (t - neve.medido > 400) { neveMedir(); neve.medido = t; }
+  const cx = neve.cx, w = innerWidth, h = innerHeight, R = neve.rato, claro = !temaEscuro();
+  R.vx *= 0.9; R.vy *= 0.9;
+  cx.clearRect(0, 0, w, h);
+  cx.fillStyle = claro ? "#f4f8fd" : "#fff"; cx.shadowColor = claro ? "rgba(40,70,115,.85)" : "rgba(255,255,255,.35)"; cx.shadowBlur = claro ? 4 : 4;
+  for (const f of neve.flocos) {
+    f.fase += 0.012 * dt * f.osc;
+    const dx = f.x - R.x, dy = f.y - R.y, d2 = dx * dx + dy * dy;
+    if (d2 < 110 * 110) { // perto do rato: afasta-se e é levado pelo movimento
+      const d = Math.sqrt(d2) || 1, k = (1 - d / 110);
+      f.vx += (dx / d) * k * 0.9 * dt + R.vx * k * 0.08; f.vy += (dy / d) * k * 0.5 * dt + R.vy * k * 0.05;
+    }
+    f.vx *= 0.96; f.vy += ((0.35 + f.r * 0.32) - f.vy) * 0.03 * dt;
+    f.x += (f.vx + Math.sin(f.fase) * 0.45 * f.osc) * dt; f.y += f.vy * dt;
+    // pousa em cima de uma caixa e junta-se ao monte dessa caixa
+    if (f.vy > 0) for (const c of neve.caixas) {
+      if (f.x <= c.left || f.x >= c.right) continue;
+      const i = Math.round((f.x - c.left) / NEVE_CX_COL), m = c.m, sup = c.top - m[i];
+      if (f.y >= sup && f.y - f.vy * dt < sup + 2) {
+        const add = f.r * 0.5;
+        if (m[i] < NEVE_CX_MAX) { m[i] += add; if (i > 0) m[i - 1] += add * 0.35; if (i < m.length - 1) m[i + 1] += add * 0.35; }
+        f.extra ? (f.morto = true) : Object.assign(f, neveFloco(true), { y: -10 });
+        break;
+      }
+    }
+    const col = Math.max(0, Math.min(neve.chao.length - 1, Math.round(f.x / NEVE_COL)));
+    if (f.vy > 0 && f.y >= h - neve.chao[col]) { // chega ao monte do fundo
+      const add = f.r * 0.55;
+      if (neve.chao[col] < NEVE_MAX) { neve.chao[col] += add; if (col > 0) neve.chao[col - 1] += add * 0.4; if (col < neve.chao.length - 1) neve.chao[col + 1] += add * 0.4; }
+      f.extra ? (f.morto = true) : Object.assign(f, neveFloco(true), { y: -10 });
+    }
+    if (f.y > h + 10 || f.x < -30 || f.x > w + 30) f.extra ? (f.morto = true) : Object.assign(f, neveFloco(true), { y: -10 });
+    cx.globalAlpha = f.a; cx.beginPath(); cx.arc(f.x, f.y, f.r, 0, 6.283); cx.fill();
+  }
+  // montes das caixas: escorregam, caem pelas pontas, derretem devagar e o rato arrasta-os
+  const velR = Math.hypot(R.vx, R.vy);
+  for (const c of neve.caixas) {
+    const m = c.m, n = m.length;
+    for (let i = 1; i < n; i++) { const d = m[i] - m[i - 1]; if (Math.abs(d) > 1.6) { const q = d * 0.25; m[i] -= q; m[i - 1] += q; } }
+    for (const i of [0, n - 1]) if (m[i] > 2.5) { // cai pela ponta da caixa
+      const sobra = m[i] - 2.5; m[i] = 2.5;
+      if (Math.random() < sobra * 0.8 && neve.flocos.length < 460) { const f = neveFloco(false); Object.assign(f, { extra: true, x: c.left + (i ? c.w + 2 : -2), y: c.top - 2, r: 1 + Math.random() * 1.6, vx: (i ? 1 : -1) * (0.4 + Math.random()), vy: 0.6 }); neve.flocos.push(f); }
+    }
+    for (let i = 0; i < n; i++) m[i] = Math.max(0, m[i] - 0.0006 * dt);
+    if (R.x > c.left - 10 && R.x < c.right + 10 && velR > 1) {
+      const c0 = Math.round((R.x - c.left) / NEVE_CX_COL), raio = 7;
+      for (let i = Math.max(0, c0 - raio); i <= Math.min(n - 1, c0 + raio); i++) {
+        const sup = c.top - m[i]; if (m[i] < 0.6 || R.y < sup - 22 || R.y > c.top + 16) continue;
+        const tira = Math.min(m[i], (0.7 + velR * 0.14) * dt * (1 - Math.abs(i - c0) / (raio + 1)));
+        m[i] -= tira;
+        // parte da neve é empurrada para o lado, o resto é atirada pelo ar
+        const lado = Math.sign(R.vx) || 1, j = i + lado * (2 + Math.round(Math.random() * 3));
+        if (j >= 0 && j < n && Math.random() < 0.5) m[j] += tira * 0.6;
+        else if (Math.random() < tira * 0.45 && neve.flocos.length < 460) {
+          const f = neveFloco(false);
+          Object.assign(f, { extra: true, x: c.left + i * NEVE_CX_COL, y: sup, r: 1 + Math.random() * 1.8, vx: lado * (1.5 + Math.random() * 2.5) + R.vx * 0.2, vy: -(1.5 + Math.random() * 2.5) });
+          neve.flocos.push(f);
+        }
+      }
+    }
+    // desenho: um monte com contorno suave e sombra por baixo
+    cx.globalAlpha = 1; cx.beginPath(); cx.moveTo(c.left, c.top + 1);
+    for (let i = 0; i < n; i++) cx.lineTo(Math.min(c.right, c.left + i * NEVE_CX_COL), c.top + 1 - m[i]);
+    cx.lineTo(c.right, c.top + 1); cx.closePath();
+    cx.shadowColor = claro ? "rgba(40,70,115,.35)" : "rgba(0,0,0,.45)"; cx.shadowBlur = 5; cx.shadowOffsetY = 1;
+    cx.fillStyle = claro ? "#fbfdff" : "#eef3f8"; cx.fill(); cx.shadowOffsetY = 0;
+  }
+  // monte do fundo: escorrega para os lados, derrete muito devagar e a pá (o rato) tira neve e atira-a
+  const ch = neve.chao, n = ch.length;
+  for (let i = 1; i < n; i++) { const d = ch[i] - ch[i - 1]; if (Math.abs(d) > 2.2) { const m = d * 0.22; ch[i] -= m; ch[i - 1] += m; } }
+  for (let i = 0; i < n; i++) ch[i] = Math.max(0, ch[i] - 0.0008 * dt);
+  const vel = Math.hypot(R.vx, R.vy);
+  if (R.x > -900 && vel > 1.2) {
+    const c0 = Math.round(R.x / NEVE_COL), raio = 6;
+    for (let i = Math.max(0, c0 - raio); i <= Math.min(n - 1, c0 + raio); i++) {
+      const topo = h - ch[i]; if (ch[i] < 1 || R.y < topo - 26) continue;
+      const tira = Math.min(ch[i], (0.9 + vel * 0.12) * dt * (1 - Math.abs(i - c0) / (raio + 1)));
+      ch[i] -= tira;
+      if (Math.random() < tira * 0.35 && neve.flocos.length < 420) {
+        const f = neveFloco(false); const dir = R.vx === 0 ? (Math.random() - 0.5) : Math.sign(R.vx);
+        Object.assign(f, { extra: true, x: i * NEVE_COL, y: topo, r: 1.2 + Math.random() * 2, vx: dir * (2 + Math.random() * 3) + R.vx * 0.25, vy: -(2.5 + Math.random() * 3.5) - Math.min(4, vel * 0.15) });
+        neve.flocos.push(f);
+      }
+    }
+  }
+  if (neve.flocos.some((f) => f.morto)) neve.flocos = neve.flocos.filter((f) => !f.morto);
+  cx.globalAlpha = 1; cx.beginPath(); cx.moveTo(0, h);
+  for (let i = 0; i < n; i++) cx.lineTo(i * NEVE_COL, h - ch[i]);
+  cx.lineTo(w, h); cx.closePath();
+  cx.shadowColor = claro ? "rgba(70,100,140,.45)" : "rgba(0,0,0,.5)"; cx.shadowBlur = 8; cx.fillStyle = claro ? "#fbfdff" : "#eef3f8"; cx.fill();
+  cx.shadowColor = claro ? "rgba(40,70,115,.85)" : "rgba(255,255,255,.35)"; cx.shadowBlur = 4; cx.fillStyle = claro ? "#f4f8fd" : "#fff";
+  cx.globalAlpha = 1;
+}
+function neveAplicar() {
+  const quer = epocaNeve() && neveLigada() && est.user;
+  $("btnNeve").setAttribute("aria-pressed", String(!!quer)); $("btnNeve").textContent = quer ? "Modo Natal: ligado" : "Modo Natal";
+  $("btnNeve").title = quer ? "Desligar a neve e as luzes" : "Ligar a neve e as luzes de Natal";
+  document.body.classList.toggle("com-neve", !!quer); luzesAplicar(!!quer); fundoNoEcra();
+  if (quer && !neve.on) {
+    neve.on = true;
+    neve.cv = document.createElement("canvas"); neve.cv.className = "neve-cv"; neve.cv.setAttribute("aria-hidden", "true");
+    document.body.appendChild(neve.cv); neve.cx = neve.cv.getContext("2d"); neve.flocos = []; neve.pousados = [];
+    neveTamanho();
+    if (!matchMedia("(prefers-reduced-motion: reduce)").matches) neve.raf = requestAnimationFrame(nevePasso);
+  } else if (!quer && neve.on) {
+    neve.on = false; cancelAnimationFrame(neve.raf); neve.cv.remove(); neve.cv = null;
+  }
+}
+addEventListener("resize", () => { if (neve.on) neveTamanho(); });
+addEventListener("scroll", () => { if (neve.on) neveMedir(); }, { passive: true });
+addEventListener("pointermove", (e) => {
+  const R = neve.rato, t = performance.now(), dt = Math.max(8, t - R.t);
+  if (R.t && t - R.t < 100) { R.vx = R.vx * 0.5 + ((e.clientX - R.x) / dt) * 16 * 0.5; R.vy = R.vy * 0.5 + ((e.clientY - R.y) / dt) * 16 * 0.5; }
+  R.x = e.clientX; R.y = e.clientY; R.t = t;
+}, { passive: true });
+document.addEventListener("pointerleave", () => { neve.rato.x = neve.rato.y = -999; });
+addEventListener("pointerdown", (e) => { // um clique solta um punhado de neve
+  if (!neve.on || e.target.closest("input,select,textarea")) return;
+  for (let i = 0; i < 14; i++) { const f = neveFloco(false), a = Math.random() * 6.283, v = 1 + Math.random() * 2.5;
+    Object.assign(f, { extra: true, x: e.clientX, y: e.clientY, vx: Math.cos(a) * v, vy: Math.sin(a) * v - 1 }); neve.flocos.push(f); }
+}, { passive: true });
+$("btnNeve").addEventListener("click", () => { try { localStorage.setItem(NEVE_KEY, neveLigada() ? "0" : "1"); } catch {} neveAplicar(); });
+
+// Luzes de Natal: um fio de lâmpadas a piscar por baixo do cabeçalho e outro pendurado em cada caixa
+const LUZ_CORES = ["#e53935", "#fbc02d", "#43a047", "#1e88e5", "#ec407a", "#ff8f00"];
+function luzesFio(largura, vao = 150, queda = 16, desvio = 0) {
+  const n = Math.max(1, Math.round(largura / vao)), passo = largura / n;
+  let d = "M0 2", lamp = "", k = desvio;
+  for (let i = 0; i < n; i++) {
+    const x0 = i * passo, x1 = x0 + passo;
+    d += ` Q${(x0 + x1) / 2} ${2 + queda * 2} ${x1} 2`;
+    const porVao = Math.max(3, Math.round(passo / 34));
+    for (let j = 1; j < porVao; j++) {
+      const t = j / porVao, x = x0 + passo * t, y = 2 + queda * 2 * 2 * t * (1 - t) * 1; // ponto na curva
+      const cor = LUZ_CORES[k++ % LUZ_CORES.length], ang = (t - 0.5) * 50, atraso = ((k * 0.37) % 2.4).toFixed(2);
+      lamp += `<g transform="translate(${x.toFixed(1)} ${y.toFixed(1)}) rotate(${ang.toFixed(0)})"><rect x="-2.6" y="0" width="5.2" height="4" rx="1" fill="#3d4a3d"/>`
+        + `<ellipse class="luz" style="--c:${cor};animation-delay:-${atraso}s" cx="0" cy="10" rx="4.6" ry="7" fill="${cor}"/></g>`;
+    }
+  }
+  return `<svg width="${largura}" height="${queda * 2 + 22}" viewBox="0 0 ${largura} ${queda * 2 + 22}" aria-hidden="true"><path d="${d}" fill="none" stroke="#2f3b2f" stroke-width="1.6"/>${lamp}</svg>`;
+}
+let luzesLig = false, luzesLargs = new WeakMap();
+function luzesDesenhar() {
+  if (!luzesLig) return;
+  const cab = document.querySelector(".cabeca");
+  if (cab) {
+    let f = cab.querySelector(":scope > .luzes-cab");
+    if (!f) { f = document.createElement("div"); f.className = "luzes luzes-cab"; cab.appendChild(f); }
+    if (luzesLargs.get(f) !== cab.clientWidth) { luzesLargs.set(f, cab.clientWidth); f.innerHTML = luzesFio(cab.clientWidth, 170, 9); }
+  }
+  document.querySelectorAll("main .panel, .equipa-hoje").forEach((p, i) => {
+    if (!p.offsetParent) return;
+    let f = p.querySelector(":scope > .luzes-cx");
+    if (!f) { f = document.createElement("div"); f.className = "luzes luzes-cx"; p.prepend(f); }
+    const w = p.clientWidth - 24;
+    if (luzesLargs.get(f) !== w) { luzesLargs.set(f, w); f.innerHTML = luzesFio(w, 210, 8, i * 2); }
+  });
+}
+function luzesAplicar(lig) {
+  luzesLig = lig;
+  if (!lig) { document.querySelectorAll(".luzes").forEach((e) => e.remove()); luzesLargs = new WeakMap(); return; }
+  luzesDesenhar();
+}
+setInterval(() => { if (luzesLig) luzesDesenhar(); }, 1500);
+addEventListener("resize", () => { if (luzesLig) luzesDesenhar(); });
+
+// Aviso do Modo Natal: aparece uma vez por conta, na época, depois de qualquer outra pergunta que esteja aberta
+async function avisoNatal(k) {
+  if (!epocaNeve() || neveLigada()) return;
+  try { if ((await fb.D.get(fb.D.ref(fb.db, `${COL_AVISOS}/${k}/natal2026`))).val()) return; } catch { return; }
+  if (chaveFundo() !== k) return;
+  const abrir = () => { $("dlgNatalT").textContent = `Novidade: Modo Natal`; if (!$("dlgNatal").open) $("dlgNatal").showModal(); };
+  if ($("dlgFundo").open) $("dlgFundo").addEventListener("close", () => setTimeout(abrir, 300), { once: true }); else abrir();
+}
+function natalVisto() { const k = chaveFundo(); if (k && fb) fb.D.set(fb.D.ref(fb.db, `${COL_AVISOS}/${k}/natal2026`), new Date().toISOString()).catch(() => {}); }
+$("natalSim").addEventListener("click", () => { try { localStorage.setItem(NEVE_KEY, "1"); } catch {} natalVisto(); $("dlgNatal").close(); neveAplicar(); });
+$("natalNao").addEventListener("click", () => { natalVisto(); $("dlgNatal").close(); });
+$("dlgNatal").addEventListener("cancel", () => natalVisto());

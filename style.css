@@ -1024,3 +1024,19 @@ body.com-fundo.transp.transp-alta :is(.panel,.equipa-hoje) :is(.card,.tile,.ct,.
 .mapa-main strong{overflow-wrap:normal;word-break:normal}
 .mapa-acts{justify-content:flex-start;flex-wrap:wrap;gap:6px}
 .mapa-acts .btn + .btn{margin-left:0}
+
+/* Neve de Natal */
+.neve-cv{position:fixed;inset:0;width:100vw;height:100vh;pointer-events:none;z-index:60}
+body.com-neve :is(main .panel,.equipa-hoje){position:relative}
+#btnNeve[aria-pressed="true"]{box-shadow:inset 0 0 0 2px #e53935}
+.luzes{pointer-events:none;line-height:0}
+.luzes-cab{position:absolute;left:0;right:0;bottom:-22px;z-index:3;overflow:hidden}
+.luzes-cx{position:absolute;left:12px;right:12px;top:4px;z-index:1;overflow:visible}
+body.com-neve :is(main .panel,.equipa-hoje){padding-top:42px}
+.luz{animation:luz-pisca 2.4s ease-in-out infinite;filter:drop-shadow(0 0 3px var(--c)) drop-shadow(0 0 7px var(--c))}
+@keyframes luz-pisca{0%,100%{opacity:1}45%{opacity:.35;filter:none}55%{opacity:.4;filter:none}}
+@media (prefers-reduced-motion: reduce){.luz{animation:none}}
+.dlg-natal{max-width:460px;border:0;border-radius:16px;padding:22px 22px 18px;background:var(--surface);color:var(--ink);box-shadow:0 20px 60px rgba(0,0,0,.35);border-top:5px solid #c62828}
+.dlg-natal h2{margin:0 0 8px;font-size:20px}
+.dlg-natal::backdrop{background:rgba(10,20,40,.45)}
+.dlg-natal .dlg-acoes{display:flex;justify-content:flex-end;gap:8px;margin-top:14px}

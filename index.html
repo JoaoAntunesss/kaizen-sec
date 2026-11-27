@@ -27,6 +27,7 @@
     <button class="btn small primary desk" id="btnNovaTop" type="button" hidden>Registar reunião</button>
     <span class="quem-sou" id="quemSou" hidden></span>
     <button class="btn small ghost" id="btnFundo" type="button" hidden>Fundo</button>
+    <button class="btn small ghost" id="btnNeve" type="button" aria-pressed="false" hidden>Modo Natal</button>
     <button class="btn small" id="btnInstalar" type="button" hidden>Instalar app</button>
     <button class="btn small ghost" id="btnSair" type="button" hidden>Sair</button>
   </div>
@@ -727,6 +728,12 @@
   <label class="mr-vol"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2 6h3l4-3v10L5 10H2z"/><path d="M11 5.5a3.5 3.5 0 0 1 0 5" fill="none" stroke="currentColor" stroke-width="1.4"/></svg><input type="range" id="mrVol" min="0" max="1" step="0.01" aria-label="Volume"></label>
   <button type="button" id="mrFechar" class="mr-x" aria-label="Desligar a rádio"><svg viewBox="0 0 16 16"><path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" stroke-width="1.8" fill="none" stroke-linecap="round"/></svg></button>
 </div>
+<dialog id="dlgNatal" class="dlg-natal" aria-labelledby="dlgNatalT">
+  <h2 id="dlgNatalT">Novidade: Modo Natal</h2>
+  <p id="dlgNatalTxt">Já pode ligar o Modo Natal: neve a cair, que se acumula em cima das caixas e no fundo do ecrã e que pode afastar com o rato; luzes de Natal a piscar; e um fundo de Natal.</p>
+  <p class="muted small">Liga e desliga no botão «Modo Natal», no topo, e só afeta este computador. Ao desligar, volta o seu fundo (ou nenhum, se não tinha).</p>
+  <div class="dlg-acoes"><button class="btn ghost" id="natalNao" type="button">Agora não</button><button class="btn primary" id="natalSim" type="button">Ligar agora</button></div>
+</dialog>
 <dialog id="dlgFundo" class="dlg-fundo" aria-labelledby="dlgFundoT">
   <form method="dialog" class="dlg-in">
     <h2 id="dlgFundoT">Imagem de fundo</h2>

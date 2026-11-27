@@ -758,6 +758,7 @@ const linkEdoc = (s) => { try { const u = new URL(String(s || "").trim()); retur
 const linkDe = (u) => linkEdoc(u.link);
 const prioDe = (u) => (u.prio >= 1 && u.prio <= 3 ? +u.prio : 2);
 const DEVOLVIDO = "Por corrigir";
+const POR_ENVIAR = "Por enviar"; // ofício assinado pela chefia, volta a quem o fez para o enviar
 const DEVOLVIDO_ANTIGO = "Devolvido para correção"; // nome antigo da mesma situação
 // Só quem assina os ofícios (a chefia) pode devolver e marcar como tratado. Reconhece-se pela conta Google com que entrou;
 // guarda-se só o resumo (SHA-256) do email, para o email não ficar à vista no código público.
@@ -782,7 +783,7 @@ const CONTAS = {
   "2830d5b00080ae8887d317fa216ccd1ba3b0038e7eea257381e3079962807623": { nome: "Carlos Ribeiro" },
 };
 const POR_INFORMAR = "Por informar ou encaminhar", POR_REGISTAR = "Por registar";
-const SITUACOES = ["Por oficiar", POR_INFORMAR, POR_REGISTAR, "Ofício por assinar", DEVOLVIDO, "Aguarda informação (em prazo)", "Suspenso", "Aguarda execução", "Aguarda entidade externa", "Em análise técnica", "Outro"];
+const SITUACOES = ["Por oficiar", POR_INFORMAR, POR_REGISTAR, "Ofício por assinar", DEVOLVIDO, POR_ENVIAR, "Aguarda informação (em prazo)", "Suspenso", "Aguarda execução", "Aguarda entidade externa", "Em análise técnica", "Outro"];
 let urgFiltro = "";
 const diasDesde = (iso) => { const d = new Date(iso); return isNaN(d) ? null : Math.max(0, Math.floor((Date.now() - d) / 864e5)); };
 const quem = () => (est.user && (est.user.displayName || est.user.email)) || "";
@@ -819,6 +820,7 @@ function itemUrg(u, feito) {
     u.resp ? `<span class="chip">${esc(u.resp)}</span>` : "",
     isoData(u.prazo) ? `<span class="chip ${atraso ? "late" : prazoHoje ? "warn" : ""}">${atraso ? "Em atraso · " : prazoHoje ? "Hoje · " : "Prazo "}${esc(fmt(u.prazo))}</span>` : "",
     !feito && u.situacao === DEVOLVIDO && u.devolucao ? `<span class="chip late urg-dev">Devolvido${u.devolucao.para ? ` a ${esc(u.devolucao.para)}` : ""} por ${esc(u.devolucao.por || "")} a ${esc(quando(u.devolucao.em))}${u.devolucao.motivo ? ` · Corrigir: ${esc(u.devolucao.motivo)}` : ""}</span>` : "",
+    !feito && u.situacao === POR_ENVIAR && u.assinado ? `<span class="chip ok urg-dev">Assinado por ${esc(u.assinado.por || "")} a ${esc(quando(u.assinado.em))} · por enviar</span>` : "",
     !feito && u.devolucoes ? `<span class="chip none">${u.devolucoes} devoluç${u.devolucoes === 1 ? "ão" : "ões"}</span>` : "",
     !feito && dsit !== null ? `<span class="chip ${dsit > 7 ? "late" : "none"}">${dsit === 0 ? "nesta situação desde hoje" : `há ${dsit} dia${dsit === 1 ? "" : "s"} nesta situação`}</span>` : "",
   ].join("");
@@ -831,8 +833,9 @@ function itemUrg(u, feito) {
     : `${!feito && u.situacao === "Suspenso" ? `<button class="btn small ok" type="button" data-urg="arquivar-suspenso" data-id="${esc(u.id)}" title="As nossas etapas terminaram: fica tratado e arquivado">Feito · arquivar</button>` : ""}
        ${!feito && ehInformar(u) && podeFecharInformar(u) ? `<button class="btn small ok" type="button" data-urg="feito-arquivar" data-id="${esc(u.id)}">Feito · arquivar</button>` : ""}
        ${est.assina && u.situacao !== DEVOLVIDO && !ehInformar(u) ? `<button class="btn small ${u.situacao === "Ofício por assinar" ? "primary" : "ghost"}" type="button" data-urg="devolver" data-id="${esc(u.id)}">Devolver</button>` : ""}
+       ${u.situacao === POR_ENVIAR ? `<button class="btn small ok" type="button" data-urg="enviado" data-id="${esc(u.id)}" title="O ofício assinado já foi enviado: fica tratado e arquivado">Enviado · arquivar</button>` : ""}
        ${u.situacao === DEVOLVIDO ? `<button class="btn small primary" type="button" data-urg="reenviar" data-id="${esc(u.id)}">Reenviar para assinatura</button>` : ""}
-       ${ehInformar(u) ? "" : est.assina ? `<button class="btn small ok" type="button" data-urg="tratado" data-id="${esc(u.id)}">Marcar como tratado</button>` : `<span class="urg-aguarda">${u.situacao === "Ofício por assinar" ? `Aguarda ${esc(QUEM_ASSINA)}` : ""}</span>`}
+       ${ehInformar(u) || u.situacao === POR_ENVIAR ? "" : est.assina && u.situacao === "Ofício por assinar" ? `<button class="btn small ok" type="button" data-urg="assinado" data-id="${esc(u.id)}" title="Volta a quem fez o ofício, como «Por enviar»">Assinado · devolver para enviar</button>` : est.assina ? `<button class="btn small ok" type="button" data-urg="tratado" data-id="${esc(u.id)}">Marcar como tratado</button>` : `<span class="urg-aguarda">${u.situacao === "Ofício por assinar" ? `Aguarda ${esc(QUEM_ASSINA)}` : ""}</span>`}
        <button class="btn small ghost" type="button" data-urg="link" data-id="${esc(u.id)}">${linkDe(u) ? "Alterar link" : "Juntar link"}</button>
        <button class="btn small ghost danger" type="button" data-urg="apagar" data-id="${esc(u.id)}" aria-label="Apagar ${esc(u.edoc)}">Apagar</button>`;
   const p = prioDe(u);
@@ -878,11 +881,11 @@ function desenharUrgentes() {
   // Três colunas: o que está connosco, o que foi enviado para assinatura e o que está à espera de outros
   const colEnv = vis.filter((u) => u.situacao === "Ofício por assinar");
   const colEsp = vis.filter((u) => ESPERA.includes(u.situacao));
-  const colTrat = vis.filter((u) => !colEnv.includes(u) && !colEsp.includes(u)).sort((a, b) => (b.situacao === DEVOLVIDO) - (a.situacao === DEVOLVIDO));
+  const colTrat = vis.filter((u) => !colEnv.includes(u) && !colEsp.includes(u)).sort((a, b) => ([DEVOLVIDO, POR_ENVIAR].includes(b.situacao)) - ([DEVOLVIDO, POR_ENVIAR].includes(a.situacao)));
   const coluna = (cls, titulo, sub, l, vazio) => `<section class="urg-col ${cls}"><header class="urg-col-h"><div><b>${esc(titulo)}</b><span>${esc(sub)}</span></div><span class="urg-col-n">${l.length}</span></header>
     <div class="urg-col-b">${l.length ? l.map((u) => itemUrg(u, false)).join("") : `<p class="empty">${esc(vazio)}</p>`}</div></section>`;
   const puxa = (i) => `<div class="urg-puxa" data-puxa="${i}" role="separator" aria-orientation="vertical" title="Arraste para mudar a largura das colunas (duplo clique repõe)"></div>`;
-  $("urgLista").innerHTML = coluna("c-tratar", "Por tratar", "Connosco: oficiar, corrigir, informar ou registar", colTrat, "Nada por tratar.")
+  $("urgLista").innerHTML = coluna("c-tratar", "Por tratar", "Connosco: oficiar, corrigir, enviar, informar ou registar", colTrat, "Nada por tratar.")
     + puxa(0) + coluna("c-env", "Enviados para assinatura", `À espera de ${QUEM_ASSINA}`, colEnv, "Nenhum ofício à espera de assinatura.")
     + puxa(1) + coluna("c-esp", "Suspensos ou a aguardar informação", "Em prazo, à espera de resposta ou suspensos", colEsp, "Nada suspenso nem à espera de informação.");
   // tratados por arquivar ficam em «Tratados»; os arquivados passam para «Arquivados» (continuam no histórico)
@@ -1153,11 +1156,13 @@ $("vDiario").addEventListener("click", async (e) => {
   try {
     const uAntes = est.urgentes.find((x) => x.id === id);
     if (acao === "tratado") await fb.D.update(ref, { tratado: true, tratadoPor: euNome() || quem(), tratadoEm: new Date().toISOString() });
+    else if (acao === "assinado") { const p = euNome() || quem(), t = new Date().toISOString(); await fb.D.update(ref, { situacao: POR_ENVIAR, situacaoEm: t, situacaoPor: p, assinado: { por: p, em: t } }); }
+    else if (acao === "enviado") { const p = euNome() || quem(), t = new Date().toISOString(); await fb.D.update(ref, { tratado: true, tratadoPor: p, tratadoEm: t, enviadoPor: p, enviadoEm: t, arquivado: true, arquivadoPor: p, arquivadoEm: t }); }
     else if (acao === "feito-arquivar") { const p = euNome() || quem(), t = new Date().toISOString(); await fb.D.update(ref, { tratado: true, tratadoPor: p, tratadoEm: t, arquivado: true, arquivadoPor: p, arquivadoEm: t }); }
     else if (acao === "desfazer") await fb.D.update(ref, { tratado: false, tratadoPor: null, tratadoEm: null, arquivado: null, arquivadoPor: null, arquivadoEm: null });
     else if (acao === "apagar") await fb.D.remove(ref);
     if (acao === "apagar" && uAntes) { const { id: _i, ...copia } = uAntes; regHist(uAntes, "Apagado", { copia: JSON.stringify(copia) }); return; }
-    regHist(uAntes, { tratado: "Tratado", "feito-arquivar": uAntes && tipoSemOficio(uAntes) === "registar" ? "Tratado (registado) e arquivado" : "Tratado (informado ou encaminhado) e arquivado", desfazer: "Tratado desfeito (voltou aos urgentes)", apagar: "Apagado" }[acao]);
+    regHist(uAntes, { tratado: "Tratado", "feito-arquivar": uAntes && tipoSemOficio(uAntes) === "registar" ? "Tratado (registado) e arquivado" : "Tratado (informado ou encaminhado) e arquivado", desfazer: "Tratado desfeito (voltou aos urgentes)", apagar: "Apagado", assinado: "Assinado, por enviar", enviado: "Enviado e arquivado" }[acao]);
   } catch { st.textContent = "Não consegui guardar. Verifique a internet."; st.className = "status err"; b.disabled = false; }
 });
 
@@ -1180,7 +1185,7 @@ function regHist(u, acao, extra = {}) {
   fb.D.set(fb.D.push(fb.D.ref(fb.db, COL_HIST)), { uid: u.id || "", edoc: u.edoc || "", assunto: String(u.assunto || "").slice(0, 200), prio: prioDe(u), link: u.link || "",
     acao, por: euNome() || quem(), em: new Date().toISOString(), ...extra }).catch(() => {});
 }
-const TIPO_HIST = (a) => /devolvid/i.test(a) ? "dev" : /desfeito/i.test(a) ? "outro" : /tratad/i.test(a) ? "trat" : /assinatura/i.test(a) ? "env" : "outro";
+const TIPO_HIST = (a) => /devolvid/i.test(a) ? "dev" : /desfeito/i.test(a) ? "outro" : /tratad|enviado e arquivado/i.test(a) ? "trat" : /assinatura/i.test(a) ? "env" : "outro";
 function eventosHist() {
   const ev = [...est.hist];
   const comLog = new Set(ev.map((h) => h.uid));
@@ -1417,6 +1422,8 @@ function verificarAvisos(lista) {
       const paraMim = fuiEu(u.devolucao && u.devolucao.para) || (!(u.devolucao && u.devolucao.para) && meu(u));
       if ((notifPref.muito || paraMim) && !(notifPref.meu && minha(u)))
         enviar(u, fuiEu(u.devolucao && u.devolucao.para) ? "Ofício devolvido para si corrigir" : "Ofício devolvido para correção", [u.devolucao && u.devolucao.por ? "por " + u.devolucao.por : "", u.devolucao && u.devolucao.motivo].filter(Boolean).join(": "));
+    } else if (u.situacao === POR_ENVIAR) {
+      if (minha(u) && !notifPref.meu) enviar(u, "Ofício assinado, por enviar", u.situacaoPor ? "assinado por " + u.situacaoPor : "");
     } else if (u.situacao === "Ofício por assinar" && notifPref.assinar)
       enviar(u, sitAntes === DEVOLVIDO ? "Ofício corrigido, reenviado para assinatura" : "Ofício por assinar", u.situacaoPor ? "por " + u.situacaoPor : "");
   });

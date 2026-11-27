@@ -1346,7 +1346,14 @@ function guardarNotifHist(titulo, corpo, filtro, url) {
   try { localStorage.setItem(NOTIF_HIST_KEY, JSON.stringify(notifHist)); } catch {}
   desenharNotifHist();
 }
+// Número no ícone da app: a quem assina, os ofícios por assinar; aos outros, as notificações por ler
+let badgePorAssinar = 0;
+function atualizarBadge() {
+  const n = est.conta === QUEM_ASSINA ? badgePorAssinar : notifHist.filter((x) => !x.lida).length;
+  try { if (navigator.setAppBadge) n ? navigator.setAppBadge(n) : navigator.clearAppBadge(); } catch {}
+}
 function desenharNotifHist() {
+  atualizarBadge();
   const novas = notifHist.filter((n) => !n.lida).length;
   $("notifNovas").textContent = novas ? `${novas} nova${novas === 1 ? "" : "s"}` : ""; $("notifNovas").hidden = !novas;
   $("notifHistLista").innerHTML = notifHist.length ? notifHist.map((n, i) => {
@@ -1377,7 +1384,7 @@ function verificarAvisos(lista) {
   const agora = {};
   lista.forEach((u) => { agora[u.id] = `${u.situacao || ""}|${u.tratado ? 1 : 0}|${prioDe(u)}|${u.situacaoEm || ""}`; });
   const porAssinar = lista.filter((u) => !u.tratado && u.situacao === "Ofício por assinar").length;
-  try { if (navigator.setAppBadge) porAssinar ? navigator.setAppBadge(porAssinar) : navigator.clearAppBadge(); } catch {}
+  badgePorAssinar = porAssinar; atualizarBadge();
   if (avisosVistos === null) { avisosVistos = agora; return; } // primeira leitura: não avisar do que já existia
   const eus = new Set([euNome(), quem()].filter(Boolean));
   const fuiEu = (n) => n && eus.has(n);
